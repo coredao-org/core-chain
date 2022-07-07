@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package parlia
+package satoshi
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ import (
 
 // Snapshot is the state of the validatorSet at a given point.
 type Snapshot struct {
-	config   *params.ParliaConfig // Consensus engine parameters to fine tune behavior
+	config   *params.SatoshiConfig // Consensus engine parameters to fine tune behavior
 	ethAPI   *ethapi.PublicBlockChainAPI
 	sigCache *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
 
@@ -50,7 +50,7 @@ type Snapshot struct {
 // method does not initialize the set of recent validators, so only ever use it for
 // the genesis block.
 func newSnapshot(
-	config *params.ParliaConfig,
+	config *params.SatoshiConfig,
 	sigCache *lru.ARCCache,
 	number uint64,
 	hash common.Hash,
@@ -81,8 +81,8 @@ func (s validatorsAscending) Less(i, j int) bool { return bytes.Compare(s[i][:],
 func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // loadSnapshot loads an existing snapshot from the database.
-func loadSnapshot(config *params.ParliaConfig, sigCache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
-	blob, err := db.Get(append([]byte("parlia-"), hash[:]...))
+func loadSnapshot(config *params.SatoshiConfig, sigCache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
+	blob, err := db.Get(append([]byte("satoshi-"), hash[:]...))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (s *Snapshot) store(db ethdb.Database) error {
 	if err != nil {
 		return err
 	}
-	return db.Put(append([]byte("parlia-"), s.Hash[:]...), blob)
+	return db.Put(append([]byte("satoshi-"), s.Hash[:]...), blob)
 }
 
 // copy creates a deep copy of the snapshot

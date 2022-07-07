@@ -408,7 +408,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// usually do have two tx, one for validator set contract, another for system reward contract.
 	systemTxs := make([]*types.Transaction, 0, 2)
-	for i, tx := range block.Transactions() {
+	for _, tx := range block.Transactions() {
 		if isPoSA {
 			if isSystemTx, err := posa.IsSystemTransaction(tx, block.Header()); err != nil {
 				return statedb, nil, nil, 0, err
@@ -417,7 +417,17 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 				continue
 			}
 		}
-
+	}
+	err := p.engine.BeforeValidateTx(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
+	if err != nil {
+		return statedb, receipts, allLogs, *usedGas, err
+	}
+	for i, tx := range block.Transactions() {
+		if isPoSA {
+			if isSystemTx, _ := posa.IsSystemTransaction(tx, block.Header()); isSystemTx {
+				continue
+			}
+		} 
 		msg, err := tx.AsMessage(signer)
 		if err != nil {
 			return statedb, nil, nil, 0, err
@@ -434,7 +444,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	bloomProcessors.Close()
 
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	err := p.engine.Finalize(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
+	err = p.engine.Finalize(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
 	if err != nil {
 		return statedb, receipts, allLogs, *usedGas, err
 	}

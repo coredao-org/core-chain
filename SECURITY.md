@@ -2,11 +2,11 @@
 
 ## Supported Versions
 
-Please see [Releases](https://github.com/binance-chain/bsc/releases). We recommend using the [most recently released version](https://github.com/binance-chain/bsc/releases/latest).
+Please see [Releases](). We recommend using the [most recently released version]().
 
 ## Audit reports
 
-Audit reports are published in the `docs` folder: https://github.com/binance-chain/bsc/tree/master/docs/audits 
+Audit reports are published in the `docs` folder: [audit reports](). 
 
 | Scope | Date | Report Link |
 | ------- | ------- | ----------- |
@@ -17,6 +17,6 @@ Audit reports are published in the `docs` folder: https://github.com/binance-cha
 
 **Please do not file a public ticket** mentioning the vulnerability.
 
-To find out how to disclose a vulnerability in Ethereum visit [https://bugcrowd.com/binance](https://bugcrowd.com/binance) or email bounty@ethereum.org. Please read the [disclosure page](https://github.com/binance-chain/bsc/security/advisories) for more information about publicly disclosed security vulnerabilities.
+To find out how to disclose a vulnerability in Ethereum visit [https://bugcrowd.com/core](https://bugcrowd.com/core) or email bounty@ethereum.org. Please read the [disclosure page]() for more information about publicly disclosed security vulnerabilities.
 
 Use the built-in `geth version-check` feature to check whether the software is affected by any known vulnerability. This command will fetch the latest [`vulnerabilities.json`](https://geth.ethereum.org/docs/vulnerabilities/vulnerabilities.json) file which contains known security vulnerabilities concerning `geth`, and cross-check the data against its own version number.

@@ -1,4 +1,4 @@
-package parlia
+package satoshi
 
 import (
 	"bytes"
@@ -46,8 +46,9 @@ const (
 	inMemorySnapshots  = 128  // Number of recent snapshots to keep in memory
 	inMemorySignatures = 4096 // Number of recent block signatures to keep in memory
 
-	checkpointInterval = 1024        // Number of blocks after which to save the snapshot to the database
-	defaultEpochLength = uint64(100) // Default number of blocks of checkpoint to update validatorSet from contract
+	checkpointInterval   = 1024        // Number of blocks after which to save the snapshot to the database
+	defaultEpochLength   = uint64(100) // Default number of blocks of checkpoint to update validatorSet from contract
+    defaultRoundInterval = 86400       // Default number of seconds to turn round
 
 	extraVanity      = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraSeal        = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
@@ -57,15 +58,13 @@ const (
 	wiggleTime           = uint64(1) // second, Random delay (per signer) to allow concurrent signers
 	initialBackOffTime   = uint64(1) // second
 	processBackOffTime   = uint64(1) // second
-
-	systemRewardPercent = 4 // it means 1/2^4 = 1/16 percentage of gas fee incoming will be distributed to system
-
 )
 
 var (
-	uncleHash  = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
-	diffInTurn = big.NewInt(2)            // Block difficulty for in-turn signatures
-	diffNoTurn = big.NewInt(1)            // Block difficulty for out-of-turn signatures
+	CoreBlockReward = big.NewInt(3e+18)        // Block reward in wei for successfully mining a block
+	uncleHash       = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
+	diffInTurn      = big.NewInt(2)            // Block difficulty for in-turn signatures
+	diffNoTurn      = big.NewInt(1)            // Block difficulty for out-of-turn signatures
 	// 100 native token
 	maxSystemBalance = new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))
 
@@ -75,10 +74,11 @@ var (
 		common.HexToAddress(systemcontracts.SystemRewardContract):       true,
 		common.HexToAddress(systemcontracts.LightClientContract):        true,
 		common.HexToAddress(systemcontracts.RelayerHubContract):         true,
+		common.HexToAddress(systemcontracts.CandidateHubContract):       true,
 		common.HexToAddress(systemcontracts.GovHubContract):             true,
-		common.HexToAddress(systemcontracts.TokenHubContract):           true,
-		common.HexToAddress(systemcontracts.RelayerIncentivizeContract): true,
-		common.HexToAddress(systemcontracts.CrossChainContract):         true,
+		common.HexToAddress(systemcontracts.PledgeCandidateContract):    true,
+		common.HexToAddress(systemcontracts.BurnContract):               true,
+		common.HexToAddress(systemcontracts.FoundationContract):         true,
 	}
 )
 
@@ -177,23 +177,23 @@ func ecrecover(header *types.Header, sigCache *lru.ARCCache, chainId *big.Int) (
 	return signer, nil
 }
 
-// ParliaRLP returns the rlp bytes which needs to be signed for the parlia
+// SatoshiRLP returns the rlp bytes which needs to be signed for the satoshi
 // sealing. The RLP to sign consists of the entire header apart from the 65 byte signature
 // contained at the end of the extra data.
 //
 // Note, the method requires the extra data to be at least 65 bytes, otherwise it
 // panics. This is done to avoid accidentally using both forms (signature present
 // or not), which could be abused to produce different hashes for the same header.
-func ParliaRLP(header *types.Header, chainId *big.Int) []byte {
+func SatoshiRLP(header *types.Header, chainId *big.Int) []byte {
 	b := new(bytes.Buffer)
 	encodeSigHeader(b, header, chainId)
 	return b.Bytes()
 }
 
-// Parlia is the consensus engine of BSC
-type Parlia struct {
-	chainConfig *params.ChainConfig  // Chain config
-	config      *params.ParliaConfig // Consensus engine configuration parameters for parlia consensus
+// Satoshi is the consensus engine of Core Chain
+type Satoshi struct {
+	chainConfig *params.ChainConfig   // Chain config
+	config      *params.SatoshiConfig // Consensus engine configuration parameters for satoshi consensus
 	genesisHash common.Hash
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
@@ -211,24 +211,30 @@ type Parlia struct {
 	ethAPI          *ethapi.PublicBlockChainAPI
 	validatorSetABI abi.ABI
 	slashABI        abi.ABI
+	candidateHubABI abi.ABI
 
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
 }
 
-// New creates a Parlia consensus engine.
+// New creates a Satoshi consensus engine.
 func New(
 	chainConfig *params.ChainConfig,
 	db ethdb.Database,
 	ethAPI *ethapi.PublicBlockChainAPI,
 	genesisHash common.Hash,
-) *Parlia {
-	// get parlia config
-	parliaConfig := chainConfig.Parlia
+) *Satoshi {
+	// get satoshi config
+	satoshiConfig := chainConfig.Satoshi
 
 	// Set any missing consensus parameters to their defaults
-	if parliaConfig != nil && parliaConfig.Epoch == 0 {
-		parliaConfig.Epoch = defaultEpochLength
+	if satoshiConfig != nil {
+		if satoshiConfig.Epoch == 0 {
+			satoshiConfig.Epoch = defaultEpochLength
+		}
+		if satoshiConfig.Round == 0 {
+			satoshiConfig.Round = defaultRoundInterval
+		}
 	}
 
 	// Allocate the snapshot caches and create the engine
@@ -248,9 +254,13 @@ func New(
 	if err != nil {
 		panic(err)
 	}
-	c := &Parlia{
+	cABI, err := abi.JSON(strings.NewReader(candidateHubABI))
+	if err != nil {
+		panic(err)
+	}
+	c := &Satoshi{
 		chainConfig:     chainConfig,
-		config:          parliaConfig,
+		config:          satoshiConfig,
 		genesisHash:     genesisHash,
 		db:              db,
 		ethAPI:          ethAPI,
@@ -258,13 +268,14 @@ func New(
 		signatures:      signatures,
 		validatorSetABI: vABI,
 		slashABI:        sABI,
+		candidateHubABI: cABI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
 
 	return c
 }
 
-func (p *Parlia) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
+func (p *Satoshi) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
 	// deploy a contract
 	if tx.To() == nil {
 		return false, nil
@@ -279,7 +290,7 @@ func (p *Parlia) IsSystemTransaction(tx *types.Transaction, header *types.Header
 	return false, nil
 }
 
-func (p *Parlia) IsSystemContract(to *common.Address) bool {
+func (p *Satoshi) IsSystemContract(to *common.Address) bool {
 	if to == nil {
 		return false
 	}
@@ -287,19 +298,19 @@ func (p *Parlia) IsSystemContract(to *common.Address) bool {
 }
 
 // Author implements consensus.Engine, returning the SystemAddress
-func (p *Parlia) Author(header *types.Header) (common.Address, error) {
+func (p *Satoshi) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
-func (p *Parlia) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
+func (p *Satoshi) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	return p.verifyHeader(chain, header, nil)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers. The
 // method returns a quit channel to abort the operations and a results channel to
 // retrieve the async verifications (the order is that of the input slice).
-func (p *Parlia) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+func (p *Satoshi) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
 
@@ -321,7 +332,7 @@ func (p *Parlia) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*typ
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (p *Parlia) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (p *Satoshi) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	if header.Number == nil {
 		return errUnknownBlock
 	}
@@ -377,7 +388,7 @@ func (p *Parlia) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (p *Parlia) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (p *Satoshi) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -400,9 +411,9 @@ func (p *Parlia) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		return err
 	}
 
-	err = p.blockTimeVerifyForRamanujanFork(snap, header, parent)
-	if err != nil {
-		return err
+	// blockTimeVerify
+	if header.Time < parent.Time+p.config.Period+backOffTime(snap, header.Coinbase) {
+		return consensus.ErrFutureBlock
 	}
 
 	// Verify that the gas limit is <= 2^63-1
@@ -431,7 +442,7 @@ func (p *Parlia) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
-func (p *Parlia) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
+func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk for checkpoints
 	var (
 		headers []*types.Header
@@ -526,7 +537,7 @@ func (p *Parlia) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 
 // VerifyUncles implements consensus.Engine, always returning an error for any
 // uncles as this consensus mechanism doesn't permit uncles.
-func (p *Parlia) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
+func (p *Satoshi) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 	if len(block.Uncles()) > 0 {
 		return errors.New("uncles not allowed")
 	}
@@ -535,7 +546,7 @@ func (p *Parlia) VerifyUncles(chain consensus.ChainReader, block *types.Block) e
 
 // VerifySeal implements consensus.Engine, checking whether the signature contained
 // in the header satisfies the consensus protocol requirements.
-func (p *Parlia) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
+func (p *Satoshi) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
 	return p.verifySeal(chain, header, nil)
 }
 
@@ -543,7 +554,7 @@ func (p *Parlia) VerifySeal(chain consensus.ChainReader, header *types.Header) e
 // consensus protocol requirements. The method accepts an optional list of parent
 // headers that aren't yet part of the local blockchain to generate the snapshots
 // from.
-func (p *Parlia) verifySeal(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (p *Satoshi) verifySeal(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	// Verifying the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -594,7 +605,7 @@ func (p *Parlia) verifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
-func (p *Parlia) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	header.Coinbase = p.val
 	header.Nonce = types.BlockNonce{}
 
@@ -638,16 +649,48 @@ func (p *Parlia) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	header.Time = p.blockTimeForRamanujanFork(snap, header, parent)
+	header.Time = parent.Time + p.config.Period + backOffTime(snap, p.val)
 	if header.Time < uint64(time.Now().Unix()) {
 		header.Time = uint64(time.Now().Unix())
 	}
 	return nil
 }
 
+func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) (err error) {
+	cx := chainContext{Chain: chain, satoshi: p}
+	// If the block is the last one in a round, execute turn round to update the validator set.
+	if p.isRoundEnd(chain, header) {
+		// try turnRound
+		log.Trace("turn round", "block hash", header.Hash())
+		err = p.turnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+		if err != nil {
+			// it is possible that turn round failed.
+			log.Error("turn round failed", "block hash", header.Hash())
+		}
+	}
+	return
+}
+
+func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error)  {
+	cx := chainContext{Chain: chain, satoshi: p}
+	// If the block is the last one in a round, execute turn round to update the validator set.
+	if p.isRoundEnd(chain, header) {
+		// try turnRound
+		log.Trace("turn round", "block hash", header.Hash())
+		err = p.turnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true)
+		if err != nil {
+			// it is possible that turn round failed.
+			log.Error("turn round failed", "block hash", header.Hash())
+		}
+	}
+	return
+}
+
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
 	// warn if not in majority fork
 	number := header.Number.Uint64()
@@ -679,7 +722,7 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 		}
 	}
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	cx := chainContext{Chain: chain, parlia: p}
+	cx := chainContext{Chain: chain, satoshi: p}
 	if header.Number.Cmp(common.Big1) == 0 {
 		err := p.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false)
 		if err != nil {
@@ -700,7 +743,7 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 			err = p.slash(spoiledVal, state, header, cx, txs, receipts, systemTxs, usedGas, false)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
-				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
+				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "err", err.Error())
 			}
 		}
 	}
@@ -717,10 +760,10 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
-func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	cx := chainContext{Chain: chain, parlia: p}
+	cx := chainContext{Chain: chain, satoshi: p}
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
 	}
@@ -751,7 +794,7 @@ func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 			err = p.slash(spoiledVal, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
-				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
+				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "err", err.Error())
 			}
 		}
 	}
@@ -784,7 +827,7 @@ func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 
 // Authorize injects a private key into the consensus engine to mint new blocks
 // with.
-func (p *Parlia) Authorize(val common.Address, signFn SignerFn, signTxFn SignerTxFn) {
+func (p *Satoshi) Authorize(val common.Address, signFn SignerFn, signTxFn SignerTxFn) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -793,13 +836,8 @@ func (p *Parlia) Authorize(val common.Address, signFn SignerFn, signTxFn SignerT
 	p.signTxFn = signTxFn
 }
 
-func (p *Parlia) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
-	number := header.Number.Uint64()
-	snap, err := p.snapshot(chain, number-1, header.ParentHash, nil)
-	if err != nil {
-		return nil
-	}
-	delay := p.delayForRamanujanFork(snap, header)
+func (p *Satoshi) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
+	delay := time.Until(time.Unix(int64(header.Time), 0))
 	// The blocking time should be no more than half of period
 	half := time.Duration(p.config.Period) * time.Second / 2
 	if delay > half {
@@ -810,7 +848,7 @@ func (p *Parlia) Delay(chain consensus.ChainReader, header *types.Header) *time.
 
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
-func (p *Parlia) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
 
 	// Sealing the genesis block is not supported
@@ -850,12 +888,12 @@ func (p *Parlia) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 	}
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
-	delay := p.delayForRamanujanFork(snap, header)
+	delay := time.Until(time.Unix(int64(header.Time), 0))
 
 	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", val.Hex())
 
 	// Sign all the things!
-	sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeParlia, ParliaRLP(header, p.chainConfig.ChainID))
+	sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeSatoshi, SatoshiRLP(header, p.chainConfig.ChainID))
 	if err != nil {
 		return err
 	}
@@ -890,7 +928,7 @@ func (p *Parlia) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 	return nil
 }
 
-func (p *Parlia) shouldWaitForCurrentBlockProcess(chain consensus.ChainHeaderReader, header *types.Header, snap *Snapshot) bool {
+func (p *Satoshi) shouldWaitForCurrentBlockProcess(chain consensus.ChainHeaderReader, header *types.Header, snap *Snapshot) bool {
 	if header.Difficulty.Cmp(diffInTurn) == 0 {
 		return false
 	}
@@ -906,7 +944,7 @@ func (p *Parlia) shouldWaitForCurrentBlockProcess(chain consensus.ChainHeaderRea
 	return false
 }
 
-func (p *Parlia) EnoughDistance(chain consensus.ChainReader, header *types.Header) bool {
+func (p *Satoshi) EnoughDistance(chain consensus.ChainReader, header *types.Header) bool {
 	snap, err := p.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 	if err != nil {
 		return true
@@ -914,7 +952,7 @@ func (p *Parlia) EnoughDistance(chain consensus.ChainReader, header *types.Heade
 	return snap.enoughDistance(p.val, header)
 }
 
-func (p *Parlia) AllowLightProcess(chain consensus.ChainReader, currentHeader *types.Header) bool {
+func (p *Satoshi) AllowLightProcess(chain consensus.ChainReader, currentHeader *types.Header) bool {
 	snap, err := p.snapshot(chain, currentHeader.Number.Uint64()-1, currentHeader.ParentHash, nil)
 	if err != nil {
 		return true
@@ -925,11 +963,11 @@ func (p *Parlia) AllowLightProcess(chain consensus.ChainReader, currentHeader *t
 	return idx < 0
 }
 
-func (p *Parlia) IsLocalBlock(header *types.Header) bool {
+func (p *Satoshi) IsLocalBlock(header *types.Header) bool {
 	return p.val == header.Coinbase
 }
 
-func (p *Parlia) SignRecently(chain consensus.ChainReader, parent *types.Header) (bool, error) {
+func (p *Satoshi) SignRecently(chain consensus.ChainReader, parent *types.Header) (bool, error) {
 	snap, err := p.snapshot(chain, parent.Number.Uint64(), parent.ParentHash, nil)
 	if err != nil {
 		return true, err
@@ -956,7 +994,7 @@ func (p *Parlia) SignRecently(chain consensus.ChainReader, parent *types.Header)
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
 // that a new block should have based on the previous blocks in the chain and the
 // current signer.
-func (p *Parlia) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
+func (p *Satoshi) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	snap, err := p.snapshot(chain, parent.Number.Uint64(), parent.Hash(), nil)
 	if err != nil {
 		return nil
@@ -975,29 +1013,45 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
-func (p *Parlia) SealHash(header *types.Header) common.Hash {
+func (p *Satoshi) SealHash(header *types.Header) common.Hash {
 	return SealHash(header, p.chainConfig.ChainID)
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC API to query snapshot.
-func (p *Parlia) APIs(chain consensus.ChainHeaderReader) []rpc.API {
+func (p *Satoshi) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	return []rpc.API{{
-		Namespace: "parlia",
+		Namespace: "satoshi",
 		Version:   "1.0",
-		Service:   &API{chain: chain, parlia: p},
+		Service:   &API{chain: chain, satoshi: p},
 		Public:    false,
 	}}
 }
 
-// Close implements consensus.Engine. It's a noop for parlia as there are no background threads.
-func (p *Parlia) Close() error {
+// Close implements consensus.Engine. It's a noop for satoshi as there are no background threads.
+func (p *Satoshi) Close() error {
 	return nil
+}
+
+func (p *Satoshi) IsRoundEnd(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	number := header.Number.Uint64()
+	snapshot, _ := p.snapshot(chain, number - 1, header.ParentHash, nil)
+	if snapshot == nil {
+		return true
+	}
+	if number > 0 && number%snapshot.config.Epoch == uint64(len(snapshot.Validators)/2) {
+		// find the header of last block in the previous round
+		checkHeader := FindAncientHeader(header, uint64(len(snapshot.Validators)/2) + 1, chain, nil)
+		if checkHeader != nil {
+			return p.isRoundEnd(chain, checkHeader)
+		}
+	}
+	return false
 }
 
 // ==========================  interaction with contract/account =========
 
 // getCurrentValidators get current validators
-func (p *Parlia) getCurrentValidators(blockHash common.Hash) ([]common.Address, error) {
+func (p *Satoshi) getCurrentValidators(blockHash common.Hash) ([]common.Address, error) {
 	// block
 	blockNr := rpc.BlockNumberOrHashWithHash(blockHash, false)
 
@@ -1041,40 +1095,22 @@ func (p *Parlia) getCurrentValidators(blockHash common.Hash) ([]common.Address, 
 	return valz, nil
 }
 
-// slash spoiled validators
-func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
+// distributeIncoming collect transaction fees and distribute to validator contract
+func (p *Satoshi) distributeIncoming(val common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
-	if balance.Cmp(common.Big0) <= 0 {
-		return nil
-	}
 	state.SetBalance(consensus.SystemAddress, big.NewInt(0))
 	state.AddBalance(coinbase, balance)
-
-	doDistributeSysReward := state.GetBalance(common.HexToAddress(systemcontracts.SystemRewardContract)).Cmp(maxSystemBalance) < 0
-	if doDistributeSysReward {
-		var rewards = new(big.Int)
-		rewards = rewards.Rsh(balance, systemRewardPercent)
-		if rewards.Cmp(common.Big0) > 0 {
-			err := p.distributeToSystem(rewards, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
-			if err != nil {
-				return err
-			}
-			log.Trace("distribute to system reward pool", "block hash", header.Hash(), "amount", rewards)
-			balance = balance.Sub(balance, rewards)
-		}
-	}
 	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
 	return p.distributeToValidator(balance, val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
 // slash spoiled validators
-func (p *Parlia) slash(spoiledVal common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) slash(spoiledVal common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	// method
 	method := "slash"
-
 	// get packed data
 	data, err := p.slashABI.Pack(method,
 		spoiledVal,
@@ -1084,13 +1120,31 @@ func (p *Parlia) slash(spoiledVal common.Address, state *state.StateDB, header *
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), params.SystemTxsGas, data, common.Big0)
+	// apply message
+	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+}
+
+// turnRound call candidate contract to execute turn round
+func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+	// method
+	method := "turnRound"
+
+	// get packed data
+	data, err := p.candidateHubABI.Pack(method,)
+	if err != nil {
+		log.Error("Unable to pack tx for turnRound", "error", err)
+		return err
+	}
+	// get system message
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), header.GasLimit - params.SystemTxsGas,data, common.Big0)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
 // init contract
-func (p *Parlia) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	// method
 	method := "init"
@@ -1098,12 +1152,15 @@ func (p *Parlia) initContract(state *state.StateDB, header *types.Header, chain 
 	contracts := []string{
 		systemcontracts.ValidatorContract,
 		systemcontracts.SlashContract,
+		systemcontracts.SystemRewardContract,
 		systemcontracts.LightClientContract,
 		systemcontracts.RelayerHubContract,
-		systemcontracts.TokenHubContract,
-		systemcontracts.RelayerIncentivizeContract,
-		systemcontracts.CrossChainContract,
+		systemcontracts.CandidateHubContract,
+		systemcontracts.GovHubContract,
+		systemcontracts.PledgeCandidateContract,
+		systemcontracts.BurnContract,
 	}
+
 	// get packed data
 	data, err := p.validatorSetABI.Pack(method)
 	if err != nil {
@@ -1111,7 +1168,7 @@ func (p *Parlia) initContract(state *state.StateDB, header *types.Header, chain 
 		return err
 	}
 	for _, c := range contracts {
-		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), data, common.Big0)
+		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), header.GasLimit, data, common.Big0)
 		// apply message
 		log.Trace("init contract", "block hash", header.Hash(), "contract", c)
 		err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
@@ -1122,16 +1179,8 @@ func (p *Parlia) initContract(state *state.StateDB, header *types.Header, chain 
 	return nil
 }
 
-func (p *Parlia) distributeToSystem(amount *big.Int, state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
-	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SystemRewardContract), nil, amount)
-	// apply message
-	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
-}
-
-// slash spoiled validators
-func (p *Parlia) distributeToValidator(amount *big.Int, validator common.Address,
+// distributeToValidator call validator contract to distribute reward
+func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Address,
 	state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	// method
@@ -1146,17 +1195,17 @@ func (p *Parlia) distributeToValidator(amount *big.Int, validator common.Address
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), data, amount)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), params.SystemTxsGas, data, amount)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
 // get system message
-func (p *Parlia) getSystemMessage(from, toAddress common.Address, data []byte, value *big.Int) callmsg {
+func (p *Satoshi) getSystemMessage(from, toAddress common.Address, gas uint64, data []byte, value *big.Int) callmsg {
 	return callmsg{
 		ethereum.CallMsg{
 			From:     from,
-			Gas:      math.MaxUint64 / 2,
+			Gas:      gas,
 			GasPrice: big.NewInt(0),
 			Value:    value,
 			To:       &toAddress,
@@ -1165,7 +1214,7 @@ func (p *Parlia) getSystemMessage(from, toAddress common.Address, data []byte, v
 	}
 }
 
-func (p *Parlia) applyTransaction(
+func (p *Satoshi) applyTransaction(
 	msg callmsg,
 	state *state.StateDB,
 	header *types.Header,
@@ -1204,7 +1253,7 @@ func (p *Parlia) applyTransaction(
 	state.Prepare(expectedTx.Hash(), common.Hash{}, len(*txs))
 	gasUsed, err := applyMessage(msg, state, header, p.chainConfig, chainContext)
 	if err != nil {
-		return err
+		log.Error(fmt.Sprintf("Apply systerm tx failed, to: %v, calldata: %v, error: %v", expectedTx.To(), expectedTx.Data(), err.Error()))
 	}
 	*txs = append(*txs, expectedTx)
 	var root []byte
@@ -1227,6 +1276,22 @@ func (p *Parlia) applyTransaction(
 	*receipts = append(*receipts, receipt)
 	state.SetNonce(msg.From(), nonce+1)
 	return nil
+}
+
+// isRoundEnd returns true if the given header belongs to the last block of the round, otherwise false
+func (p *Satoshi) isRoundEnd(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	number := header.Number.Uint64()
+	if number % p.config.Epoch == p.config.Epoch - 1 {
+		lastCheckNumber := uint64(1)
+		if number > p.config.Epoch {
+			lastCheckNumber = number - p.config.Epoch
+		}	
+		lastCheckBlock := chain.GetHeaderByNumber(lastCheckNumber)
+		if header.Time / p.config.Round > lastCheckBlock.Time / p.config.Round {
+			return true
+		}
+	}
+	return false
 }
 
 // ===========================     utility function        ==========================
@@ -1288,12 +1353,12 @@ func backOffTime(snap *Snapshot, val common.Address) uint64 {
 
 // chain context
 type chainContext struct {
-	Chain  consensus.ChainHeaderReader
-	parlia consensus.Engine
+	Chain   consensus.ChainHeaderReader
+	satoshi consensus.Engine
 }
 
 func (c chainContext) Engine() consensus.Engine {
-	return c.parlia
+	return c.satoshi
 }
 
 func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
