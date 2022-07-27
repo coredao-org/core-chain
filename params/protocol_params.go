@@ -116,7 +116,7 @@ const (
 
 	//TODO need further discussion
 	BitcoinHeaderValidateGas   uint64 = 20000 // Gas for validate bitcoin consensus state
-	IAVLMerkleProofValidateGas uint64 = 100 // Gas for validate merkle proof
+	IAVLMerkleProofValidateGas uint64 = 100   // Gas for validate merkle proof
 
 	EcrecoverGas        uint64 = 3000 // Elliptic curve sender recovery gas price
 	Sha256BaseGas       uint64 = 60   // Base price for a SHA256 operation

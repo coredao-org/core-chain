@@ -48,7 +48,7 @@ const (
 
 	checkpointInterval   = 1024        // Number of blocks after which to save the snapshot to the database
 	defaultEpochLength   = uint64(100) // Default number of blocks of checkpoint to update validatorSet from contract
-    defaultRoundInterval = 86400       // Default number of seconds to turn round
+	defaultRoundInterval = 86400       // Default number of seconds to turn round
 
 	extraVanity      = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraSeal        = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
@@ -65,20 +65,18 @@ var (
 	uncleHash       = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 	diffInTurn      = big.NewInt(2)            // Block difficulty for in-turn signatures
 	diffNoTurn      = big.NewInt(1)            // Block difficulty for out-of-turn signatures
-	// 100 native token
-	maxSystemBalance = new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))
 
 	systemContracts = map[common.Address]bool{
-		common.HexToAddress(systemcontracts.ValidatorContract):          true,
-		common.HexToAddress(systemcontracts.SlashContract):              true,
-		common.HexToAddress(systemcontracts.SystemRewardContract):       true,
-		common.HexToAddress(systemcontracts.LightClientContract):        true,
-		common.HexToAddress(systemcontracts.RelayerHubContract):         true,
-		common.HexToAddress(systemcontracts.CandidateHubContract):       true,
-		common.HexToAddress(systemcontracts.GovHubContract):             true,
-		common.HexToAddress(systemcontracts.PledgeCandidateContract):    true,
-		common.HexToAddress(systemcontracts.BurnContract):               true,
-		common.HexToAddress(systemcontracts.FoundationContract):         true,
+		common.HexToAddress(systemcontracts.ValidatorContract):       true,
+		common.HexToAddress(systemcontracts.SlashContract):           true,
+		common.HexToAddress(systemcontracts.SystemRewardContract):    true,
+		common.HexToAddress(systemcontracts.LightClientContract):     true,
+		common.HexToAddress(systemcontracts.RelayerHubContract):      true,
+		common.HexToAddress(systemcontracts.CandidateHubContract):    true,
+		common.HexToAddress(systemcontracts.GovHubContract):          true,
+		common.HexToAddress(systemcontracts.PledgeCandidateContract): true,
+		common.HexToAddress(systemcontracts.BurnContract):            true,
+		common.HexToAddress(systemcontracts.FoundationContract):      true,
 	}
 )
 
@@ -673,7 +671,7 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 }
 
 func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error)  {
+	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error) {
 	cx := chainContext{Chain: chain, satoshi: p}
 	// If the block is the last one in a round, execute turn round to update the validator set.
 	if p.isRoundEnd(chain, header) {
@@ -1034,13 +1032,13 @@ func (p *Satoshi) Close() error {
 
 func (p *Satoshi) IsRoundEnd(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	number := header.Number.Uint64()
-	snapshot, _ := p.snapshot(chain, number - 1, header.ParentHash, nil)
+	snapshot, _ := p.snapshot(chain, number-1, header.ParentHash, nil)
 	if snapshot == nil {
 		return true
 	}
 	if number > 0 && number%snapshot.config.Epoch == uint64(len(snapshot.Validators)/2) {
 		// find the header of last block in the previous round
-		checkHeader := FindAncientHeader(header, uint64(len(snapshot.Validators)/2) + 1, chain, nil)
+		checkHeader := FindAncientHeader(header, uint64(len(snapshot.Validators)/2)+1, chain, nil)
 		if checkHeader != nil {
 			return p.isRoundEnd(chain, checkHeader)
 		}
@@ -1132,13 +1130,13 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 	method := "turnRound"
 
 	// get packed data
-	data, err := p.candidateHubABI.Pack(method,)
+	data, err := p.candidateHubABI.Pack(method)
 	if err != nil {
 		log.Error("Unable to pack tx for turnRound", "error", err)
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), header.GasLimit - params.SystemTxsGas,data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), header.GasLimit-params.SystemTxsGas, data, common.Big0)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
@@ -1281,13 +1279,13 @@ func (p *Satoshi) applyTransaction(
 // isRoundEnd returns true if the given header belongs to the last block of the round, otherwise false
 func (p *Satoshi) isRoundEnd(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	number := header.Number.Uint64()
-	if number % p.config.Epoch == p.config.Epoch - 1 {
+	if number%p.config.Epoch == p.config.Epoch-1 {
 		lastCheckNumber := uint64(1)
 		if number > p.config.Epoch {
 			lastCheckNumber = number - p.config.Epoch
-		}	
+		}
 		lastCheckBlock := chain.GetHeaderByNumber(lastCheckNumber)
-		if header.Time / p.config.Round > lastCheckBlock.Time / p.config.Round {
+		if header.Time/p.config.Round > lastCheckBlock.Time/p.config.Round {
 			return true
 		}
 	}

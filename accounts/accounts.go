@@ -38,9 +38,9 @@ type Account struct {
 const (
 	MimetypeDataWithValidator = "data/validator"
 	MimetypeTypedData         = "data/typed"
-	MimetypeClique    = "application/x-clique-header"
-	MimetypeSatoshi   = "application/x-satoshi-header"
-	MimetypeTextPlain = "text/plain"
+	MimetypeClique            = "application/x-clique-header"
+	MimetypeSatoshi           = "application/x-satoshi-header"
+	MimetypeTextPlain         = "text/plain"
 )
 
 // Wallet represents a software or hardware wallet that might contain one or more

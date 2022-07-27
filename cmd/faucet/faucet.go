@@ -92,7 +92,7 @@ var (
 )
 
 var (
-	ether        = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	ether = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 )
 
 var (
@@ -139,11 +139,11 @@ func main() {
 	}
 	website := new(bytes.Buffer)
 	err = template.Must(template.New("").Parse(string(tmpl))).Execute(website, map[string]interface{}{
-		"Network":    *netnameFlag,
-		"Amounts":    amounts,
+		"Network":   *netnameFlag,
+		"Amounts":   amounts,
 		"Periods":   periods,
-		"Recaptcha":  *captchaToken,
-		"NoAuth":     *noauthFlag,
+		"Recaptcha": *captchaToken,
+		"NoAuth":    *noauthFlag,
 	})
 	if err != nil {
 		log.Crit("Failed to render the faucet template", "err", err)
@@ -285,14 +285,14 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*enode.Node, network ui
 	client := ethclient.NewClient(api)
 
 	return &faucet{
-		config:     genesis.Config,
-		stack:      stack,
-		client:     client,
-		index:      index,
-		keystore:   ks,
-		account:    ks.Accounts()[0],
-		timeouts:   make(map[string]time.Time),
-		update:     make(chan struct{}, 1),
+		config:   genesis.Config,
+		stack:    stack,
+		client:   client,
+		index:    index,
+		keystore: ks,
+		account:  ks.Accounts()[0],
+		timeouts: make(map[string]time.Time),
+		update:   make(chan struct{}, 1),
 	}, nil
 }
 

@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/coredao-org/btcpowermirror/lightmirror"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/coredao-org/btcpowermirror/lightmirror"
 )
 
 const (
@@ -38,7 +39,7 @@ func (c *btcValidate) Run(input []byte) (result []byte, err error) {
 	}
 
 	rbuf := bytes.NewReader(input[precompileContractInputMetaDataLength:])
-	var mirror lightmirror.BtcLightMirror;
+	var mirror lightmirror.BtcLightMirror
 	err = mirror.Deserialize(rbuf)
 	if err != nil {
 		err = fmt.Errorf("deserialize btcLightMirror failed %s", err.Error())
@@ -46,7 +47,7 @@ func (c *btcValidate) Run(input []byte) (result []byte, err error) {
 	}
 
 	// Verify MerkleRoot & coinbaseTx
-	err = mirror.CheckMerkle();
+	err = mirror.CheckMerkle()
 	if err != nil {
 		err = fmt.Errorf("verify btcLightMirror failed %s", err.Error())
 		return nil, err
@@ -57,7 +58,7 @@ func (c *btcValidate) Run(input []byte) (result []byte, err error) {
 	// | coinbaseAddr        |
 	// | 20 bytes + 12 bytes |
 	addrTypeBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(addrTypeBytes,(uint32)(addrType))
+	binary.BigEndian.PutUint32(addrTypeBytes, (uint32)(addrType))
 	addrTypeBytes = common.LeftPadBytes(addrTypeBytes[:], 32)
-	return append(common.RightPadBytes(coinbaseAddr[:], 32),addrTypeBytes...) , nil
+	return append(common.RightPadBytes(coinbaseAddr[:], 32), addrTypeBytes...), nil
 }

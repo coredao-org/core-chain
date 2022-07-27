@@ -427,7 +427,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			if isSystemTx, _ := posa.IsSystemTransaction(tx, block.Header()); isSystemTx {
 				continue
 			}
-		} 
+		}
 		msg, err := tx.AsMessage(signer)
 		if err != nil {
 			return statedb, nil, nil, 0, err
