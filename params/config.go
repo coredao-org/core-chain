@@ -221,7 +221,7 @@ var (
 		Threshold: 2,
 	}
 	CoreChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(56),
+		ChainID:             big.NewInt(1116),
 		HomesteadBlock:      big.NewInt(0),
 		EIP150Block:         big.NewInt(0),
 		EIP155Block:         big.NewInt(0),
@@ -238,7 +238,7 @@ var (
 	}
 
 	BuffaloChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(1112),
+		ChainID:             big.NewInt(1115),
 		HomesteadBlock:      big.NewInt(0),
 		EIP150Block:         big.NewInt(0),
 		EIP155Block:         big.NewInt(0),
