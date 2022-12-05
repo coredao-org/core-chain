@@ -1251,7 +1251,7 @@ func (p *Satoshi) applyTransaction(
 	state.Prepare(expectedTx.Hash(), common.Hash{}, len(*txs))
 	gasUsed, err := applyMessage(msg, state, header, p.chainConfig, chainContext)
 	if err != nil {
-		log.Error(fmt.Sprintf("Apply systerm tx failed, to: %v, calldata: %v, error: %v", expectedTx.To(), expectedTx.Data(), err.Error()))
+		log.Error(fmt.Sprintf("Apply system transaction failed, to: %v, calldata: %v, error: %v", expectedTx.To(), expectedTx.Data(), err.Error()))
 	}
 	*txs = append(*txs, expectedTx)
 	var root []byte
@@ -1261,7 +1261,7 @@ func (p *Satoshi) applyTransaction(
 		root = state.IntermediateRoot(p.chainConfig.IsEIP158(header.Number)).Bytes()
 	}
 	*usedGas += gasUsed
-	receipt := types.NewReceipt(root, false, *usedGas)
+	receipt := types.NewReceipt(root, err != nil, *usedGas)
 	receipt.TxHash = expectedTx.Hash()
 	receipt.GasUsed = gasUsed
 
