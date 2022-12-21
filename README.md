@@ -5,22 +5,22 @@ Core is an evolution of the Geth codebase. We leveraged the improvements made by
 [![API Reference](
 https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/68747470733a2f2f676f646f632e6f72672f6769746875622e636f6d2f676f6c616e672f6764646f3f7374617475732e737667
 )](https://pkg.go.dev/github.com/ethereum/go-ethereum?tab=doc)
-[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/my8GzZq2)
+[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/coredao)
 
-More details in [White Paper]().
+More details in [White Paper](https://docs.coredao.org/core-white-paper-v1.0.5/).
 
 ## Key features
 
 ### Satoshi Plus Consensus
 
 Satoshi Plus consensus combines both Proof of Work (PoW) and Delegated Proof of Stake (DPoS) to leverage the strengths of each while simultaneously ameliorating their respective shortcomings. Specifically, we leverage Bitcoin’s decentralized computing power, DPoS and unique validator election mechanisms to ensure scalability, and the resulting, multifaceted network’s security.
- 
+
 ### Bitcoin Light Client
 
 To achieve the cross-chain communication from Bitcoin Network to Core chain, we introduced an on-chain light client verification algorithm. It contains two parts:
 
-1. [Stateless precompiled contract]() to do bitcoin header verification, coinbase transaction verification and Merkle Proof verification.
-2. [Stateful solidity contract]() to store bitcoin block hashes and headers.
+1. Stateless precompiled contract to do bitcoin header verification, coinbase transaction verification and Merkle Proof verification.
+2. Stateful solidity contract to store bitcoin block hashes and headers.
 
 
 ## Building the source
@@ -94,14 +94,14 @@ This command will:
 
 Steps:
 
-1. Download the binary, config and genesis files from [release](), or compile the binary by `make geth`. 
+1. Download the binary, config and genesis files from [binaries](https://github.com/coredao-org/binaries), or compile the binary by `make geth`. 
 2. Init genesis state: `./geth --datadir node init genesis.json`.
 3. Start your fullnode: `./geth --config ./config.toml --datadir ./node`.
 4. Or start a validator node: `./geth --config ./config.toml --datadir ./node -unlock ${validatorAddr} --mine --allow-insecure-unlock`. The ${validatorAddr} is the wallet account address of your running validator node. 
 
 *Note: The default p2p port is 30311 and the RPC port is 8575 which is different from Ethereum.*
 
-More details about [running a node]() and [becoming a validator]().
+More details about [running a node](https://docs.coredao.org/developer/node-and-validator/how-to-run-a-core-fullnode) and [becoming a validator](https://docs.coredao.org/developer/node-and-validator/how-to-become-a-validator-on-core).
 
 *Note: Although there are some internal protective measures to prevent transactions from
 crossing over between the main network and test network, you should make sure to always
@@ -143,12 +143,12 @@ HTTP based JSON-RPC API options:
 
   * `--http` Enable the HTTP-RPC server
   * `--http.addr` HTTP-RPC server listening interface (default: `localhost`)
-  * `--http.port` HTTP-RPC server listening port (default: `8545`)
+  * `--http.port` HTTP-RPC server listening port (default: `8575`)
   * `--http.api` API's offered over the HTTP-RPC interface (default: `eth,net,web3`)
   * `--http.corsdomain` Comma separated list of domains from which to accept cross origin requests (browser enforced)
   * `--ws` Enable the WS-RPC server
   * `--ws.addr` WS-RPC server listening interface (default: `localhost`)
-  * `--ws.port` WS-RPC server listening port (default: `8546`)
+  * `--ws.port` WS-RPC server listening port (default: `8576`)
   * `--ws.api` API's offered over the WS-RPC interface (default: `eth,net,web3`)
   * `--ws.origins` Origins from which to accept websockets requests
   * `--ipcdisable` Disable the IPC-RPC server
@@ -173,7 +173,7 @@ from anyone on the internet, and are grateful for even the smallest of fixes!
 
 If you'd like to contribute to Core, please fork, fix, commit and send a pull request
 for the maintainers to review and merge into the main code base. If you wish to submit
-more complex changes though, please check up with the core devs first on [our discord channel](https://discord.gg/my8GzZq2)
+more complex changes though, please check up with the core devs first on [our discord channel](https://discord.gg/coredao)
 to ensure those changes are in line with the general philosophy of the project and/or get
 some early feedback which can make both your efforts much lighter as well as our review
 and merge procedures quick and simple.
