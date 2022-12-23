@@ -221,7 +221,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	// if we just continued here.
 	// The full node of two Core testnets may run without genesis file after been inited.
 	if genesis == nil && stored != params.MainnetGenesisHash &&
-		stored != params.BuffaloGenesisHash && stored != params.RialtoGenesisHash && stored != params.CoreGenesisHash {
+		stored != params.BuffaloGenesisHash && stored != params.CoreGenesisHash {
 		return storedcfg, stored, nil
 	}
 	// Check config compatibility and write the config. Compatibility errors

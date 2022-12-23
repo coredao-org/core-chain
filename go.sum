@@ -118,8 +118,8 @@ github.com/cloudflare/cloudflare-go v0.14.0/go.mod h1:EnwdgGMaFOruiPZRFSgn+TsQ3h
 github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/gnark-crypto v0.4.1-0.20210426202927-39ac3d4b3f1f h1:C43yEtQ6NIf4ftFXD/V55gnGFgPbMQobd//YlnLjUJ8=
 github.com/consensys/gnark-crypto v0.4.1-0.20210426202927-39ac3d4b3f1f/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
-github.com/coredao-org/btcpowermirror v1.0.1 h1:4WgHIquehfjiSzIR1QJxgpM49P8KCgFuhR/E0NN9o4k=
-github.com/coredao-org/btcpowermirror v1.0.1/go.mod h1:D5HxwSmC7PIRF8ohZX+lcNLxq/eAhHYA3Ot1nemd228=
+github.com/coredao-org/btcpowermirror v1.1.0 h1:69g1s0kUo3NNLx9cHSCgLQxrwCH5drtmlqyFv6Tu+zw=
+github.com/coredao-org/btcpowermirror v1.1.0/go.mod h1:D5HxwSmC7PIRF8ohZX+lcNLxq/eAhHYA3Ot1nemd228=
 github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
 github.com/dave/jennifer v1.2.0/go.mod h1:fIb+770HOpJ2fmN9EPPKOqm1vMGhB+TwXKMZhrIygKg=
 github.com/davecgh/go-spew v0.0.0-20171005155431-ecdeabc65495/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
