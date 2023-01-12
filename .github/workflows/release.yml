@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         go-version: [1.17.x]
-        os: [ubuntu-18.04, macos-11, windows-2019]
+        os: [ubuntu-18.04, macos-11]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Code
@@ -31,7 +31,6 @@ jobs:
           # * Module download cache
           # * Build cache (Linux)
           # * Build cache (Mac)
-          # * Build cache (Windows)
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
@@ -42,7 +41,7 @@ jobs:
             ${{ runner.os }}-go-
 
       # ==============================
-      #       Linux/Macos/Windows Build
+      #       Linux/Macos Build
       # ==============================
 
       - name: Build Binary for ${{matrix.os}}
