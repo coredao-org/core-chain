@@ -227,9 +227,9 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	// Special case: don't change the existing config of a non-mainnet chain if no new
 	// config is supplied. These chains would get AllProtocolChanges (and a compat error)
 	// if we just continued here.
-	// The full node of two BSC testnets may run without genesis file after been inited.
+	// The full node of two Core testnets may run without genesis file after been inited.
 	if genesis == nil && stored != params.MainnetGenesisHash &&
-		stored != params.ChapelGenesisHash && stored != params.RialtoGenesisHash && stored != params.BSCGenesisHash {
+		stored != params.BuffaloGenesisHash && stored != params.CoreGenesisHash {
 		return storedcfg, stored, nil
 	}
 	// Check config compatibility and write the config. Compatibility errors
@@ -260,10 +260,10 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return params.RinkebyChainConfig
 	case ghash == params.GoerliGenesisHash:
 		return params.GoerliChainConfig
-	case ghash == params.BSCGenesisHash:
-		return params.BSCChainConfig
-	case ghash == params.ChapelGenesisHash:
-		return params.ChapelChainConfig
+	case ghash == params.CoreGenesisHash:
+		return params.CoreChainConfig
+	case ghash == params.BuffaloGenesisHash:
+		return params.BuffaloChainConfig
 	case ghash == params.RialtoGenesisHash:
 		return params.RialtoChainConfig
 	default:

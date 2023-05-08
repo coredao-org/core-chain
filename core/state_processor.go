@@ -409,18 +409,26 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// usually do have two tx, one for validator set contract, another for system reward contract.
 	systemTxs := make([]*types.Transaction, 0, 2)
-
-	for i, tx := range block.Transactions() {
+	for _, tx := range block.Transactions() {
 		if isPoSA {
 			if isSystemTx, err := posa.IsSystemTransaction(tx, block.Header()); err != nil {
-				bloomProcessors.Close()
 				return statedb, nil, nil, 0, err
 			} else if isSystemTx {
 				systemTxs = append(systemTxs, tx)
 				continue
 			}
 		}
-
+	}
+	err := p.engine.BeforeValidateTx(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
+	if err != nil {
+		return statedb, receipts, allLogs, *usedGas, err
+	}
+	for i, tx := range block.Transactions() {
+		if isPoSA {
+			if isSystemTx, _ := posa.IsSystemTransaction(tx, block.Header()); isSystemTx {
+				continue
+			}
+		}
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), header.BaseFee)
 		if err != nil {
 			bloomProcessors.Close()
@@ -433,13 +441,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			bloomProcessors.Close()
 			return statedb, nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
+
 		commonTxs = append(commonTxs, tx)
 		receipts = append(receipts, receipt)
 	}
 	bloomProcessors.Close()
 
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	err := p.engine.Finalize(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
+	err = p.engine.Finalize(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
 	if err != nil {
 		return statedb, receipts, allLogs, *usedGas, err
 	}

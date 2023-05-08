@@ -1,51 +1,28 @@
 package vm
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/core/vm/lightclient"
+	"github.com/coredao-org/btcpowermirror/lightmirror"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
 	uint64TypeLength                      uint64 = 8
 	precompileContractInputMetaDataLength uint64 = 32
-	consensusStateLengthBytesLength       uint64 = 32
-
-	tmHeaderValidateResultMetaDataLength uint64 = 32
-	merkleProofValidateResultLength      uint64 = 32
 )
 
-// input:
-// consensus state length | consensus state | tendermint header |
-// 32 bytes               |                 |                   |
-func decodeTendermintHeaderValidationInput(input []byte) (*lightclient.ConsensusState, *lightclient.Header, error) {
-	csLen := binary.BigEndian.Uint64(input[consensusStateLengthBytesLength-uint64TypeLength : consensusStateLengthBytesLength])
-	if uint64(len(input)) <= consensusStateLengthBytesLength+csLen {
-		return nil, nil, fmt.Errorf("expected payload size %d, actual size: %d", consensusStateLengthBytesLength+csLen, len(input))
-	}
+// btcValidate implemented as a precompiled contract.
+type btcValidate struct{}
 
-	cs, err := lightclient.DecodeConsensusState(input[consensusStateLengthBytesLength : consensusStateLengthBytesLength+csLen])
-	if err != nil {
-		return nil, nil, err
-	}
-	header, err := lightclient.DecodeHeader(input[consensusStateLengthBytesLength+csLen:])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return &cs, header, nil
+func (c *btcValidate) RequiredGas(input []byte) uint64 {
+	return params.BitcoinHeaderValidateGas + uint64(len(input)/32)*params.IAVLMerkleProofValidateGas
 }
 
-// tmHeaderValidate implemented as a native contract.
-type tmHeaderValidate struct{}
-
-func (c *tmHeaderValidate) RequiredGas(input []byte) uint64 {
-	return params.TendermintHeaderValidateGas
-}
-
-func (c *tmHeaderValidate) Run(input []byte) (result []byte, err error) {
+func (c *btcValidate) Run(input []byte) (result []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("internal error: %v\n", r)
@@ -58,52 +35,42 @@ func (c *tmHeaderValidate) Run(input []byte) (result []byte, err error) {
 
 	payloadLength := binary.BigEndian.Uint64(input[precompileContractInputMetaDataLength-uint64TypeLength : precompileContractInputMetaDataLength])
 	if uint64(len(input)) != payloadLength+precompileContractInputMetaDataLength {
-		return nil, fmt.Errorf("invalid input: input size should be %d, actual the size is %d", payloadLength+precompileContractInputMetaDataLength, len(input))
+		return nil, fmt.Errorf("invalid input: input size should be %d, actual size is %d", payloadLength+precompileContractInputMetaDataLength, len(input))
 	}
 
-	cs, header, err := decodeTendermintHeaderValidationInput(input[precompileContractInputMetaDataLength:])
+	rbuf := bytes.NewReader(input[precompileContractInputMetaDataLength:])
+	var mirror lightmirror.BtcLightMirror
+	err = mirror.Deserialize(rbuf)
 	if err != nil {
+		err = fmt.Errorf("deserialize btcLightMirror failed %s", err.Error())
 		return nil, err
 	}
 
-	validatorSetChanged, err := cs.ApplyHeader(header)
+	// Verify MerkleRoot & coinbaseTx
+	err = mirror.CheckMerkle()
 	if err != nil {
+		err = fmt.Errorf("verify btcLightMirror failed %s", err.Error())
 		return nil, err
 	}
 
-	consensusStateBytes, err := cs.EncodeConsensusState()
-	if err != nil {
-		return nil, err
-	}
-
+	coinbaseAddr, addrType := mirror.GetCoinbaseAddress()
 	// result
-	// | validatorSetChanged | empty      | consensusStateBytesLength |  new consensusState |
-	// | 1 byte              | 23 bytes   | 8 bytes                   |                     |
-	lengthBytes := make([]byte, tmHeaderValidateResultMetaDataLength)
-	if validatorSetChanged {
-		copy(lengthBytes[:1], []byte{0x01})
-	}
-	consensusStateBytesLength := uint64(len(consensusStateBytes))
-	binary.BigEndian.PutUint64(lengthBytes[tmHeaderValidateResultMetaDataLength-uint64TypeLength:], consensusStateBytesLength)
-
-	result = append(lengthBytes, consensusStateBytes...)
-
-	return result, nil
+	// | coinbaseAddr        |
+	// | 20 bytes + 12 bytes |
+	addrTypeBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(addrTypeBytes, (uint32)(addrType))
+	addrTypeBytes = common.LeftPadBytes(addrTypeBytes[:], 32)
+	return append(common.RightPadBytes(coinbaseAddr[:], 32), addrTypeBytes...), nil
 }
 
-//------------------------------------------------------------------------------------------------------------------------------------------------
+// btcValidateV2 implemented as a precompiled contract.
+type btcValidateV2 struct{}
 
-// tmHeaderValidate implemented as a native contract.
-type iavlMerkleProofValidate struct{}
-
-func (c *iavlMerkleProofValidate) RequiredGas(input []byte) uint64 {
-	return params.IAVLMerkleProofValidateGas
+func (c *btcValidateV2) RequiredGas(input []byte) uint64 {
+	return params.BitcoinHeaderValidateGas + uint64(len(input)/32)*params.IAVLMerkleProofValidateGas
 }
 
-// input:
-// | payload length | payload    |
-// | 32 bytes       |            |
-func (c *iavlMerkleProofValidate) Run(input []byte) (result []byte, err error) {
+func (c *btcValidateV2) Run(input []byte) (result []byte, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("internal error: %v\n", r)
@@ -111,25 +78,34 @@ func (c *iavlMerkleProofValidate) Run(input []byte) (result []byte, err error) {
 	}()
 
 	if uint64(len(input)) <= precompileContractInputMetaDataLength {
-		return nil, fmt.Errorf("invalid input: input should include %d bytes payload length and payload", precompileContractInputMetaDataLength)
+		return nil, fmt.Errorf("invalid input")
 	}
 
 	payloadLength := binary.BigEndian.Uint64(input[precompileContractInputMetaDataLength-uint64TypeLength : precompileContractInputMetaDataLength])
 	if uint64(len(input)) != payloadLength+precompileContractInputMetaDataLength {
-		return nil, fmt.Errorf("invalid input: input size should be %d, actual the size is %d", payloadLength+precompileContractInputMetaDataLength, len(input))
+		return nil, fmt.Errorf("invalid input: input size should be %d, actual size is %d", payloadLength+precompileContractInputMetaDataLength, len(input))
 	}
 
-	kvmp, err := lightclient.DecodeKeyValueMerkleProof(input[precompileContractInputMetaDataLength:])
+	rbuf := bytes.NewReader(input[precompileContractInputMetaDataLength:])
+	var mirror lightmirror.BtcLightMirrorV2
+	err = mirror.Deserialize(rbuf)
 	if err != nil {
+		err = fmt.Errorf("deserialize BtcLightMirrorV2 failed %s", err.Error())
 		return nil, err
 	}
 
-	valid := kvmp.Validate()
-	if !valid {
-		return nil, fmt.Errorf("invalid merkle proof")
+	// Verify MerkleRoot & coinbaseTx
+	err = mirror.CheckMerkle()
+	if err != nil {
+		err = fmt.Errorf("verify BtcLightMirrorV2 failed %s", err.Error())
+		return nil, err
 	}
 
-	result = make([]byte, merkleProofValidateResultLength)
-	binary.BigEndian.PutUint64(result[merkleProofValidateResultLength-uint64TypeLength:], 0x01)
-	return result, nil
+	candidateAddr, rewardAddr, blockHash := mirror.ParsePowerParams()
+
+	res := make([]byte, 0, 96)
+	res = append(res, common.LeftPadBytes(candidateAddr.Bytes(), 32)...)
+	res = append(res, common.LeftPadBytes(rewardAddr.Bytes(), 32)...)
+	res = append(res, blockHash[:]...)
+	return res, nil
 }

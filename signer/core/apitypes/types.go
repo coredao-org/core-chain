@@ -186,8 +186,8 @@ var (
 		accounts.MimetypeClique,
 		0x02,
 	}
-	ApplicationParlia = SigFormat{
-		accounts.MimetypeParlia,
+	ApplicationSatoshi = SigFormat{
+		accounts.MimetypeSatoshi,
 		0x03,
 	}
 	TextPlain = SigFormat{

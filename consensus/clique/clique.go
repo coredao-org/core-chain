@@ -560,6 +560,16 @@ func (c *Clique) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	return nil
 }
 
+func (ethash *Clique) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction, uncles []*types.Header,
+	receipts *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64) (err error) {
+	return
+}
+
+func (ethash *Clique) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error) {
+	return
+}
+
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
 func (c *Clique) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction, uncles []*types.Header,

@@ -7,7 +7,7 @@ on:
       - v*
 
 env:
-  IMAGE_NAME: bsc
+  IMAGE_NAME: core-chain
 
 jobs:
   # Push image to GitHub Packages.

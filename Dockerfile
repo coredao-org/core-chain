@@ -14,12 +14,12 @@ RUN cd /go-ethereum && go run build/ci.go install ./cmd/geth
 # Pull Geth into a second stage deploy alpine container
 FROM alpine:3.16.0
 
-ARG BSC_USER=bsc
-ARG BSC_USER_UID=1000
-ARG BSC_USER_GID=1000
+ARG CORE_USER=core
+ARG CORE_USER_UID=1000
+ARG CORE_USER_GID=1000
 
-ENV BSC_HOME=/bsc
-ENV HOME=${BSC_HOME}
+ENV CORE_HOME=/core
+ENV HOME=${CORE_HOME}
 ENV DATA_DIR=/data
 
 ENV PACKAGES ca-certificates~=20211220 jq~=1.6 \
@@ -28,14 +28,14 @@ ENV PACKAGES ca-certificates~=20211220 jq~=1.6 \
 
 RUN apk add --no-cache $PACKAGES \
   && rm -rf /var/cache/apk/* \
-  && addgroup -g ${BSC_USER_GID} ${BSC_USER} \
-  && adduser -u ${BSC_USER_UID} -G ${BSC_USER} --shell /sbin/nologin --no-create-home -D ${BSC_USER} \
-  && addgroup ${BSC_USER} tty \
+  && addgroup -g ${CORE_USER_GID} ${CORE_USER} \
+  && adduser -u ${CORE_USER_UID} -G ${CORE_USER} --shell /sbin/nologin --no-create-home -D ${CORE_USER} \
+  && addgroup ${CORE_USER} tty \
   && sed -i -e "s/bin\/sh/bin\/bash/" /etc/passwd  
 
 RUN echo "[ ! -z \"\$TERM\" -a -r /etc/motd ] && cat /etc/motd" >> /etc/bash/bashrc
 
-WORKDIR ${BSC_HOME}
+WORKDIR ${CORE_HOME}
 
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 
@@ -43,11 +43,11 @@ COPY docker-entrypoint.sh ./
 
 RUN chmod +x docker-entrypoint.sh \
     && mkdir -p ${DATA_DIR} \
-    && chown -R ${BSC_USER_UID}:${BSC_USER_GID} ${BSC_HOME} ${DATA_DIR}
+    && chown -R ${CORE_USER_UID}:${CORE_USER_GID} ${CORE_HOME} ${DATA_DIR}
 
 VOLUME ${DATA_DIR}
 
-USER ${BSC_USER_UID}:${BSC_USER_GID}
+USER ${CORE_USER_UID}:${CORE_USER_GID}
 
 # rpc ws graphql
 EXPOSE 8545 8546 8547 30303 30303/udp

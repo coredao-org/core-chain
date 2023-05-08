@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
-	"github.com/ethereum/go-ethereum/consensus/parlia"
+	"github.com/ethereum/go-ethereum/consensus/satoshi"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
@@ -462,14 +462,20 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			}
 			clearPending(head.Block.NumberU64())
 			timestamp = time.Now().Unix()
-			if p, ok := w.engine.(*parlia.Parlia); ok {
+			if p, ok := w.engine.(*satoshi.Satoshi); ok {
 				signedRecent, err := p.SignRecently(w.chain, head.Block.Header())
 				if err != nil {
 					log.Info("Not allowed to propose block", "err", err)
+					if p.IsRoundEnd(w.chain, head.Block.Header()) {
+						commit(true, commitInterruptNewHead)
+					}
 					continue
 				}
 				if signedRecent {
 					log.Info("Signed recently, must wait")
+					if p.IsRoundEnd(w.chain, head.Block.Header()) {
+						commit(true, commitInterruptNewHead)
+					}
 					continue
 				}
 			}
@@ -479,7 +485,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			// If sealing is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
 			if w.isRunning() && ((w.chainConfig.Ethash != nil) || (w.chainConfig.Clique != nil &&
-				w.chainConfig.Clique.Period > 0) || (w.chainConfig.Parlia != nil && w.chainConfig.Parlia.Period > 0)) {
+				w.chainConfig.Clique.Period > 0) || (w.chainConfig.Satoshi != nil && w.chainConfig.Satoshi.Period > 0)) {
 				// Short circuit if no new transaction arrives.
 				if atomic.LoadInt32(&w.newTxs) == 0 {
 					timer.Reset(recommit)
@@ -557,7 +563,7 @@ func (w *worker) mainLoop() {
 
 		case ev := <-w.chainSideCh:
 			// Short circuit for duplicate side blocks
-			if _, ok := w.engine.(*parlia.Parlia); ok {
+			if _, ok := w.engine.(*satoshi.Satoshi); ok {
 				continue
 			}
 			if _, exist := w.localUncles[ev.Block.Hash()]; exist {
@@ -625,7 +631,7 @@ func (w *worker) mainLoop() {
 				// submit sealing work here since all empty submission will be rejected
 				// by clique. Of course the advance sealing(empty submission) is disabled.
 				if (w.chainConfig.Clique != nil && w.chainConfig.Clique.Period == 0) ||
-					(w.chainConfig.Parlia != nil && w.chainConfig.Parlia.Period == 0) {
+					(w.chainConfig.Satoshi != nil && w.chainConfig.Satoshi.Period == 0) {
 					w.commitWork(nil, true, time.Now().Unix())
 				}
 			}
@@ -860,11 +866,7 @@ func (w *worker) commitTransactions(env *environment, txs *types.TransactionsByP
 	gasLimit := env.header.GasLimit
 	if env.gasPool == nil {
 		env.gasPool = new(core.GasPool).AddGas(gasLimit)
-		if w.chain.Config().IsEuler(env.header.Number) {
-			env.gasPool.SubGas(params.SystemTxsGas * 3)
-		} else {
-			env.gasPool.SubGas(params.SystemTxsGas)
-		}
+		env.gasPool.SubGas(params.SystemTxsGas)
 	}
 
 	var coalescedLogs []*types.Log
@@ -1168,6 +1170,12 @@ func (w *worker) commitWork(interrupt *int32, noempty bool, timestamp int64) {
 	// sealing in advance without waiting block execution finished.
 	if !noempty && atomic.LoadUint32(&w.noempty) == 0 {
 		w.commit(work, nil, false, start)
+	}
+	
+	err = w.engine.BeforePackTx(w.chain, work.header, work.state, &work.txs, work.unclelist(), &work.receipts)
+	if err != nil {
+		log.Error("Failed to pack system tx", "err", err)
+		return
 	}
 	// Fill pending transactions from the txpool
 	w.fillTransactions(interrupt, work)

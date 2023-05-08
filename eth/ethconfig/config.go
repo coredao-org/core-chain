@@ -30,7 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/consensus/parlia"
+	"github.com/ethereum/go-ethereum/consensus/satoshi"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
@@ -232,8 +232,8 @@ type Config struct {
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
 func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) consensus.Engine {
-	if chainConfig.Parlia != nil {
-		return parlia.New(chainConfig, db, ee, genesisHash)
+	if chainConfig.Satoshi != nil {
+		return satoshi.New(chainConfig, db, ee, genesisHash)
 	}
 	// If proof-of-authority is requested, set it up
 	var engine consensus.Engine

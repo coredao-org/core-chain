@@ -589,6 +589,16 @@ func (ethash *Ethash) Prepare(chain consensus.ChainHeaderReader, header *types.H
 	return nil
 }
 
+func (ethash *Ethash) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction, uncles []*types.Header,
+	receipts *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64) (err error) {
+	return
+}
+
+func (ethash *Ethash) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error) {
+	return
+}
+
 // Finalize implements consensus.Engine, accumulating the block and uncle rewards,
 // setting the final state on the header
 func (ethash *Ethash) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction, uncles []*types.Header,

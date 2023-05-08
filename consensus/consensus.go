@@ -92,6 +92,12 @@ type Engine interface {
 	// rules of a particular engine. The changes are executed inline.
 	Prepare(chain ChainHeaderReader, header *types.Header) error
 
+	BeforePackTx(chain ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+		uncles []*types.Header, receipts *[]*types.Receipt) error
+
+	BeforeValidateTx(chain ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+		uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error
+
 	// Finalize runs any post-transaction state modifications (e.g. block rewards)
 	// but does not assemble the block.
 	//

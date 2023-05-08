@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/clique"
-	"github.com/ethereum/go-ethereum/consensus/parlia"
+	"github.com/ethereum/go-ethereum/consensus/satoshi"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -171,20 +171,20 @@ func (api *SignerAPI) determineSignatureFormat(ctx context.Context, contentType 
 		// Clique uses V on the form 0 or 1
 		useEthereumV = false
 		req = &SignDataRequest{ContentType: mediaType, Rawdata: cliqueRlp, Messages: messages, Hash: sighash}
-	case apitypes.ApplicationParlia.Mime:
+	case apitypes.ApplicationSatoshi.Mime:
 		stringData, ok := data.(string)
 		if !ok {
-			return nil, useEthereumV, fmt.Errorf("input for %v must be an hex-encoded string", apitypes.ApplicationParlia.Mime)
+			return nil, useEthereumV, fmt.Errorf("input for %v must be an hex-encoded string", apitypes.ApplicationSatoshi.Mime)
 		}
-		parliaData, err := hexutil.Decode(stringData)
+		satoshiData, err := hexutil.Decode(stringData)
 		if err != nil {
 			return nil, useEthereumV, err
 		}
 		header := &types.Header{}
-		if err := rlp.DecodeBytes(parliaData, header); err != nil {
+		if err := rlp.DecodeBytes(satoshiData, header); err != nil {
 			return nil, useEthereumV, err
 		}
-		// The incoming parlia header is already truncated, sent to us with a extradata already shortened
+		// The incoming satoshi header is already truncated, sent to us with a extradata already shortened
 		if len(header.Extra) < 65 {
 			// Need to add it back, to get a suitable length for hashing
 			newExtra := make([]byte, len(header.Extra)+65)
@@ -192,20 +192,20 @@ func (api *SignerAPI) determineSignatureFormat(ctx context.Context, contentType 
 			header.Extra = newExtra
 		}
 		// Get back the rlp data, encoded by us
-		sighash, parliaRlp, err := parliaHeaderHashAndRlp(header, api.chainID)
+		sighash, satoshiRlp, err := satoshiHeaderHashAndRlp(header, api.chainID)
 		if err != nil {
 			return nil, useEthereumV, err
 		}
 		messages := []*apitypes.NameValueType{
 			{
-				Name:  "Parlia header",
-				Typ:   "parlia",
-				Value: fmt.Sprintf("parlia header %d [0x%x]", header.Number, header.Hash()),
+				Name:  "Satoshi header",
+				Typ:   "satoshi",
+				Value: fmt.Sprintf("satoshi header %d [0x%x]", header.Number, header.Hash()),
 			},
 		}
-		// Parlia uses V on the form 0 or 1
+		// Satoshi uses V on the form 0 or 1
 		useEthereumV = false
-		req = &SignDataRequest{ContentType: mediaType, Rawdata: parliaRlp, Messages: messages, Hash: sighash}
+		req = &SignDataRequest{ContentType: mediaType, Rawdata: satoshiRlp, Messages: messages, Hash: sighash}
 	default: // also case TextPlain.Mime:
 		// Calculates an Ethereum ECDSA signature for:
 		// hash = keccak256("\x19${byteVersion}Ethereum Signed Message:\n${message length}${message}")
@@ -258,13 +258,13 @@ func cliqueHeaderHashAndRlp(header *types.Header) (hash, rlp []byte, err error) 
 	return hash, rlp, err
 }
 
-func parliaHeaderHashAndRlp(header *types.Header, chainId *big.Int) (hash, rlp []byte, err error) {
+func satoshiHeaderHashAndRlp(header *types.Header, chainId *big.Int) (hash, rlp []byte, err error) {
 	if len(header.Extra) < 65 {
 		err = fmt.Errorf("clique header extradata too short, %d < 65", len(header.Extra))
 		return
 	}
-	rlp = parlia.ParliaRLP(header, chainId)
-	hash = parlia.SealHash(header, chainId).Bytes()
+	rlp = satoshi.SatoshiRLP(header, chainId)
+	hash = satoshi.SealHash(header, chainId).Bytes()
 	return hash, rlp, err
 }
 

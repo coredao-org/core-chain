@@ -23,7 +23,6 @@ MAINNET_ZIP_SUM="$(checksum ./mainnet.zip)"
 TESTNET_ZIP_SUM="$(checksum ./testnet.zip)"
 LINUX_BIN_SUM="$(checksum ./linux/geth)"
 MAC_BIN_SUM="$(checksum ./macos/geth)"
-WINDOWS_BIN_SUM="$(checksum ./windows/geth.exe)"
 OUTPUT=$(cat <<-END
 ## Changelog\n
 ${CHANGE_LOG}\n
@@ -34,7 +33,6 @@ ${CHANGE_LOG}\n
 | testnet.zip | ${TESTNET_ZIP_SUM} |\n
 | geth_linux | ${LINUX_BIN_SUM} |\n
 | geth_mac  | ${MAC_BIN_SUM} |\n
-| geth_windows  | ${WINDOWS_BIN_SUM} |\n
 END
 )
 

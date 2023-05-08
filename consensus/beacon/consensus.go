@@ -268,6 +268,16 @@ func (beacon *Beacon) Delay(_ consensus.ChainReader, _ *types.Header) *time.Dura
 	return nil
 }
 
+func (p *Beacon) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) (err error) {
+	return
+}
+
+func (p *Beacon) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error) {
+	return
+}
+
 // Finalize implements consensus.Engine, setting the final state on the header
 func (beacon *Beacon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction, uncles []*types.Header, _ *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64) error {
 	// Finalize is different with Prepare, it can be used in both block generation
