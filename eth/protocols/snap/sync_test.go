@@ -367,7 +367,8 @@ func createStorageRequestResponse(t *testPeer, root common.Hash, accounts []comm
 	return hashes, slots, proofs
 }
 
-//  the createStorageRequestResponseAlwaysProve tests a cornercase, where it always
+//	the createStorageRequestResponseAlwaysProve tests a cornercase, where it always
+//
 // supplies the proof for the last account, even if it is 'complete'.h
 func createStorageRequestResponseAlwaysProve(t *testPeer, root common.Hash, accounts []common.Hash, bOrigin, bLimit []byte, max uint64) (hashes [][]common.Hash, slots [][][]byte, proofs [][]byte) {
 	var size uint64
@@ -1349,7 +1350,7 @@ func makeAccountTrieNoStorage(n int) (*trie.Trie, entrySlice) {
 	accTrie, _ := trie.New(common.Hash{}, db)
 	var entries entrySlice
 	for i := uint64(1); i <= uint64(n); i++ {
-		value, _ := rlp.EncodeToBytes(types.StateAccount{
+		value, _ := rlp.EncodeToBytes(&types.StateAccount{
 			Nonce:    i,
 			Balance:  big.NewInt(int64(i)),
 			Root:     emptyRoot,
@@ -1394,7 +1395,7 @@ func makeBoundaryAccountTrie(n int) (*trie.Trie, entrySlice) {
 	}
 	// Fill boundary accounts
 	for i := 0; i < len(boundaries); i++ {
-		value, _ := rlp.EncodeToBytes(types.StateAccount{
+		value, _ := rlp.EncodeToBytes(&types.StateAccount{
 			Nonce:    uint64(0),
 			Balance:  big.NewInt(int64(i)),
 			Root:     emptyRoot,
@@ -1406,7 +1407,7 @@ func makeBoundaryAccountTrie(n int) (*trie.Trie, entrySlice) {
 	}
 	// Fill other accounts if required
 	for i := uint64(1); i <= uint64(n); i++ {
-		value, _ := rlp.EncodeToBytes(types.StateAccount{
+		value, _ := rlp.EncodeToBytes(&types.StateAccount{
 			Nonce:    i,
 			Balance:  big.NewInt(int64(i)),
 			Root:     emptyRoot,
@@ -1442,7 +1443,7 @@ func makeAccountTrieWithStorageWithUniqueStorage(accounts, slots int, code bool)
 		stTrie, stEntries := makeStorageTrieWithSeed(uint64(slots), i, db)
 		stRoot := stTrie.Hash()
 		stTrie.Commit(nil)
-		value, _ := rlp.EncodeToBytes(types.StateAccount{
+		value, _ := rlp.EncodeToBytes(&types.StateAccount{
 			Nonce:    i,
 			Balance:  big.NewInt(int64(i)),
 			Root:     stRoot,
@@ -1489,7 +1490,7 @@ func makeAccountTrieWithStorage(accounts, slots int, code, boundary bool) (*trie
 		if code {
 			codehash = getCodeHash(i)
 		}
-		value, _ := rlp.EncodeToBytes(types.StateAccount{
+		value, _ := rlp.EncodeToBytes(&types.StateAccount{
 			Nonce:    i,
 			Balance:  big.NewInt(int64(i)),
 			Root:     stRoot,

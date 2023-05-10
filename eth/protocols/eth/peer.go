@@ -74,8 +74,9 @@ type Peer struct {
 	version         uint              // Protocol version negotiated
 	statusExtension *UpgradeStatusExtension
 
-	head common.Hash // Latest advertised head block hash
-	td   *big.Int    // Latest advertised head block total difficulty
+	lagging bool        // lagging peer is still connected, but won't be used to sync.
+	head    common.Hash // Latest advertised head block hash
+	td      *big.Int    // Latest advertised head block total difficulty
 
 	knownBlocks     *knownCache            // Set of block hashes known to be known by this peer
 	queuedBlocks    chan *blockPropagation // Queue of blocks to broadcast to the peer
@@ -153,6 +154,14 @@ func (p *Peer) Version() uint {
 	return p.version
 }
 
+func (p *Peer) Lagging() bool {
+	return p.lagging
+}
+
+func (p *Peer) MarkLagging() {
+	p.lagging = true
+}
+
 // Head retrieves the current head hash and total difficulty of the peer.
 func (p *Peer) Head() (hash common.Hash, td *big.Int) {
 	p.lock.RLock()
@@ -166,7 +175,7 @@ func (p *Peer) Head() (hash common.Hash, td *big.Int) {
 func (p *Peer) SetHead(hash common.Hash, td *big.Int) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-
+	p.lagging = false
 	copy(p.head[:], hash[:])
 	p.td.Set(td)
 }
@@ -260,7 +269,7 @@ func (p *Peer) ReplyPooledTransactionsRLP(id uint64, hashes []common.Hash, txs [
 	p.knownTxs.Add(hashes...)
 
 	// Not packed into PooledTransactionsPacket to avoid RLP decoding
-	return p2p.Send(p.rw, PooledTransactionsMsg, PooledTransactionsRLPPacket66{
+	return p2p.Send(p.rw, PooledTransactionsMsg, &PooledTransactionsRLPPacket66{
 		RequestId:                   id,
 		PooledTransactionsRLPPacket: txs,
 	})
@@ -317,7 +326,7 @@ func (p *Peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
 
 // ReplyBlockHeaders is the eth/66 version of SendBlockHeaders.
 func (p *Peer) ReplyBlockHeadersRLP(id uint64, headers []rlp.RawValue) error {
-	return p2p.Send(p.rw, BlockHeadersMsg, BlockHeadersRLPPacket66{
+	return p2p.Send(p.rw, BlockHeadersMsg, &BlockHeadersRLPPacket66{
 		RequestId:             id,
 		BlockHeadersRLPPacket: headers,
 	})
@@ -326,7 +335,7 @@ func (p *Peer) ReplyBlockHeadersRLP(id uint64, headers []rlp.RawValue) error {
 // ReplyBlockBodiesRLP is the eth/66 version of SendBlockBodiesRLP.
 func (p *Peer) ReplyBlockBodiesRLP(id uint64, bodies []rlp.RawValue) error {
 	// Not packed into BlockBodiesPacket to avoid RLP decoding
-	return p2p.Send(p.rw, BlockBodiesMsg, BlockBodiesRLPPacket66{
+	return p2p.Send(p.rw, BlockBodiesMsg, &BlockBodiesRLPPacket66{
 		RequestId:            id,
 		BlockBodiesRLPPacket: bodies,
 	})
@@ -334,7 +343,7 @@ func (p *Peer) ReplyBlockBodiesRLP(id uint64, bodies []rlp.RawValue) error {
 
 // ReplyNodeData is the eth/66 response to GetNodeData.
 func (p *Peer) ReplyNodeData(id uint64, data [][]byte) error {
-	return p2p.Send(p.rw, NodeDataMsg, NodeDataPacket66{
+	return p2p.Send(p.rw, NodeDataMsg, &NodeDataPacket66{
 		RequestId:      id,
 		NodeDataPacket: data,
 	})
@@ -342,7 +351,7 @@ func (p *Peer) ReplyNodeData(id uint64, data [][]byte) error {
 
 // ReplyReceiptsRLP is the eth/66 response to GetReceipts.
 func (p *Peer) ReplyReceiptsRLP(id uint64, receipts []rlp.RawValue) error {
-	return p2p.Send(p.rw, ReceiptsMsg, ReceiptsRLPPacket66{
+	return p2p.Send(p.rw, ReceiptsMsg, &ReceiptsRLPPacket66{
 		RequestId:         id,
 		ReceiptsRLPPacket: receipts,
 	})

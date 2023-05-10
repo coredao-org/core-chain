@@ -58,6 +58,7 @@ type peerConnection struct {
 // LightPeer encapsulates the methods required to synchronise with a remote light peer.
 type LightPeer interface {
 	Head() (common.Hash, *big.Int)
+	MarkLagging()
 	RequestHeadersByHash(common.Hash, int, int, bool, chan *eth.Response) (*eth.Request, error)
 	RequestHeadersByNumber(uint64, int, int, bool, chan *eth.Response) (*eth.Request, error)
 }
@@ -75,6 +76,7 @@ type lightPeerWrapper struct {
 }
 
 func (w *lightPeerWrapper) Head() (common.Hash, *big.Int) { return w.peer.Head() }
+func (w *lightPeerWrapper) MarkLagging()                  { w.peer.MarkLagging() }
 func (w *lightPeerWrapper) RequestHeadersByHash(h common.Hash, amount int, skip int, reverse bool, sink chan *eth.Response) (*eth.Request, error) {
 	return w.peer.RequestHeadersByHash(h, amount, skip, reverse, sink)
 }
@@ -237,6 +239,7 @@ func (ps *peerSet) Register(p *peerConnection) error {
 	}
 	p.rates = msgrate.NewTracker(ps.rates.MeanCapacities(), ps.rates.MedianRoundTrip())
 	if err := ps.rates.Track(p.id, p.rates); err != nil {
+		ps.lock.Unlock()
 		return err
 	}
 	ps.peers[p.id] = p

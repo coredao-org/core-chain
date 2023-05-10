@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/core/monitor"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
@@ -258,6 +259,9 @@ type BlockChain struct {
 
 	shouldPreserve  func(*types.Block) bool        // Function used to determine whether should preserve the given block.
 	terminateInsert func(common.Hash, uint64) bool // Testing hook used to terminate ancient receipt chain insertion.
+
+	// monitor
+	doubleSignMonitor *monitor.DoubleSignMonitor
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -504,6 +508,13 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		bc.wg.Add(1)
 		go bc.rewindInvalidHeaderBlockLoop()
 	}
+
+	if bc.doubleSignMonitor != nil {
+		bc.wg.Add(1)
+		go bc.startDoubleSignMonitor()
+
+	}
+
 	return bc, nil
 }
 
@@ -898,22 +909,25 @@ func (bc *BlockChain) Export(w io.Writer) error {
 
 // ExportN writes a subset of the active chain to the given writer.
 func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
-	if !bc.chainmu.TryLock() {
-		return errChainStopped
-	}
-	defer bc.chainmu.Unlock()
-
 	if first > last {
 		return fmt.Errorf("export failed: first (%d) is greater than last (%d)", first, last)
 	}
 	log.Info("Exporting batch of blocks", "count", last-first+1)
 
-	start, reported := time.Now(), time.Now()
+	var (
+		parentHash common.Hash
+		start      = time.Now()
+		reported   = time.Now()
+	)
 	for nr := first; nr <= last; nr++ {
 		block := bc.GetBlockByNumber(nr)
 		if block == nil {
 			return fmt.Errorf("export failed on #%d: not found", nr)
 		}
+		if nr > first && block.ParentHash() != parentHash {
+			return fmt.Errorf("export failed: chain reorg during export")
+		}
+		parentHash = block.Hash()
 		if err := block.EncodeRLP(w); err != nil {
 			return err
 		}
@@ -1451,6 +1465,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
+		state.StopPrefetcher()
 		return consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
@@ -1809,17 +1824,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals, setHead bool)
 		bc.reportBlock(block, nil, err)
 		return it.index, err
 	}
-	// No validation errors for the first block (or chain prefix skipped)
-	var activeState *state.StateDB
-	defer func() {
-		// The chain importer is starting and stopping trie prefetchers. If a bad
-		// block or other error is hit however, an early return may not properly
-		// terminate the background threads. This defer ensures that we clean up
-		// and dangling prefetcher, without defering each and holding on live refs.
-		if activeState != nil {
-			activeState.StopPrefetcher()
-		}
-	}()
 
 	for ; block != nil && err == nil || errors.Is(err, ErrKnownBlock); block, err = it.next() {
 		// If the chain is terminating, stop processing blocks
@@ -1889,10 +1893,18 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals, setHead bool)
 		interruptCh := make(chan struct{})
 		// For diff sync, it may fallback to full sync, so we still do prefetch
 		if len(block.Transactions()) >= prefetchTxNumber {
-			throwaway := statedb.Copy()
 			// do Prefetch in a separate goroutine to avoid blocking the critical path
+
+			// 1.do state prefetch for snapshot cache
+			throwaway := statedb.CopyDoPrefetch()
 			go bc.prefetcher.Prefetch(block, throwaway, &bc.vmConfig, interruptCh)
+
+			// 2.do trie prefetch for MPT trie node cache
+			// it is for the big state trie tree, prefetch based on transaction's From/To address.
+			// trie prefetcher is thread safe now, ok to prefetch in a separate routine
+			go throwaway.TriePrefetchInAdvance(block, signer)
 		}
+
 		//Process block using the parent state as reference point
 		substart := time.Now()
 		if bc.pipeCommit {
@@ -1901,9 +1913,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals, setHead bool)
 		statedb.SetExpectedStateRoot(block.Root())
 		statedb, receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
 		close(interruptCh) // state prefetch can be stopped
-		activeState = statedb
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
+			statedb.StopPrefetcher()
 			return it.index, err
 		}
 		// Update the metrics touched during block processing
@@ -1922,6 +1934,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals, setHead bool)
 			if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
 				log.Error("validate state failed", "error", err)
 				bc.reportBlock(block, receipts, err)
+				statedb.StopPrefetcher()
 				return it.index, err
 			}
 		}
@@ -2271,8 +2284,8 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		oldChain    types.Blocks
 		commonBlock *types.Block
 
-		deletedTxs types.Transactions
-		addedTxs   types.Transactions
+		deletedTxs []common.Hash
+		addedTxs   []common.Hash
 
 		deletedLogs [][]*types.Log
 		rebirthLogs [][]*types.Log
@@ -2282,7 +2295,9 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		// Old chain is longer, gather all transactions and logs as deleted ones
 		for ; oldBlock != nil && oldBlock.NumberU64() != newBlock.NumberU64(); oldBlock = bc.GetBlock(oldBlock.ParentHash(), oldBlock.NumberU64()-1) {
 			oldChain = append(oldChain, oldBlock)
-			deletedTxs = append(deletedTxs, oldBlock.Transactions()...)
+			for _, tx := range oldBlock.Transactions() {
+				deletedTxs = append(deletedTxs, tx.Hash())
+			}
 
 			// Collect deleted logs for notification
 			logs := bc.collectLogs(oldBlock.Hash(), true)
@@ -2312,7 +2327,9 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		}
 		// Remove an old block as well as stash away a new block
 		oldChain = append(oldChain, oldBlock)
-		deletedTxs = append(deletedTxs, oldBlock.Transactions()...)
+		for _, tx := range oldBlock.Transactions() {
+			deletedTxs = append(deletedTxs, tx.Hash())
+		}
 
 		// Collect deleted logs for notification
 		logs := bc.collectLogs(oldBlock.Hash(), true)
@@ -2331,6 +2348,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 			return fmt.Errorf("invalid new chain")
 		}
 	}
+
 	// Ensure the user sees large reorgs
 	if len(oldChain) > 0 && len(newChain) > 0 {
 		logFn := log.Info
@@ -2347,7 +2365,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	} else if len(newChain) > 0 {
 		// Special case happens in the post merge stage that current head is
 		// the ancestor of new head while these two blocks are not consecutive
-		log.Info("Extend chain", "add", len(newChain), "number", newChain[0].NumberU64(), "hash", newChain[0].Hash())
+		log.Info("Extend chain", "add", len(newChain), "number", newChain[0].Number(), "hash", newChain[0].Hash())
 		blockReorgAddMeter.Mark(int64(len(newChain)))
 	} else {
 		// len(newChain) == 0 && len(oldChain) > 0
@@ -2360,19 +2378,17 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		// Insert the block in the canonical way, re-writing history
 		bc.writeHeadBlock(newChain[i])
 
-		// Collect reborn logs due to chain reorg
-		logs := bc.collectLogs(newChain[i].Hash(), false)
-		if len(logs) > 0 {
-			rebirthLogs = append(rebirthLogs, logs)
-		}
 		// Collect the new added transactions.
-		addedTxs = append(addedTxs, newChain[i].Transactions()...)
+		for _, tx := range newChain[i].Transactions() {
+			addedTxs = append(addedTxs, tx.Hash())
+		}
 	}
+
 	// Delete useless indexes right now which includes the non-canonical
 	// transaction indexes, canonical chain indexes which above the head.
 	indexesBatch := bc.db.NewBatch()
-	for _, tx := range types.TxDifference(deletedTxs, addedTxs) {
-		rawdb.DeleteTxLookupEntry(indexesBatch, tx.Hash())
+	for _, tx := range types.HashDifference(deletedTxs, addedTxs) {
+		rawdb.DeleteTxLookupEntry(indexesBatch, tx)
 	}
 	// Delete any canonical number assignments above the new head
 	number := bc.CurrentBlock().NumberU64()
@@ -2385,6 +2401,15 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	}
 	if err := indexesBatch.Write(); err != nil {
 		log.Crit("Failed to delete useless indexes", "err", err)
+	}
+
+	// Collect the logs
+	for i := len(newChain) - 1; i >= 1; i-- {
+		// Collect reborn logs due to chain reorg
+		logs := bc.collectLogs(newChain[i].Hash(), false)
+		if len(logs) > 0 {
+			rebirthLogs = append(rebirthLogs, logs)
+		}
 	}
 	// If any logs need to be fired, do it now. In theory we could avoid creating
 	// this goroutine if there are no events to fire, but realistcally that only
@@ -2551,6 +2576,27 @@ func (bc *BlockChain) trustedDiffLayerLoop() {
 				}
 				batch.Reset()
 			}
+		}
+	}
+}
+
+func (bc *BlockChain) startDoubleSignMonitor() {
+	eventChan := make(chan ChainHeadEvent, monitor.MaxCacheHeader)
+	sub := bc.SubscribeChainHeadEvent(eventChan)
+	defer func() {
+		sub.Unsubscribe()
+		close(eventChan)
+		bc.wg.Done()
+	}()
+
+	for {
+		select {
+		case event := <-eventChan:
+			if bc.doubleSignMonitor != nil {
+				bc.doubleSignMonitor.Verify(event.Block.Header())
+			}
+		case <-bc.quit:
+			return
 		}
 	}
 }
@@ -2911,6 +2957,9 @@ Error: %v
 // of the header retrieval mechanisms already need to verify nonces, as well as
 // because nonces can be verified sparsely, not needing to check each.
 func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (int, error) {
+	if len(chain) == 0 {
+		return 0, nil
+	}
 	start := time.Now()
 	if i, err := bc.hc.ValidateHeaderChain(chain, checkFreq); err != nil {
 		return i, err
@@ -2956,6 +3005,11 @@ func EnableBlockValidator(chainConfig *params.ChainConfig, engine consensus.Engi
 		}
 		return bc, nil
 	}
+}
+
+func EnableDoubleSignChecker(bc *BlockChain) (*BlockChain, error) {
+	bc.doubleSignMonitor = monitor.NewDoubleSignMonitor()
+	return bc, nil
 }
 
 func (bc *BlockChain) GetVerifyResult(blockNumber uint64, blockHash common.Hash, diffHash common.Hash) *VerifyResult {

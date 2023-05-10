@@ -429,7 +429,7 @@ func (p *Satoshi) verifyCascadingFields(chain consensus.ChainHeaderReader, heade
 	if diff < 0 {
 		diff *= -1
 	}
-	limit := parent.GasLimit / params.SatoshiGasLimitBoundDivisor
+	limit := parent.GasLimit / params.GasLimitBoundDivisor
 
 	if uint64(diff) >= limit || header.GasLimit < params.MinGasLimit {
 		return fmt.Errorf("invalid gas limit: have %d, want %d += %d", header.GasLimit, parent.GasLimit, limit)
@@ -470,6 +470,9 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 				// get checkpoint data
 				hash := checkpoint.Hash()
 
+				if len(checkpoint.Extra) <= extraVanity+extraSeal {
+					return nil, errors.New("invalid extra-data for genesis block, check the genesis.json file")
+				}
 				validatorBytes := checkpoint.Extra[extraVanity : len(checkpoint.Extra)-extraSeal]
 				// get validators from headers
 				validators, err := ParseValidators(validatorBytes)
@@ -834,8 +837,20 @@ func (p *Satoshi) Authorize(val common.Address, signFn SignerFn, signTxFn Signer
 	p.signTxFn = signTxFn
 }
 
-func (p *Satoshi) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
+// Argument leftOver is the time reserved for block finalize(calculate root, distribute income...)
+func (p *Satoshi) Delay(chain consensus.ChainReader, header *types.Header, leftOver *time.Duration) *time.Duration {
 	delay := time.Until(time.Unix(int64(header.Time), 0))
+
+	if *leftOver >= time.Duration(p.config.Period)*time.Second {
+		// ignore invalid leftOver
+		log.Error("Delay invalid argument", "leftOver", leftOver.String(), "Period", p.config.Period)
+	} else if *leftOver >= delay {
+		delay = time.Duration(0)
+		return &delay
+	} else {
+		delay = delay - *leftOver
+	}
+
 	// The blocking time should be no more than half of period
 	half := time.Duration(p.config.Period) * time.Second / 2
 	if delay > half {
@@ -965,8 +980,8 @@ func (p *Satoshi) IsLocalBlock(header *types.Header) bool {
 	return p.val == header.Coinbase
 }
 
-func (p *Satoshi) SignRecently(chain consensus.ChainReader, parent *types.Header) (bool, error) {
-	snap, err := p.snapshot(chain, parent.Number.Uint64(), parent.ParentHash, nil)
+func (p *Satoshi) SignRecently(chain consensus.ChainReader, parent *types.Block) (bool, error) {
+	snap, err := p.snapshot(chain, parent.NumberU64(), parent.Hash(), nil)
 	if err != nil {
 		return true, err
 	}
@@ -977,7 +992,7 @@ func (p *Satoshi) SignRecently(chain consensus.ChainReader, parent *types.Header
 	}
 
 	// If we're amongst the recent signers, wait for the next block
-	number := parent.Number.Uint64() + 1
+	number := parent.NumberU64() + 1
 	for seen, recent := range snap.Recents {
 		if recent == p.val {
 			// Signer is among recents, only wait if the current block doesn't shift it out
@@ -1087,6 +1102,7 @@ func (p *Satoshi) getCurrentValidators(blockHash common.Hash) ([]common.Address,
 	}
 
 	valz := make([]common.Address, len(*ret0))
+	// nolint: gosimple
 	for i, a := range *ret0 {
 		valz[i] = a
 	}

@@ -190,9 +190,17 @@ func NewFreezerDb(db ethdb.KeyValueStore, frz, namespace string, readonly bool, 
 // NewDatabaseWithFreezer creates a high level database on top of a given key-
 // value data store with a freezer moving immutable chain segments into cold
 // storage.
-func NewDatabaseWithFreezer(db ethdb.KeyValueStore, freezer string, namespace string, readonly, disableFreeze, isLastOffset, pruneAncientData bool) (ethdb.Database, error) {
+func NewDatabaseWithFreezer(db ethdb.KeyValueStore, freezer string, namespace string, readonly, disableFreeze, isLastOffset, pruneAncientData, skipCheckFreezerType bool) (ethdb.Database, error) {
+	var offset uint64
+	// The offset of ancientDB should be handled differently in different scenarios.
+	if isLastOffset {
+		offset = ReadOffSetOfLastAncientFreezer(db)
+	} else {
+		offset = ReadOffSetOfCurrentAncientFreezer(db)
+	}
+
 	if pruneAncientData && !disableFreeze && !readonly {
-		frdb, err := newPrunedFreezer(freezer, db)
+		frdb, err := newPrunedFreezer(freezer, db, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -211,17 +219,8 @@ func NewDatabaseWithFreezer(db ethdb.KeyValueStore, freezer string, namespace st
 		log.Error("pruneancient not take effect, disableFreezer or readonly be set")
 	}
 
-	if ReadAncientType(db) == PruneFreezerType {
-		log.Warn("prune ancinet flag is set, may start fail, can add pruneancient parameter resolve")
-		return nil, errors.New("pruneancient was set, please add pruneancient parameter")
-	}
-
-	var offset uint64
-	// The offset of ancientDB should be handled differently in different scenarios.
-	if isLastOffset {
-		offset = ReadOffSetOfLastAncientFreezer(db)
-	} else {
-		offset = ReadOffSetOfCurrentAncientFreezer(db)
+	if prunedFrozen := ReadFrozenOfAncientFreezer(db); prunedFrozen > offset {
+		offset = prunedFrozen
 	}
 
 	// Create the idle freezer instance
@@ -340,12 +339,12 @@ func NewLevelDBDatabase(file string, cache int, handles int, namespace string, r
 
 // NewLevelDBDatabaseWithFreezer creates a persistent key-value database with a
 // freezer moving immutable chain segments into cold storage.
-func NewLevelDBDatabaseWithFreezer(file string, cache int, handles int, freezer string, namespace string, readonly, disableFreeze, isLastOffset, pruneAncientData bool) (ethdb.Database, error) {
+func NewLevelDBDatabaseWithFreezer(file string, cache int, handles int, freezer string, namespace string, readonly, disableFreeze, isLastOffset, pruneAncientData, skipCheckFreezerType bool) (ethdb.Database, error) {
 	kvdb, err := leveldb.New(file, cache, handles, namespace, readonly)
 	if err != nil {
 		return nil, err
 	}
-	frdb, err := NewDatabaseWithFreezer(kvdb, freezer, namespace, readonly, disableFreeze, isLastOffset, pruneAncientData)
+	frdb, err := NewDatabaseWithFreezer(kvdb, freezer, namespace, readonly, disableFreeze, isLastOffset, pruneAncientData, skipCheckFreezerType)
 	if err != nil {
 		kvdb.Close()
 		return nil, err
