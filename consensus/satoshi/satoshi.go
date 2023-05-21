@@ -410,7 +410,7 @@ func (p *Satoshi) verifyCascadingFields(chain consensus.ChainHeaderReader, heade
 	}
 
 	// blockTimeVerify
-	if header.Time < parent.Time+p.config.Period+backOffTime(snap, header.Coinbase) {
+	if header.Time < parent.Time+p.config.Period+p.backOffTime(snap, header, header.Coinbase) {
 		return consensus.ErrFutureBlock
 	}
 
@@ -463,8 +463,10 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 			}
 		}
 
-		// If we're at the genesis, snapshot the initial state.
-		if number == 0 {
+		// If we're at the genesis, snapshot the initial state. Alternatively if we have
+		// piled up more headers than allowed to be reorged (chain reinit from a freezer),
+		// consider the checkpoint trusted and snapshot it.
+		if number == 0 || (number%p.config.Epoch == 0 && (len(headers) > params.FullImmutabilityThreshold)) {
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				// get checkpoint data
@@ -650,7 +652,7 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	header.Time = parent.Time + p.config.Period + backOffTime(snap, p.val)
+	header.Time = parent.Time + p.config.Period + p.backOffTime(snap, header, p.val)
 	if header.Time < uint64(time.Now().Unix()) {
 		header.Time = uint64(time.Now().Unix())
 	}
@@ -927,6 +929,10 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 				log.Info("Received block process finished, abort block seal")
 				return
 			case <-time.After(time.Duration(processBackOffTime) * time.Second):
+				if chain.CurrentHeader().Number.Uint64() >= header.Number.Uint64() {
+					log.Info("Process backoff time exhausted, and current header has updated to abort this seal")
+					return
+				}
 				log.Info("Process backoff time exhausted, start to seal block")
 			}
 		}
@@ -1341,26 +1347,75 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	}
 }
 
-func backOffTime(snap *Snapshot, val common.Address) uint64 {
+func (s *Satoshi) backOffTime(snap *Snapshot, header *types.Header, val common.Address) uint64 {
 	if snap.inturn(val) {
 		return 0
 	} else {
-		idx := snap.indexOfVal(val)
+		delay := initialBackOffTime
+		validators := snap.validators()
+		if s.chainConfig.IsZeus(header.Number) {
+			// reverse the key/value of snap.Recents to get recentsMap
+			recentsMap := make(map[common.Address]uint64, len(snap.Recents))
+			bound := uint64(0)
+			if n, limit := header.Number.Uint64(), uint64(len(validators)/2+1); n > limit {
+				bound = n - limit
+			}
+			for seen, recent := range snap.Recents {
+				if seen <= bound {
+					continue
+				}
+				recentsMap[recent] = seen
+			}
+
+			// The backOffTime does not matter when a validator has signed recently.
+			if _, ok := recentsMap[val]; ok {
+				return 0
+			}
+
+			inTurnAddr := validators[(snap.Number+1)%uint64(len(validators))]
+			if _, ok := recentsMap[inTurnAddr]; ok {
+				log.Debug("in turn validator has recently signed, skip initialBackOffTime",
+					"inTurnAddr", inTurnAddr)
+				delay = 0
+			}
+
+			// Exclude the recently signed validators
+			temp := make([]common.Address, 0, len(validators))
+			for _, addr := range validators {
+				if _, ok := recentsMap[addr]; ok {
+					continue
+				}
+				temp = append(temp, addr)
+			}
+			validators = temp
+		}
+
+		// get the index of current validator and its shuffled backoff time.
+		idx := -1
+		for index, itemAddr := range validators {
+			if val == itemAddr {
+				idx = index
+			}
+		}
 		if idx < 0 {
-			// The backOffTime does not matter when a validator is not authorized.
+			log.Info("The validator is not authorized", "addr", val)
 			return 0
 		}
+
 		s := rand.NewSource(int64(snap.Number))
 		r := rand.New(s)
-		n := len(snap.Validators)
+		n := len(validators)
 		backOffSteps := make([]uint64, 0, n)
-		for idx := uint64(0); idx < uint64(n); idx++ {
-			backOffSteps = append(backOffSteps, idx)
+
+		for i := uint64(0); i < uint64(n); i++ {
+			backOffSteps = append(backOffSteps, i)
 		}
+
 		r.Shuffle(n, func(i, j int) {
 			backOffSteps[i], backOffSteps[j] = backOffSteps[j], backOffSteps[i]
 		})
-		delay := initialBackOffTime + backOffSteps[idx]*wiggleTime
+
+		delay += backOffSteps[idx] * wiggleTime
 		return delay
 	}
 }
