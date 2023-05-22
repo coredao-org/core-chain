@@ -86,9 +86,6 @@ var (
 	fixGasPrice        = flag.Int64("faucet.fixedprice", 0, "Will use fixed gas price if specified")
 	twitterTokenFlag   = flag.String("twitter.token", "", "Bearer token to authenticate with the v2 Twitter API")
 	twitterTokenV1Flag = flag.String("twitter.token.v1", "", "Bearer token to authenticate with the v1.1 Twitter API")
-
-	goerliFlag  = flag.Bool("goerli", false, "Initializes the faucet with Görli network config")
-	rinkebyFlag = flag.Bool("rinkeby", false, "Initializes the faucet with Rinkeby network config")
 )
 
 var (
@@ -111,7 +108,7 @@ func main() {
 	for i := 0; i < *tiersFlag; i++ {
 		// Calculate the amount for the next tier and format it
 		amount := float64(*payoutFlag) * math.Pow(2.5, float64(i))
-		amounts[i] = fmt.Sprintf("%s BTCs", strconv.FormatFloat(amount, 'f', -1, 64))
+		amounts[i] = fmt.Sprintf("%s tCORE", strconv.FormatFloat(amount, 'f', -1, 64))
 		if amount == 1 {
 			amounts[i] = strings.TrimSuffix(amounts[i], "s")
 		}
@@ -149,9 +146,13 @@ func main() {
 		log.Crit("Failed to render the faucet template", "err", err)
 	}
 	// Load and parse the genesis block requested by the user
-	genesis, err := getGenesis(genesisFlag, *goerliFlag, *rinkebyFlag)
+	blob, err := ioutil.ReadFile(*genesisFlag)
 	if err != nil {
-		log.Crit("Failed to parse genesis config", "err", err)
+		log.Crit("Failed to read genesis block contents", "genesis", *genesisFlag, "err", err)
+	}
+	genesis := new(core.Genesis)
+	if err = json.Unmarshal(blob, genesis); err != nil {
+		log.Crit("Failed to parse genesis block json", "err", err)
 	}
 	// Convert the bootnodes to internal enode representations
 	var enodes []*enode.Node
@@ -163,13 +164,13 @@ func main() {
 		}
 	}
 	// Load up the account key and decrypt its password
-	blob, err := ioutil.ReadFile(*accPassFlag)
+	blob, err = ioutil.ReadFile(*accPassFlag)
 	if err != nil {
 		log.Crit("Failed to read account password contents", "file", *accPassFlag, "err", err)
 	}
 	pass := strings.TrimSuffix(string(blob), "\n")
 
-	ks := keystore.NewKeyStore(filepath.Join(os.Getenv("HOME"), ".faucet", "keys"), keystore.StandardScryptN, keystore.StandardScryptP)
+	ks := keystore.NewKeyStore(filepath.Join(os.Getenv("HOME"), ".faucet", "keys_2"), keystore.StandardScryptN, keystore.StandardScryptP)
 	if blob, err = ioutil.ReadFile(*accJSONFlag); err != nil {
 		log.Crit("Failed to read account key contents", "file", *accJSONFlag, "err", err)
 	}
@@ -327,6 +328,11 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Start tracking the connection and drop at the end
 	defer conn.Close()
+	ipsStr := r.Header.Get("X-Forwarded-For")
+	ips := strings.Split(ipsStr, ",")
+	if len(ips) < 2 {
+		return
+	}
 
 	f.lock.Lock()
 	wsconn := &wsConn{conn: conn}
@@ -422,7 +428,7 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			form.Add("secret", *captchaSecret)
 			form.Add("response", msg.Captcha)
 
-			res, err := http.PostForm("https://www.google.com/recaptcha/api/siteverify", form)
+			res, err := http.PostForm("https://hcaptcha.com/siteverify", form)
 			if err != nil {
 				if err = sendError(wsconn, err); err != nil {
 					log.Warn("Failed to send captcha post error to client", "err", err)
@@ -461,6 +467,19 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			address  common.Address
 		)
 		switch {
+		case strings.HasPrefix(msg.URL, "https://gist.github.com/"):
+			if err = sendError(wsconn, errors.New("GitHub authentication discontinued at the official request of GitHub")); err != nil {
+				log.Warn("Failed to send GitHub deprecation to client", "err", err)
+				return
+			}
+			continue
+		case strings.HasPrefix(msg.URL, "https://plus.google.com/"):
+			//lint:ignore ST1005 Google is a company name and should be capitalized.
+			if err = sendError(wsconn, errors.New("Google+ authentication discontinued as the service was sunset")); err != nil {
+				log.Warn("Failed to send Google+ deprecation to client", "err", err)
+				return
+			}
+			continue
 		case strings.HasPrefix(msg.URL, "https://twitter.com/"):
 			id, username, avatar, address, err = authTwitter(msg.URL, *twitterTokenV1Flag, *twitterTokenFlag)
 		case strings.HasPrefix(msg.URL, "https://www.facebook.com/"):
@@ -488,6 +507,15 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			fund    bool
 			timeout time.Time
 		)
+
+		if ipTimeout := f.timeouts[ips[len(ips)-2]]; time.Now().Before(ipTimeout) {
+			if err = sendError(wsconn, fmt.Errorf("%s left until next allowance", common.PrettyDuration(time.Until(ipTimeout)))); err != nil { // nolint: gosimple
+				log.Warn("Failed to send funding error to client", "err", err)
+			}
+			f.lock.Unlock()
+			continue
+		}
+
 		if timeout = f.timeouts[id]; time.Now().After(timeout) {
 			// User wasn't funded recently, create the funding transaction
 			amount := new(big.Int).Mul(big.NewInt(int64(*payoutFlag)), ether)
@@ -524,6 +552,7 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			grace := timeout / 288 // 24h timeout => 5m grace
 
 			f.timeouts[id] = time.Now().Add(timeout - grace)
+			f.timeouts[ips[len(ips)-2]] = time.Now().Add(timeout - grace)
 			fund = true
 		}
 		f.lock.Unlock()
@@ -890,20 +919,4 @@ func authNoAuth(url string) (string, string, common.Address, error) {
 		return "", "", common.Address{}, errors.New("No Core Chain address found to fund")
 	}
 	return address.Hex() + "@noauth", "", address, nil
-}
-
-// getGenesis returns a genesis based on input args
-func getGenesis(genesisFlag *string, goerliFlag bool, rinkebyFlag bool) (*core.Genesis, error) {
-	switch {
-	case genesisFlag != nil:
-		var genesis core.Genesis
-		err := common.LoadJSON(*genesisFlag, &genesis)
-		return &genesis, err
-	case goerliFlag:
-		return core.DefaultGoerliGenesisBlock(), nil
-	case rinkebyFlag:
-		return core.DefaultRinkebyGenesisBlock(), nil
-	default:
-		return nil, fmt.Errorf("no genesis flag provided")
-	}
 }
