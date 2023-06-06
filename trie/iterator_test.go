@@ -29,6 +29,19 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 )
 
+func TestEmptyIterator(t *testing.T) {
+	trie := newEmpty()
+	iter := trie.NodeIterator(nil)
+
+	seen := make(map[string]struct{})
+	for iter.Next(true) {
+		seen[string(iter.Path())] = struct{}{}
+	}
+	if len(seen) != 0 {
+		t.Fatal("Unexpected trie node iterated")
+	}
+}
+
 func TestIterator(t *testing.T) {
 	trie := newEmpty()
 	vals := []struct{ k, v string }{
@@ -393,7 +406,7 @@ func testIteratorContinueAfterSeekError(t *testing.T, memonly bool) {
 	for _, val := range testdata1 {
 		ctr.Update([]byte(val.k), []byte(val.v))
 	}
-	root, _ := ctr.Commit(nil)
+	root, _, _ := ctr.Commit(nil)
 	if !memonly {
 		triedb.Commit(root, true, nil)
 	}
@@ -468,6 +481,10 @@ func (l *loggingDb) Delete(key []byte) error {
 
 func (l *loggingDb) NewBatch() ethdb.Batch {
 	return l.backend.NewBatch()
+}
+
+func (l *loggingDb) NewBatchWithSize(size int) ethdb.Batch {
+	return l.backend.NewBatchWithSize(size)
 }
 
 func (l *loggingDb) NewIterator(prefix []byte, start []byte) ethdb.Iterator {

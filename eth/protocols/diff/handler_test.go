@@ -76,7 +76,7 @@ func newTestBackendWithGenerator(blocks int) *testBackend {
 
 		// We want to simulate an empty middle block, having the same state as the
 		// first one. The last is needs a state change again to force a reorg.
-		tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), common.Address{0x01}, big.NewInt(1), params.TxGas, big.NewInt(1), nil), signer, testKey)
+		tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddr), common.Address{0x01}, big.NewInt(1), params.TxGas, big.NewInt(params.InitialBaseFee), nil), signer, testKey)
 		if err != nil {
 			panic(err)
 		}
@@ -134,9 +134,9 @@ func testGetDiffLayers(t *testing.T, protocol uint) {
 	missDiffPackets := make([]FullDiffLayersPacket, 0)
 
 	for i := 0; i < 100; i++ {
-		number := uint64(rand.Int63n(1024))
-		if number == 0 {
-			continue
+		// Find a non 0 random number
+		var number uint64
+		for ; number == 0; number = uint64(rand.Int63n(1024)) {
 		}
 		foundHash := backend.chain.GetCanonicalHash(number + 1024)
 		missHash := backend.chain.GetCanonicalHash(number)

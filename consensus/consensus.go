@@ -50,6 +50,9 @@ type ChainHeaderReader interface {
 	// GetHeaderByHash retrieves a block header from the database by its hash.
 	GetHeaderByHash(hash common.Hash) *types.Header
 
+	// GetTd retrieves the total difficulty from the database by hash and number.
+	GetTd(hash common.Hash, number uint64) *big.Int
+
 	// GetHighestVerifiedHeader retrieves the highest header verified.
 	GetHighestVerifiedHeader() *types.Header
 }
@@ -129,7 +132,7 @@ type Engine interface {
 	APIs(chain ChainHeaderReader) []rpc.API
 
 	// Delay returns the max duration the miner can commit txs
-	Delay(chain ChainReader, header *types.Header) *time.Duration
+	Delay(chain ChainReader, header *types.Header, leftOver *time.Duration) *time.Duration
 
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error

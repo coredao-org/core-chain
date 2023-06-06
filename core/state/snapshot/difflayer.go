@@ -182,6 +182,7 @@ func newDiffLayer(parent snapshot, root common.Hash, destructs map[common.Hash]s
 		storageList: make(map[common.Hash][]common.Hash),
 		verifiedCh:  verified,
 	}
+
 	switch parent := parent.(type) {
 	case *diskLayer:
 		dl.rebloom(parent)
@@ -190,6 +191,7 @@ func newDiffLayer(parent snapshot, root common.Hash, destructs map[common.Hash]s
 	default:
 		panic("unknown parent type")
 	}
+
 	// Sanity check that accounts or storage slots are never nil
 	for accountHash, blob := range accounts {
 		if blob == nil {
@@ -286,8 +288,18 @@ func (dl *diffLayer) Verified() bool {
 	}
 }
 
+func (dl *diffLayer) CorrectAccounts(accounts map[common.Hash][]byte) {
+	dl.lock.Lock()
+	defer dl.lock.Unlock()
+
+	dl.accountData = accounts
+}
+
 // Parent returns the subsequent layer of a diff layer.
 func (dl *diffLayer) Parent() snapshot {
+	dl.lock.RLock()
+	defer dl.lock.RUnlock()
+
 	return dl.parent
 }
 
@@ -312,6 +324,24 @@ func (dl *diffLayer) Account(hash common.Hash) (*Account, error) {
 		panic(err)
 	}
 	return account, nil
+}
+
+// Accounts directly retrieves all accounts in current snapshot in
+// the snapshot slim data format.
+func (dl *diffLayer) Accounts() (map[common.Hash]*Account, error) {
+	dl.lock.RLock()
+	defer dl.lock.RUnlock()
+
+	accounts := make(map[common.Hash]*Account, len(dl.accountData))
+	for hash, data := range dl.accountData {
+		account := new(Account)
+		if err := rlp.DecodeBytes(data, account); err != nil {
+			return nil, err
+		}
+		accounts[hash] = account
+	}
+
+	return accounts, nil
 }
 
 // AccountRLP directly retrieves the account RLP associated with a particular
@@ -500,7 +530,6 @@ func (dl *diffLayer) flatten() snapshot {
 		for storageHash, data := range storage {
 			comboData[storageHash] = data
 		}
-		parent.storageData[accountHash] = comboData
 	}
 	// Return the combo parent
 	return &diffLayer{

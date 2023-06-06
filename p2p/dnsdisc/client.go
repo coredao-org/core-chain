@@ -19,6 +19,7 @@ package dnsdisc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -204,7 +205,7 @@ func (c *Client) doResolveEntry(ctx context.Context, domain, hash string) (entry
 	}
 	for _, txt := range txts {
 		e, err := parseEntry(txt, c.cfg.ValidSchemes)
-		if err == errUnknownEntry {
+		if errors.Is(err, errUnknownEntry) {
 			continue
 		}
 		if !bytes.HasPrefix(crypto.Keccak256([]byte(txt)), wantHash) {
@@ -281,7 +282,7 @@ func (it *randomIterator) nextNode() *enode.Node {
 		}
 		n, err := ct.syncRandom(it.ctx)
 		if err != nil {
-			if err == it.ctx.Err() {
+			if errors.Is(err, it.ctx.Err()) {
 				return nil // context canceled.
 			}
 			it.c.cfg.Logger.Debug("Error in DNS random node sync", "tree", ct.loc.domain, "err", err)
@@ -297,6 +298,12 @@ func (it *randomIterator) nextNode() *enode.Node {
 func (it *randomIterator) pickTree() *clientTree {
 	it.mu.Lock()
 	defer it.mu.Unlock()
+
+	// First check if iterator was closed.
+	// Need to do this here to avoid nil map access in rebuildTrees.
+	if it.trees == nil {
+		return nil
+	}
 
 	// Rebuild the trees map if any links have changed.
 	if it.lc.changed {
