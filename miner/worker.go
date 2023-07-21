@@ -1114,6 +1114,12 @@ LOOP:
 		prevWork = work
 		workList = append(workList, work)
 
+		err = w.engine.BeforePackTx(w.chain, work.header, work.state, &work.txs, work.unclelist(), &work.receipts)
+		if err != nil {
+			log.Error("Failed to pack system tx", "err", err)
+			return
+		}
+
 		delay := w.engine.Delay(w.chain, work.header, &w.config.DelayLeftOver)
 		if delay == nil {
 			log.Warn("commitWork delay is nil, something is wrong")
@@ -1126,12 +1132,6 @@ LOOP:
 				"header time", time.Until(time.Unix(int64(work.header.Time), 0)),
 				"commit delay", *delay, "DelayLeftOver", w.config.DelayLeftOver)
 			stopTimer.Reset(*delay)
-		}
-
-		err = w.engine.BeforePackTx(w.chain, work.header, work.state, &work.txs, work.unclelist(), &work.receipts)
-		if err != nil {
-			log.Error("Failed to pack system tx", "err", err)
-			return
 		}
 
 		// subscribe before fillTransactions
