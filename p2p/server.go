@@ -607,7 +607,7 @@ func (srv *Server) setupDiscovery() error {
 			Tail   []rlp.RawValue `rlp:"tail"`
 		}
 		if r.Load(enr.WithEntry("eth", &eth)) != nil {
-			return false
+			return true
 		}
 		return srv.forkFilter(eth.ForkID) == nil
 	}
