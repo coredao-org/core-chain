@@ -49,12 +49,10 @@ func (h *nonceHeap) Push(x interface{}) {
 
 func (h *nonceHeap) Pop() interface{} {
 	old := *h
-	if n := len(old); n > 0 {
-		x := old[n-1]
-		*h = old[0 : n-1]
-		return x
-	}
-	return nil
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
 }
 
 // txSortedMap is a nonce->transaction hash map with a heap based index to allow
