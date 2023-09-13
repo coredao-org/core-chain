@@ -1546,20 +1546,18 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 					}
 				}
 				// Garbage collect anything below our required write retention
-				wg2 := sync.WaitGroup{}
 				for !bc.triegc.Empty() {
 					root, number := bc.triegc.Pop()
 					if uint64(-number) > chosen {
 						bc.triegc.Push(root, number)
 						break
 					}
-					wg2.Add(1)
+					wg.Add(1)
 					go func() {
 						triedb.Dereference(root.(common.Hash))
-						wg2.Done()
+						wg.Done()
 					}()
 				}
-				wg2.Wait()
 			}
 		}
 		return nil
