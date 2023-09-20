@@ -256,7 +256,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		MuirGlacierBlock:    big.NewInt(0),
 		HashPowerBlock:      big.NewInt(0),
-		ZeusBlock:           nil,
+		ZeusBlock:           big.NewInt(8_020_000),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
