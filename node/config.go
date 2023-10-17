@@ -204,6 +204,20 @@ type Config struct {
 
 	// EnableDoubleSignMonitor is a flag that whether to enable the double signature checker
 	EnableDoubleSignMonitor bool `toml:",omitempty"`
+
+	// EnableMaliciousVoteMonitor is a flag that whether to enable the malicious vote checker
+	EnableMaliciousVoteMonitor bool `toml:",omitempty"`
+
+	// BLSPasswordFile is the file that contains BLS wallet password.
+	BLSPasswordFile string `toml:",omitempty"`
+
+	// BLSWalletDir is the file system folder of BLS wallet. The directory can
+	// be specified as a relative path, in which case it is resolved relative to the
+	// current directory.
+	BLSWalletDir string `toml:",omitempty"`
+
+	// VoteJournalDir is the directory to store votes in the fast finality feature.
+	VoteJournalDir string `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into
@@ -506,6 +520,7 @@ type LogConfig struct {
 	FilePath     *string `toml:",omitempty"`
 	MaxBytesSize *uint   `toml:",omitempty"`
 	Level        *string `toml:",omitempty"`
+	RotateHours  int     `toml:",omitempty"`
 
 	// TermTimeFormat is the time format used for console logging.
 	TermTimeFormat *string `toml:",omitempty"`

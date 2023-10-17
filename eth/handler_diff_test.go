@@ -84,17 +84,19 @@ func newTestBackendWithGenerator(blocks int) *testBackend {
 		panic(err)
 	}
 	txpool := newTestTxPool()
+	votepool := newTestVotePool()
 
 	handler, _ := newHandler(&handlerConfig{
 		Database:   db,
 		Chain:      chain,
 		TxPool:     txpool,
+		VotePool:   votepool,
 		Network:    1,
 		Sync:       downloader.FullSync,
 		BloomCache: 1,
 		Merger:     consensus.NewMerger(rawdb.NewMemoryDatabase()),
 	})
-	handler.Start(100)
+	handler.Start(100, 100)
 
 	txconfig := core.DefaultTxPoolConfig
 	txconfig.Journal = "" // Don't litter the disk with test journals

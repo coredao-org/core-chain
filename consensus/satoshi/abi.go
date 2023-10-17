@@ -1,5 +1,4 @@
 package satoshi
-
 const validatorSetABI = `
 [
 		{

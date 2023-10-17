@@ -144,6 +144,7 @@ type Config struct {
 	EthDiscoveryURLs   []string
 	SnapDiscoveryURLs  []string
 	TrustDiscoveryURLs []string
+	BscDiscoveryURLs   []string
 
 	NoPruning           bool // Whether to disable pruning and flush everything to disk
 	DirectBroadcast     bool

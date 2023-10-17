@@ -18,6 +18,7 @@ package filters
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -44,14 +45,16 @@ var (
 )
 
 type testBackend struct {
-	mux             *event.TypeMux
-	db              ethdb.Database
-	sections        uint64
-	txFeed          event.Feed
-	logsFeed        event.Feed
-	rmLogsFeed      event.Feed
-	pendingLogsFeed event.Feed
-	chainFeed       event.Feed
+	mux                 *event.TypeMux
+	db                  ethdb.Database
+	sections            uint64
+	txFeed              event.Feed
+	logsFeed            event.Feed
+	rmLogsFeed          event.Feed
+	pendingLogsFeed     event.Feed
+	chainFeed           event.Feed
+	finalizedHeaderFeed event.Feed
+	voteFeed            event.Feed
 }
 
 func (b *testBackend) ChainDb() ethdb.Database {
@@ -63,14 +66,19 @@ func (b *testBackend) HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumbe
 		hash common.Hash
 		num  uint64
 	)
-	if blockNr == rpc.LatestBlockNumber {
+	switch blockNr {
+	case rpc.LatestBlockNumber:
 		hash = rawdb.ReadHeadBlockHash(b.db)
 		number := rawdb.ReadHeaderNumber(b.db, hash)
 		if number == nil {
 			return nil, nil
 		}
 		num = *number
-	} else {
+	case rpc.FinalizedBlockNumber:
+		return nil, errors.New("finalized block not found")
+	case rpc.SafeBlockNumber:
+		return nil, errors.New("safe block not found")
+	default:
 		num = uint64(blockNr)
 		hash = rawdb.ReadCanonicalHash(b.db, num)
 	}
@@ -128,6 +136,14 @@ func (b *testBackend) SubscribePendingLogsEvent(ch chan<- []*types.Log) event.Su
 
 func (b *testBackend) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
 	return b.chainFeed.Subscribe(ch)
+}
+
+func (b *testBackend) SubscribeFinalizedHeaderEvent(ch chan<- core.FinalizedHeaderEvent) event.Subscription {
+	return b.finalizedHeaderFeed.Subscribe(ch)
+}
+
+func (b *testBackend) SubscribeNewVoteEvent(ch chan<- core.NewVoteEvent) event.Subscription {
+	return b.voteFeed.Subscribe(ch)
 }
 
 func (b *testBackend) BloomStatus() (uint64, uint64) {
@@ -234,7 +250,7 @@ func TestPendingTxFilter(t *testing.T) {
 			types.NewTransaction(4, common.HexToAddress("0xb794f5ea0ba39494ce83a213fffba74279579268"), new(big.Int), 0, new(big.Int), nil),
 		}
 
-		hashes []common.Hash
+		txs []*types.Transaction
 	)
 
 	fid0 := api.NewPendingTransactionFilter()
@@ -249,9 +265,9 @@ func TestPendingTxFilter(t *testing.T) {
 			t.Fatalf("Unable to retrieve logs: %v", err)
 		}
 
-		h := results.([]common.Hash)
-		hashes = append(hashes, h...)
-		if len(hashes) >= len(transactions) {
+		tx := results.([]*types.Transaction)
+		txs = append(txs, tx...)
+		if len(txs) >= len(transactions) {
 			break
 		}
 		// check timeout
@@ -262,13 +278,13 @@ func TestPendingTxFilter(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	if len(hashes) != len(transactions) {
-		t.Errorf("invalid number of transactions, want %d transactions(s), got %d", len(transactions), len(hashes))
+	if len(txs) != len(transactions) {
+		t.Errorf("invalid number of transactions, want %d transactions(s), got %d", len(transactions), len(txs))
 		return
 	}
-	for i := range hashes {
-		if hashes[i] != transactions[i].Hash() {
-			t.Errorf("hashes[%d] invalid, want %x, got %x", i, transactions[i].Hash(), hashes[i])
+	for i := range txs {
+		if txs[i].Hash() != transactions[i].Hash() {
+			t.Errorf("hashes[%d] invalid, want %x, got %x", i, transactions[i].Hash(), txs[i].Hash())
 		}
 	}
 }
@@ -699,11 +715,11 @@ func TestPendingTxFilterDeadlock(t *testing.T) {
 		fids[i] = fid
 		// Wait for at least one tx to arrive in filter
 		for {
-			hashes, err := api.GetFilterChanges(fid)
+			txs, err := api.GetFilterChanges(fid)
 			if err != nil {
 				t.Fatalf("Filter should exist: %v\n", err)
 			}
-			if len(hashes.([]common.Hash)) > 0 {
+			if len(txs.([]*types.Transaction)) > 0 {
 				break
 			}
 			runtime.Gosched()
@@ -734,4 +750,80 @@ func flattenLogs(pl [][]*types.Log) []*types.Log {
 		logs = append(logs, l...)
 	}
 	return logs
+}
+
+func TestVoteSubscription(t *testing.T) {
+	t.Parallel()
+
+	var (
+		db      = rawdb.NewMemoryDatabase()
+		backend = &testBackend{db: db}
+		api     = NewPublicFilterAPI(backend, false, deadline, false)
+		votes   = []*types.VoteEnvelope{
+			&types.VoteEnvelope{
+				VoteAddress: types.BLSPublicKey{},
+				Signature:   types.BLSSignature{},
+				Data: &types.VoteData{
+					SourceNumber: uint64(0),
+					SourceHash:   common.BytesToHash(common.Hex2Bytes(string(rune(0)))),
+					TargetNumber: uint64(1),
+					TargetHash:   common.BytesToHash(common.Hex2Bytes(string(rune(1)))),
+				},
+			},
+			&types.VoteEnvelope{
+				VoteAddress: types.BLSPublicKey{},
+				Signature:   types.BLSSignature{},
+				Data: &types.VoteData{
+					SourceNumber: uint64(0),
+					SourceHash:   common.BytesToHash(common.Hex2Bytes(string(rune(0)))),
+					TargetNumber: uint64(2),
+					TargetHash:   common.BytesToHash(common.Hex2Bytes(string(rune(2)))),
+				},
+			},
+			&types.VoteEnvelope{
+				VoteAddress: types.BLSPublicKey{},
+				Signature:   types.BLSSignature{},
+				Data: &types.VoteData{
+					SourceNumber: uint64(0),
+					SourceHash:   common.BytesToHash(common.Hex2Bytes(string(rune(0)))),
+					TargetNumber: uint64(3),
+					TargetHash:   common.BytesToHash(common.Hex2Bytes(string(rune(3)))),
+				},
+			},
+			&types.VoteEnvelope{
+				VoteAddress: types.BLSPublicKey{},
+				Signature:   types.BLSSignature{},
+				Data: &types.VoteData{
+					SourceNumber: uint64(0),
+					SourceHash:   common.BytesToHash(common.Hex2Bytes(string(rune(0)))),
+					TargetNumber: uint64(4),
+					TargetHash:   common.BytesToHash(common.Hex2Bytes(string(rune(4)))),
+				},
+			},
+		}
+	)
+
+	chan0 := make(chan *types.VoteEnvelope)
+	sub0 := api.events.SubscribeNewVotes(chan0)
+
+	go func() { // simulate client
+		i := 0
+		for i != len(votes) {
+			vote := <-chan0
+			if votes[i].Hash() != vote.Hash() {
+				t.Errorf("sub received invalid hash on index %d, want %x, got %x", i, votes[i].Hash(), vote.Hash())
+			}
+			i++
+		}
+
+		sub0.Unsubscribe()
+	}()
+
+	time.Sleep(1 * time.Second)
+	for _, v := range votes {
+		ev := core.NewVoteEvent{Vote: v}
+		backend.voteFeed.Send(ev)
+	}
+
+	<-sub0.Err()
 }

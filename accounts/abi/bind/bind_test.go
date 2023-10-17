@@ -2108,6 +2108,13 @@ func TestGolangBindings(t *testing.T) {
 	if out, err := replacer.CombinedOutput(); err != nil {
 		t.Fatalf("failed to replace binding test dependency to current source tree: %v\n%s", err, out)
 	}
+
+	replacer = exec.Command(gocmd, "mod", "edit", "-x", "-require", "github.com/syndtr/goleveldb@v1.0.1", "-replace", "github.com/syndtr/goleveldb=github.com/syndtr/goleveldb@v1.0.1-0.20210819022825-2ae1ddf74ef7")
+	replacer.Dir = pkg
+	if out, err := replacer.CombinedOutput(); err != nil {
+		t.Fatalf("failed to replace cometbft dependency to core-chain source: %v\n%s", err, out)
+	}
+
 	tidier := exec.Command(gocmd, "mod", "tidy", "-compat=1.19")
 	tidier.Dir = pkg
 	if out, err := tidier.CombinedOutput(); err != nil {

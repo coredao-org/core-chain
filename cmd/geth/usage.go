@@ -59,6 +59,9 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.TriesInMemoryFlag,
 			utils.BlockAmountReserved,
 			utils.CheckSnapshotWithMPT,
+			utils.BLSPasswordFileFlag,
+			utils.BLSWalletDirFlag,
+			utils.VoteJournalDirFlag,
 		},
 	},
 	{
@@ -172,6 +175,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.DNSDiscoveryFlag,
 			utils.ListenPortFlag,
 			utils.MaxPeersFlag,
+			utils.MaxPeersPerIPFlag,
 			utils.MaxPendingPeersFlag,
 			utils.NATFlag,
 			utils.NoDiscoverFlag,
@@ -195,6 +199,8 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.MinerRecommitIntervalFlag,
 			utils.MinerDelayLeftoverFlag,
 			utils.MinerNoVerfiyFlag,
+			utils.VotingEnabledFlag,
+			utils.DisableVoteAttestationFlag,
 		},
 	},
 	{
@@ -235,6 +241,12 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.SnapshotFlag,
 			utils.BloomFilterSizeFlag,
 			cli.HelpFlag,
+		},
+	},
+	{
+		Name: "BLS ACCOUNT",
+		Flags: []cli.Flag{
+			utils.DataDirFlag,
 		},
 	},
 }
