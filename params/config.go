@@ -237,7 +237,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		MuirGlacierBlock:    big.NewInt(0),
 		HashPowerBlock:      big.NewInt(0),
-		ZeusBlock:           nil,
+		ZeusBlock:           big.NewInt(8_020_000),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -257,7 +257,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		MuirGlacierBlock:    big.NewInt(0),
 		HashPowerBlock:      big.NewInt(4_545_256),
-		ZeusBlock:           nil,
+		ZeusBlock:           big.NewInt(12_666_000),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -452,7 +452,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, ZeusBlock: %v, Luban: %v, Plato: %v, Hertz: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Luban: %v, Plato: %v, Hertz: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -708,7 +708,7 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 		return newCompatError("hashPower fork block", c.HashPowerBlock, newcfg.HashPowerBlock)
 	}
 	if isForkIncompatible(c.ZeusBlock, newcfg.ZeusBlock, head) {
-		return newCompatError("zeusBlock fork block", c.ZeusBlock, newcfg.ZeusBlock)
+		return newCompatError("zeus fork block", c.ZeusBlock, newcfg.ZeusBlock)
 	}
 	if isForkIncompatible(c.LubanBlock, newcfg.LubanBlock, head) {
 		return newCompatError("luban fork block", c.LubanBlock, newcfg.LubanBlock)

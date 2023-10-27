@@ -5,7 +5,7 @@ Core is an evolution of the Geth codebase. We leveraged the improvements made by
 [![API Reference](
 https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/68747470733a2f2f676f646f632e6f72672f6769746875622e636f6d2f676f6c616e672f6764646f3f7374617475732e737667
 )](https://pkg.go.dev/github.com/ethereum/go-ethereum?tab=doc)
-[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/coredao)
+[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.com/invite/coredaoofficial)
 
 More details in [White Paper](https://docs.coredao.org/).
 
@@ -66,7 +66,7 @@ on how you can run your own `geth` instance.
 
 ### Hardware Requirements
 
-The hardware must meet certain requirements to run a full node. Please check [How to run a core fullnode](https://docs.coredao.org/developer/node-and-validator/how-to-run-a-core-fullnode).
+The hardware must meet certain requirements to run a full node. Please check [How to run a core fullnode](https://docs.coredao.org/developer/become-a-validator/validators/core-full-nodes).
 
 ```shell
 $ geth console
@@ -84,18 +84,16 @@ This command will:
    This tool is optional and if you leave it out you can always attach to an already running
    `geth` instance with `geth attach`.
 
-### A Full node on the Core test network
+### Run Full node on the Core network
 
 Steps:
 
-1. Download the binary, config and genesis files from [latest release](https://github.com/coredao-org/core-chain/releases/tag/v1.0.1), or compile the binary by `make geth`. 
+1. Download the binary, config and genesis files from [latest release](https://github.com/coredao-org/core-chain/releases), or compile the binary by `make geth`. 
 2. Init genesis state: `./geth --datadir node init genesis.json`.
 3. Start your fullnode: `./geth --config ./config.toml --datadir ./node`.
 4. Or start a validator node: `./geth --config ./config.toml --datadir ./node -unlock ${validatorAddr} --mine --allow-insecure-unlock`. The ${validatorAddr} is the wallet account address of your running validator node. 
 
-*Note: The default p2p port is 30311 and the RPC port is 8575 which is different from Ethereum.*
-
-More details about [running a node](https://docs.coredao.org/developer/node-and-validator/how-to-run-a-core-fullnode) and [becoming a validator](https://docs.coredao.org/developer/node-and-validator/how-to-become-a-validator-on-core).
+More details about [running a node](https://docs.coredao.org/developer/become-a-validator/validators/core-full-nodes) and [becoming a validator](https://docs.coredao.org/developer/become-a-validator/validators/validator-registration).
 
 *Note: Although there are some internal protective measures to prevent transactions from
 crossing over between the main network and test network, you should make sure to always
@@ -167,7 +165,7 @@ from anyone on the internet, and are grateful for even the smallest of fixes!
 
 If you'd like to contribute to Core, please fork, fix, commit and send a pull request
 for the maintainers to review and merge into the main code base. If you wish to submit
-more complex changes though, please check up with the core devs first on [our discord channel](https://discord.gg/coredao)
+more complex changes though, please check up with the core devs first on [our discord channel](https://discord.com/invite/coredaoofficial)
 to ensure those changes are in line with the general philosophy of the project and/or get
 some early feedback which can make both your efforts much lighter as well as our review
 and merge procedures quick and simple.
