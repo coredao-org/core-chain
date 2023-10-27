@@ -1026,71 +1026,48 @@ func (p *Satoshi) verifyValidators(header *types.Header) error {
 func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, state *state.StateDB, header *types.Header,
 	cx core.ChainContext, txs *[]*types.Transaction, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction,
 	usedGas *uint64, mining bool) error {
-	currentHeight := header.Number.Uint64()
-	epoch := p.config.Epoch
 	chainConfig := chain.Config()
-	if currentHeight%epoch != 0 {
+
+	head := chain.GetHeaderByHash(header.ParentHash)
+	if head == nil {
+		return fmt.Errorf("header %v not find", header.Hash())
+	}
+	voteAttestation, err := getVoteAttestationFromHeader(head, chainConfig, p.config)
+	if err != nil {
+		return err
+	}
+	if voteAttestation == nil {
+		return nil
+	}
+	justifiedBlock := chain.GetHeaderByHash(voteAttestation.Data.TargetHash)
+	if justifiedBlock == nil {
+		log.Warn("justifiedBlock is nil at height %d", voteAttestation.Data.TargetNumber)
 		return nil
 	}
 
-	head := header
-	accumulatedWeights := make(map[common.Address]uint64)
-	for height := currentHeight - 1; height+epoch >= currentHeight && height >= 1; height-- {
-		head = chain.GetHeaderByHash(head.ParentHash)
-		if head == nil {
-			return fmt.Errorf("header is nil at height %d", height)
-		}
-		voteAttestation, err := getVoteAttestationFromHeader(head, chainConfig, p.config)
-		if err != nil {
-			return err
-		}
-		if voteAttestation == nil {
-			continue
-		}
-		justifiedBlock := chain.GetHeaderByHash(voteAttestation.Data.TargetHash)
-		if justifiedBlock == nil {
-			log.Warn("justifiedBlock is nil at height %d", voteAttestation.Data.TargetNumber)
-			continue
-		}
-
-		snap, err := p.snapshot(chain, justifiedBlock.Number.Uint64()-1, justifiedBlock.ParentHash, nil)
-		if err != nil {
-			return err
-		}
-		validators := snap.validators()
-		validatorsBitSet := bitset.From([]uint64{uint64(voteAttestation.VoteAddressSet)})
-		if validatorsBitSet.Count() > uint(len(validators)) {
-			log.Error("invalid attestation, vote number larger than validators number")
-			continue
-		}
-		validVoteCount := 0
-		for index, val := range validators {
-			if validatorsBitSet.Test(uint(index)) {
-				accumulatedWeights[val] += 1
-				validVoteCount += 1
-			}
-		}
-		quorum := cmath.CeilDiv(len(snap.Validators)*2, 3)
-		if validVoteCount > quorum {
-			accumulatedWeights[head.Coinbase] += uint64((validVoteCount - quorum) * collectAdditionalVotesRewardRatio / 100)
-		}
+	snap, err := p.snapshot(chain, justifiedBlock.Number.Uint64()-1, justifiedBlock.ParentHash, nil)
+	if err != nil {
+		return err
+	}
+	validators := snap.validators()
+	validatorsBitSet := bitset.From([]uint64{uint64(voteAttestation.VoteAddressSet)})
+	if validatorsBitSet.Count() > uint(len(validators)) {
+		log.Error("invalid attestation, vote number larger than validators number")
+		return nil
 	}
 
-	validators := make([]common.Address, 0, len(accumulatedWeights))
-	weights := make([]*big.Int, 0, len(accumulatedWeights))
-	for val := range accumulatedWeights {
-		validators = append(validators, val)
-	}
-	sort.Sort(validatorsAscending(validators))
-	for _, val := range validators {
-		weights = append(weights, big.NewInt(int64(accumulatedWeights[val])))
+	voteValidators := make([]common.Address, 0)
+	for index, val := range validators {
+		if validatorsBitSet.Test(uint(index)) {
+			voteValidators = append(voteValidators, val)
+		}
 	}
 
 	// generate system transaction
-	method := "distributeFinalityReward"
-	data, err := p.validatorSetABI.Pack(method, validators, weights)
+	method := "vote"
+	data, err := p.validatorSetABI.Pack(method, voteValidators)
 	if err != nil {
-		log.Error("Unable to pack tx for distributeFinalityReward", "error", err)
+		log.Error("Unable to pack tx for vote", "error", err)
 		return err
 	}
 	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), params.SystemTxsGas, data, common.Big0)
@@ -1552,14 +1529,14 @@ func (p *Satoshi) getCurrentValidators(blockHash common.Hash, blockNum *big.Int)
 	}
 
 	// method
-	method := "getMiningValidators"
+	method := "getValidatorsAndVoteAddresses"
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // cancel when we are finished consuming integers
 
 	data, err := p.validatorSetABI.Pack(method)
 	if err != nil {
-		log.Error("Unable to pack tx for getMiningValidators", "error", err)
+		log.Error("Unable to pack tx for getValidatorsAndVoteAddresses", "error", err)
 		return nil, nil, err
 	}
 	// call
