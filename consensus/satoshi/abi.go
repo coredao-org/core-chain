@@ -1591,3 +1591,380 @@ const candidateHubABI = `
 		}
 	]
 `
+const scheuleABI = `[
+	{
+	  "inputs": [
+		{
+		  "internalType": "string",
+		  "name": "name",
+		  "type": "string"
+		}
+	  ],
+	  "name": "MismatchParamLength",
+	  "type": "error"
+	},
+	{
+	  "inputs": [
+		{
+		  "internalType": "string",
+		  "name": "name",
+		  "type": "string"
+		},
+		{
+		  "internalType": "uint256",
+		  "name": "given",
+		  "type": "uint256"
+		},
+		{
+		  "internalType": "uint256",
+		  "name": "lowerBound",
+		  "type": "uint256"
+		},
+		{
+		  "internalType": "uint256",
+		  "name": "upperBound",
+		  "type": "uint256"
+		}
+	  ],
+	  "name": "OutOfBounds",
+	  "type": "error"
+	},
+	{
+	  "anonymous": false,
+	  "inputs": [
+		{
+		  "indexed": false,
+		  "internalType": "address",
+		  "name": "targetAddr",
+		  "type": "address"
+		},
+		{
+		  "indexed": false,
+		  "internalType": "bool",
+		  "name": "success",
+		  "type": "bool"
+		}
+	  ],
+	  "name": "afterTurnRoundResult",
+	  "type": "event"
+	},
+	{
+	  "anonymous": false,
+	  "inputs": [
+		{
+		  "indexed": false,
+		  "internalType": "string",
+		  "name": "key",
+		  "type": "string"
+		},
+		{
+		  "indexed": false,
+		  "internalType": "bytes",
+		  "name": "value",
+		  "type": "bytes"
+		}
+	  ],
+	  "name": "paramChange",
+	  "type": "event"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "BURN_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "CANDIDATE_HUB_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "FOUNDATION_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "GOV_HUB_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "LIGHT_CLIENT_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "MAX_GAS",
+	  "outputs": [
+		{
+		  "internalType": "uint256",
+		  "name": "",
+		  "type": "uint256"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "PLEDGE_AGENT_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "RELAYER_HUB_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "SLASH_CONTRACT_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "SYSTEM_REWARD_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "VALIDATOR_CONTRACT_ADDR",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "afterTurnRound",
+	  "outputs": [
+		
+	  ],
+	  "stateMutability": "nonpayable",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "alreadyInit",
+	  "outputs": [
+		{
+		  "internalType": "bool",
+		  "name": "",
+		  "type": "bool"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		{
+		  "internalType": "uint256",
+		  "name": "",
+		  "type": "uint256"
+		}
+	  ],
+	  "name": "callBackList",
+	  "outputs": [
+		{
+		  "internalType": "address",
+		  "name": "registerAddr",
+		  "type": "address"
+		},
+		{
+		  "internalType": "address",
+		  "name": "targetAddr",
+		  "type": "address"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		
+	  ],
+	  "name": "init",
+	  "outputs": [
+		
+	  ],
+	  "stateMutability": "nonpayable",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		{
+		  "internalType": "address",
+		  "name": "registerAddr",
+		  "type": "address"
+		},
+		{
+		  "internalType": "address",
+		  "name": "targetAddr",
+		  "type": "address"
+		}
+	  ],
+	  "name": "register",
+	  "outputs": [
+		
+	  ],
+	  "stateMutability": "nonpayable",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		{
+		  "internalType": "address",
+		  "name": "",
+		  "type": "address"
+		}
+	  ],
+	  "name": "targetMap",
+	  "outputs": [
+		{
+		  "internalType": "uint256",
+		  "name": "",
+		  "type": "uint256"
+		}
+	  ],
+	  "stateMutability": "view",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		{
+		  "internalType": "address",
+		  "name": "targetAddr",
+		  "type": "address"
+		}
+	  ],
+	  "name": "unregister",
+	  "outputs": [
+		
+	  ],
+	  "stateMutability": "nonpayable",
+	  "type": "function"
+	},
+	{
+	  "inputs": [
+		{
+		  "internalType": "string",
+		  "name": "key",
+		  "type": "string"
+		},
+		{
+		  "internalType": "bytes",
+		  "name": "value",
+		  "type": "bytes"
+		}
+	  ],
+	  "name": "updateParam",
+	  "outputs": [
+		
+	  ],
+	  "stateMutability": "nonpayable",
+	  "type": "function"
+	}
+  ]`

@@ -77,6 +77,7 @@ var (
 		common.HexToAddress(systemcontracts.PledgeCandidateContract): true,
 		common.HexToAddress(systemcontracts.BurnContract):            true,
 		common.HexToAddress(systemcontracts.FoundationContract):      true,
+		common.HexToAddress(systemcontracts.ScheduleContract):        true,
 	}
 )
 
@@ -210,6 +211,7 @@ type Satoshi struct {
 	validatorSetABI abi.ABI
 	slashABI        abi.ABI
 	candidateHubABI abi.ABI
+	scheuleABI      abi.ABI
 
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
@@ -256,6 +258,10 @@ func New(
 	if err != nil {
 		panic(err)
 	}
+	scABI, err := abi.JSON(strings.NewReader(scheuleABI))
+	if err != nil {
+		panic(err)
+	}
 	c := &Satoshi{
 		chainConfig:     chainConfig,
 		config:          satoshiConfig,
@@ -267,6 +273,7 @@ func New(
 		validatorSetABI: vABI,
 		slashABI:        sABI,
 		candidateHubABI: cABI,
+		scheuleABI:      scABI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
 
@@ -671,6 +678,12 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 			// it is possible that turn round failed.
 			log.Error("turn round failed", "block hash", header.Hash())
 		}
+		if p.chainConfig.IsHera(header.Number) {
+			err = p.afterTurnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+			if err != nil {
+				log.Error("afterTurnRound execution failed", "block hash", header.Hash())
+			}
+		}
 	}
 	return
 }
@@ -686,6 +699,12 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 		if err != nil {
 			// it is possible that turn round failed.
 			log.Error("turn round failed", "block hash", header.Hash())
+		}
+		if p.chainConfig.IsHera(header.Number) {
+			err = p.afterTurnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true)
+			if err != nil {
+				log.Error("afterTurnRound execution failed", "block hash", header.Hash())
+			}
 		}
 	}
 	return
@@ -1158,7 +1177,27 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), header.GasLimit-params.SystemTxsGas, data, common.Big0)
+	availableGas := header.GasLimit-*usedGas-params.SystemTxsGas;
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), availableGas, data, common.Big0)
+	// apply message
+	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+}
+
+// afterTurnRound call scheule contract to execute after turn round
+func (p *Satoshi) afterTurnRound(state *state.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+	// method
+	method := "afterTurnRound"
+
+	// get packed data
+	data, err := p.scheuleABI.Pack(method)
+	if err != nil {
+		log.Error("Unable to pack tx for afterTurnRound", "error", err)
+		return err
+	}
+	// get system message
+	availableGas := header.GasLimit-*usedGas-params.SystemTxsGas;
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ScheduleContract), availableGas, data, common.Big0)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
