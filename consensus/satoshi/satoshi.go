@@ -673,6 +673,12 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
 		log.Trace("turn round", "block hash", header.Hash())
+		if p.chainConfig.IsHera(header.Number) {
+			err = p.beforeTurnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+			if err != nil {
+				log.Error("beforeTurnRound execution failed", "block hash", header.Hash())
+			}
+		}
 		err = p.turnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false)
 		if err != nil {
 			// it is possible that turn round failed.
@@ -695,6 +701,12 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
 		log.Trace("turn round", "block hash", header.Hash())
+		if p.chainConfig.IsHera(header.Number) {
+			err = p.beforeTurnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true)
+			if err != nil {
+				log.Error("beforeTurnRound execution failed", "block hash", header.Hash())
+			}
+		}
 		err = p.turnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true)
 		if err != nil {
 			// it is possible that turn round failed.
@@ -1179,6 +1191,24 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 	// get system message
 	availableGas := header.GasLimit-*usedGas-params.SystemTxsGas;
 	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), availableGas, data, common.Big0)
+	// apply message
+	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+}
+
+// beforeTurnRound call scheule contract to execute before turn round
+func (p *Satoshi) beforeTurnRound(state *state.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+	// method
+	method := "beforeTurnRound"
+
+	// get packed data
+	data, err := p.scheuleABI.Pack(method)
+	if err != nil {
+		log.Error("Unable to pack tx for beforeTurnRound", "error", err)
+		return err
+	}
+	// get system message
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ScheduleContract), params.BeforeTurnRoundGas, data, common.Big0)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
