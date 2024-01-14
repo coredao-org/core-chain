@@ -168,7 +168,7 @@ func TestCopy(t *testing.T) {
 	orig, _ := New(types.EmptyRootHash, NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
 	for i := byte(0); i < 255; i++ {
-		obj := orig.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
+		obj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
 		obj.AddBalance(uint256.NewInt(uint64(i)), tracing.BalanceChangeUnspecified)
 		orig.updateStateObject(obj)
 	}
@@ -182,9 +182,9 @@ func TestCopy(t *testing.T) {
 
 	// modify all in memory
 	for i := byte(0); i < 255; i++ {
-		origObj := orig.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
-		copyObj := copy.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
-		ccopyObj := ccopy.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
+		origObj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
+		copyObj := copy.getOrNewStateObject(common.BytesToAddress([]byte{i}))
+		ccopyObj := ccopy.getOrNewStateObject(common.BytesToAddress([]byte{i}))
 
 		origObj.AddBalance(uint256.NewInt(2*uint64(i)), tracing.BalanceChangeUnspecified)
 		copyObj.AddBalance(uint256.NewInt(3*uint64(i)), tracing.BalanceChangeUnspecified)
@@ -210,9 +210,9 @@ func TestCopy(t *testing.T) {
 
 	// Verify that the three states have been updated independently
 	for i := byte(0); i < 255; i++ {
-		origObj := orig.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
-		copyObj := copy.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
-		ccopyObj := ccopy.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
+		origObj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
+		copyObj := copy.getOrNewStateObject(common.BytesToAddress([]byte{i}))
+		ccopyObj := ccopy.getOrNewStateObject(common.BytesToAddress([]byte{i}))
 
 		if want := uint256.NewInt(3 * uint64(i)); origObj.Balance().Cmp(want) != 0 {
 			t.Errorf("orig obj %d: balance mismatch: have %v, want %v", i, origObj.Balance(), want)
@@ -498,7 +498,7 @@ func (test *snapshotTest) checkEqual(state, checkstate *StateDB) error {
 
 func TestTouchDelete(t *testing.T) {
 	s := newStateEnv()
-	s.state.GetOrNewStateObject(common.Address{})
+	s.state.getOrNewStateObject(common.Address{})
 	root, _, _ := s.state.Commit(0, nil)
 	s.state, _ = New(root, s.state.db, s.state.snaps)
 
@@ -1137,7 +1137,7 @@ func TestDeleteStorage(t *testing.T) {
 	fastState, _ := New(root, db, snaps)
 	slowState, _ := New(root, db, nil)
 
-	obj := fastState.GetOrNewStateObject(addr)
+	obj := fastState.getOrNewStateObject(addr)
 	storageRoot := obj.data.Root
 
 	_, _, fastNodes, err := fastState.deleteStorage(addr, crypto.Keccak256Hash(addr[:]), storageRoot)
