@@ -278,7 +278,7 @@ var (
 		MuirGlacierBlock:    big.NewInt(0),
 		HashPowerBlock:      big.NewInt(4_545_256),
 		ZeusBlock:           big.NewInt(12_666_000),
-		HeraBlock:           nil,
+		HeraBlock:           big.NewInt(16_47_2288),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
