@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math/big"
 	"sync"
 	"time"
 
@@ -501,7 +500,7 @@ func (s *stateObject) SubBalance(amount *uint256.Int, reason tracing.BalanceChan
 func (s *stateObject) SetBalance(amount *uint256.Int, reason tracing.BalanceChangeReason) {
 	s.db.journal.append(balanceChange{
 		account: &s.address,
-		prev:    new(big.Int).Set(s.data.Balance),
+		prev:    new(uint256.Int).Set(s.data.Balance),
 	})
 	if s.db.logger != nil && s.db.logger.OnBalanceChange != nil {
 		s.db.logger.OnBalanceChange(s.address, s.Balance().ToBig(), amount.ToBig(), reason)
@@ -509,7 +508,7 @@ func (s *stateObject) SetBalance(amount *uint256.Int, reason tracing.BalanceChan
 	s.setBalance(amount)
 }
 
-func (s *stateObject) setBalance(amount *big.Int) {
+func (s *stateObject) setBalance(amount *uint256.Int) {
 	s.data.Balance = amount
 }
 
@@ -614,7 +613,7 @@ func (s *stateObject) CodeHash() []byte {
 	return s.data.CodeHash
 }
 
-func (s *stateObject) Balance() *big.Int {
+func (s *stateObject) Balance() *uint256.Int {
 	return s.data.Balance
 }
 

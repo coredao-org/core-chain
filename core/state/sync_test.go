@@ -18,7 +18,6 @@ package state
 
 import (
 	"bytes"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -37,7 +36,7 @@ import (
 // testAccount is the data associated with an account used by the state tests.
 type testAccount struct {
 	address common.Address
-	balance *big.Int
+	balance *uint256.Int
 	nonce   uint64
 	code    []byte
 }

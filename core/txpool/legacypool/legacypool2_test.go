@@ -163,7 +163,7 @@ func TestTransactionZAttack(t *testing.T) {
 		var ivpendingNum int
 		pendingtxs, _ := pool.Content()
 		for account, txs := range pendingtxs {
-			cur_balance := new(big.Int).Set(pool.currentState.GetBalance(account))
+			cur_balance := new(big.Int).Set(pool.currentState.GetBalance(account).ToBig())
 			for _, tx := range txs {
 				if cur_balance.Cmp(tx.Value()) <= 0 {
 					ivpendingNum++

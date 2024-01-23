@@ -21,7 +21,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"math/big"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -215,13 +214,13 @@ func TestCopy(t *testing.T) {
 		copyObj := copy.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
 		ccopyObj := ccopy.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
 
-		if want := big.NewInt(3 * int64(i)); origObj.Balance().Cmp(want) != 0 {
+		if want := uint256.NewInt(3 * uint64(i)); origObj.Balance().Cmp(want) != 0 {
 			t.Errorf("orig obj %d: balance mismatch: have %v, want %v", i, origObj.Balance(), want)
 		}
-		if want := big.NewInt(4 * int64(i)); copyObj.Balance().Cmp(want) != 0 {
+		if want := uint256.NewInt(4 * uint64(i)); copyObj.Balance().Cmp(want) != 0 {
 			t.Errorf("copy obj %d: balance mismatch: have %v, want %v", i, copyObj.Balance(), want)
 		}
-		if want := big.NewInt(5 * int64(i)); ccopyObj.Balance().Cmp(want) != 0 {
+		if want := uint256.NewInt(5 * uint64(i)); ccopyObj.Balance().Cmp(want) != 0 {
 			t.Errorf("copy obj %d: balance mismatch: have %v, want %v", i, ccopyObj.Balance(), want)
 		}
 	}
@@ -547,7 +546,7 @@ func TestCopyCommitCopy(t *testing.T) {
 	state.SetCode(addr, []byte("hello"))                                         // Change an external metadata
 	state.SetState(addr, skey, sval)                                             // Change the storage trie
 
-	if balance := state.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := state.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("initial balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := state.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -561,7 +560,7 @@ func TestCopyCommitCopy(t *testing.T) {
 	}
 	// Copy the non-committed state database and check pre/post commit balance
 	copyOne := state.Copy()
-	if balance := copyOne.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := copyOne.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("first copy pre-commit balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := copyOne.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -575,7 +574,7 @@ func TestCopyCommitCopy(t *testing.T) {
 	}
 	// Copy the copy and check the balance once more
 	copyTwo := copyOne.Copy()
-	if balance := copyTwo.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := copyTwo.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("second copy balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := copyTwo.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -592,7 +591,7 @@ func TestCopyCommitCopy(t *testing.T) {
 	state.AccountsIntermediateRoot()
 	root, _, _ := state.Commit(0, nil)
 	state, _ = New(root, tdb, nil)
-	if balance := state.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := state.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("state post-commit balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := state.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -622,7 +621,7 @@ func TestCopyCopyCommitCopy(t *testing.T) {
 	state.SetCode(addr, []byte("hello"))                                         // Change an external metadata
 	state.SetState(addr, skey, sval)                                             // Change the storage trie
 
-	if balance := state.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := state.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("initial balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := state.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -636,7 +635,7 @@ func TestCopyCopyCommitCopy(t *testing.T) {
 	}
 	// Copy the non-committed state database and check pre/post commit balance
 	copyOne := state.Copy()
-	if balance := copyOne.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := copyOne.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("first copy balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := copyOne.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -650,7 +649,7 @@ func TestCopyCopyCommitCopy(t *testing.T) {
 	}
 	// Copy the copy and check the balance once more
 	copyTwo := copyOne.Copy()
-	if balance := copyTwo.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := copyTwo.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("second copy pre-commit balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := copyTwo.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -664,7 +663,7 @@ func TestCopyCopyCommitCopy(t *testing.T) {
 	}
 	// Copy the copy-copy and check the balance once more
 	copyThree := copyTwo.Copy()
-	if balance := copyThree.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := copyThree.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("third copy balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := copyThree.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -691,7 +690,7 @@ func TestCommitCopy(t *testing.T) {
 	state.SetCode(addr, []byte("hello"))                                         // Change an external metadata
 	state.SetState(addr, skey, sval)                                             // Change the storage trie
 
-	if balance := state.GetBalance(addr); balance.Cmp(big.NewInt(42)) != 0 {
+	if balance := state.GetBalance(addr); balance.Cmp(uint256.NewInt(42)) != 0 {
 		t.Fatalf("initial balance mismatch: have %v, want %v", balance, 42)
 	}
 	if code := state.GetCode(addr); !bytes.Equal(code, []byte("hello")) {
@@ -708,7 +707,7 @@ func TestCommitCopy(t *testing.T) {
 	state.AccountsIntermediateRoot()
 	state.Commit(0, nil)
 	copied := state.Copy()
-	if balance := copied.GetBalance(addr); balance.Cmp(big.NewInt(0)) != 0 {
+	if balance := copied.GetBalance(addr); balance.Cmp(uint256.NewInt(0)) != 0 {
 		t.Fatalf("unexpected balance: have %v", balance)
 	}
 	if code := copied.GetCode(addr); code != nil {
