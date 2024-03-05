@@ -421,9 +421,6 @@ func (db *Database) Recoverable(root common.Hash) bool {
 		if m.parent != parent {
 			return errors.New("unexpected state history")
 		}
-		if len(m.incomplete) > 0 {
-			return errors.New("incomplete state history")
-		}
 		parent = m.root
 		return nil
 	}) == nil
