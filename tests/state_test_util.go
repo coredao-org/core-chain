@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -223,16 +224,29 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config, snapshotter bo
 	return nil
 }
 
+<<<<<<< HEAD
 // RunNoVerify runs a specific subtest and returns the statedb and post-state root
 func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapshotter bool, scheme string) (*trie.Database, *snapshot.Tree, *state.StateDB, common.Hash, error) {
 	config, eips, err := GetChainConfig(subtest.Fork)
 	if err != nil {
 		return nil, nil, nil, common.Hash{}, UnsupportedForkError{subtest.Fork}
+=======
+// RunNoVerify runs a specific subtest and returns the statedb and post-state root.
+// Remember to call state.Close after verifying the test result!
+func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapshotter bool, scheme string) (st StateTestState, root common.Hash, err error) {
+	config, eips, err := GetChainConfig(subtest.Fork)
+	if err != nil {
+		return st, common.Hash{}, UnsupportedForkError{subtest.Fork}
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 	}
 	vmconfig.ExtraEips = eips
 
 	block := t.genesis(config).ToBlock()
+<<<<<<< HEAD
 	triedb, snaps, statedb := MakePreState(rawdb.NewMemoryDatabase(), t.json.Pre, snapshotter, scheme)
+=======
+	st = MakePreState(rawdb.NewMemoryDatabase(), t.json.Pre, snapshotter, scheme)
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 
 	var baseFee *big.Int
 	if config.IsLondon(new(big.Int)) {
@@ -246,8 +260,23 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	post := t.json.Post[subtest.Fork][subtest.Index]
 	msg, err := t.json.Tx.toMessage(post, baseFee)
 	if err != nil {
+<<<<<<< HEAD
 		triedb.Close()
 		return nil, nil, nil, common.Hash{}, err
+=======
+		return st, common.Hash{}, err
+	}
+
+	{ // Blob transactions may be present after the Cancun fork.
+		// In production,
+		// - the header is verified against the max in eip4844.go:VerifyEIP4844Header
+		// - the block body is verified against the header in block_validator.go:ValidateBody
+		// Here, we just do this shortcut smaller fix, since state tests do not
+		// utilize those codepaths
+		if len(msg.BlobHashes)*params.BlobTxBlobGasPerBlob > params.MaxBlobGasPerBlock {
+			return st, common.Hash{}, errors.New("blob gas exceeds maximum")
+		}
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 	}
 
 	// Try to recover tx with current signer
@@ -255,13 +284,21 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 		var ttx types.Transaction
 		err := ttx.UnmarshalBinary(post.TxBytes)
 		if err != nil {
+<<<<<<< HEAD
 			triedb.Close()
 			return nil, nil, nil, common.Hash{}, err
+=======
+			return st, common.Hash{}, err
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 		}
 
 		if _, err := types.Sender(types.LatestSigner(config), &ttx); err != nil {
+<<<<<<< HEAD
 			triedb.Close()
 			return nil, nil, nil, common.Hash{}, err
+=======
+			return st, common.Hash{}, err
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 		}
 	}
 
@@ -279,15 +316,29 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 		context.Random = &rnd
 		context.Difficulty = big.NewInt(0)
 	}
+<<<<<<< HEAD
 	evm := vm.NewEVM(context, txContext, statedb, config, vmconfig)
 
 	// Execute the message.
 	snapshot := statedb.Snapshot()
+=======
+	if config.IsCancun(new(big.Int), block.Time()) && t.json.Env.ExcessBlobGas != nil {
+		context.BlobBaseFee = eip4844.CalcBlobFee(*t.json.Env.ExcessBlobGas)
+	}
+	evm := vm.NewEVM(context, txContext, st.StateDB, config, vmconfig)
+
+	// Execute the message.
+	snapshot := st.StateDB.Snapshot()
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 	gaspool := new(core.GasPool)
 	gaspool.AddGas(block.GasLimit())
 	_, err = core.ApplyMessage(evm, msg, gaspool)
 	if err != nil {
+<<<<<<< HEAD
 		statedb.RevertToSnapshot(snapshot)
+=======
+		st.StateDB.RevertToSnapshot(snapshot)
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 	}
 
 	// Commit block
@@ -296,12 +347,20 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	// - the coinbase self-destructed, or
 	// - there are only 'bad' transactions, which aren't executed. In those cases,
 	//   the coinbase gets no txfee, so isn't created, and thus needs to be touched
+<<<<<<< HEAD
 	statedb.AddBalance(block.Coinbase(), new(big.Int))
 	// And _now_ get the state root
 	root := statedb.IntermediateRoot(config.IsEIP158(block.Number()))
 	statedb.SetExpectedStateRoot(root)
 	root, _, _ = statedb.Commit(block.NumberU64(), nil)
 	return triedb, snaps, statedb, root, err
+=======
+	st.StateDB.AddBalance(block.Coinbase(), new(uint256.Int), tracing.BalanceChangeUnspecified)
+
+	// Commit state mutations into database.
+	root, _ = st.StateDB.Commit(block.NumberU64(), config.IsEIP158(block.Number()))
+	return st, root, err
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 }
 
 func (t *StateTest) gasLimit(subtest StateSubtest) uint64 {
@@ -458,3 +517,64 @@ func rlpHash(x interface{}) (h common.Hash) {
 func vmTestBlockHash(n uint64) common.Hash {
 	return common.BytesToHash(crypto.Keccak256([]byte(big.NewInt(int64(n)).String())))
 }
+<<<<<<< HEAD
+=======
+
+// StateTestState groups all the state database objects together for use in tests.
+type StateTestState struct {
+	StateDB   *state.StateDB
+	TrieDB    *triedb.Database
+	Snapshots *snapshot.Tree
+}
+
+// MakePreState creates a state containing the given allocation.
+func MakePreState(db ethdb.Database, accounts types.GenesisAlloc, snapshotter bool, scheme string) StateTestState {
+	tconf := &triedb.Config{Preimages: true}
+	if scheme == rawdb.HashScheme {
+		tconf.HashDB = hashdb.Defaults
+	} else {
+		tconf.PathDB = pathdb.Defaults
+	}
+	triedb := triedb.NewDatabase(db, tconf)
+	sdb := state.NewDatabaseWithNodeDB(db, triedb)
+	statedb, _ := state.New(types.EmptyRootHash, sdb, nil)
+	for addr, a := range accounts {
+		statedb.SetCode(addr, a.Code)
+		statedb.SetNonce(addr, a.Nonce)
+		statedb.SetBalance(addr, uint256.MustFromBig(a.Balance), tracing.BalanceChangeUnspecified)
+		for k, v := range a.Storage {
+			statedb.SetState(addr, k, v)
+		}
+	}
+	// Commit and re-open to start with a clean state.
+	root, _ := statedb.Commit(0, false)
+
+	// If snapshot is requested, initialize the snapshotter and use it in state.
+	var snaps *snapshot.Tree
+	if snapshotter {
+		snapconfig := snapshot.Config{
+			CacheSize:  1,
+			Recovery:   false,
+			NoBuild:    false,
+			AsyncBuild: false,
+		}
+		snaps, _ = snapshot.New(snapconfig, db, triedb, root)
+	}
+	statedb, _ = state.New(root, sdb, snaps)
+	return StateTestState{statedb, triedb, snaps}
+}
+
+// Close should be called when the state is no longer needed, ie. after running the test.
+func (st *StateTestState) Close() {
+	if st.TrieDB != nil {
+		st.TrieDB.Close()
+		st.TrieDB = nil
+	}
+	if st.Snapshots != nil {
+		// Need to call Disable here to quit the snapshot generator goroutine.
+		st.Snapshots.Disable()
+		st.Snapshots.Release()
+		st.Snapshots = nil
+	}
+}
+>>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
