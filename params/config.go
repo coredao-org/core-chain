@@ -258,6 +258,7 @@ var (
 		HashPowerBlock:      big.NewInt(0),
 		ZeusBlock:           big.NewInt(8_020_000),
 		HeraBlock:           big.NewInt(12_195_500),
+		PoseidonBlock:       nil,
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -279,6 +280,7 @@ var (
 		HashPowerBlock:      big.NewInt(4_545_256),
 		ZeusBlock:           big.NewInt(12_666_000),
 		HeraBlock:           big.NewInt(16_472_288),
+		PoseidonBlock:       big.NewInt(18_253_800),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -309,16 +311,16 @@ var (
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
 
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
+	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
+	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
 	TestRules       = TestChainConfig.Rules(new(big.Int), false)
 )
 
@@ -409,6 +411,7 @@ type ChainConfig struct {
 	HashPowerBlock *big.Int `json:"hashPowerBlock,omitempty"`
 	ZeusBlock      *big.Int `json:"zeusBlock,omitempty"`
 	HeraBlock      *big.Int `json:"heraBlock,omitempty"`
+	PoseidonBlock  *big.Int `json:"poseidonBlock,omitempty"`
 
 	// Various consensus engines
 	Ethash  *EthashConfig  `json:"ethash,omitempty" toml:",omitempty"`
@@ -460,7 +463,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -479,6 +482,7 @@ func (c *ChainConfig) String() string {
 		c.HashPowerBlock,
 		c.ZeusBlock,
 		c.HeraBlock,
+		c.PoseidonBlock,
 		engine,
 	)
 }
@@ -580,6 +584,14 @@ func (c *ChainConfig) IsHera(num *big.Int) bool {
 
 func (c *ChainConfig) IsOnHera(num *big.Int) bool {
 	return configNumEqual(c.HeraBlock, num)
+}
+
+func (c *ChainConfig) IsPoseidon(num *big.Int) bool {
+	return isForked(c.PoseidonBlock, num)
+}
+
+func (c *ChainConfig) IsOnPoseidon(num *big.Int) bool {
+	return configNumEqual(c.PoseidonBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -697,6 +709,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	}
 	if isForkIncompatible(c.HeraBlock, newcfg.HeraBlock, head) {
 		return newCompatError("hera fork block", c.HeraBlock, newcfg.HeraBlock)
+	}
+	if isForkIncompatible(c.PoseidonBlock, newcfg.PoseidonBlock, head) {
+		return newCompatError("hera fork block", c.PoseidonBlock, newcfg.PoseidonBlock)
 	}
 	return nil
 }
