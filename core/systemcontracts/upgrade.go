@@ -244,7 +244,7 @@ func UpgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 	if config.IsOnHera(blockNumber) {
 		applySystemContractUpgrade(heraUpgrade[network], blockNumber, statedb, logger)
 	}
-	if config.IsPoseidon(blockNumber) {
+	if config.IsOnPoseidon(blockNumber) {
 		applySystemContractUpgrade(poseidonUpgrade[network], blockNumber, statedb, logger)
 	}
 }
