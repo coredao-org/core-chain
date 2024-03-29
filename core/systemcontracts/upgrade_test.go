@@ -83,4 +83,9 @@ func TestUpgrade(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	err = checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/master/genesis.json", poseidonUpgrade[mainNet])
+	if err != nil {
+		t.Error(err)
+	}
 }

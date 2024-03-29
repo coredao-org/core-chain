@@ -258,7 +258,7 @@ var (
 		HashPowerBlock:      big.NewInt(0),
 		ZeusBlock:           big.NewInt(8_020_000),
 		HeraBlock:           big.NewInt(12_195_500),
-		PoseidonBlock:       nil,
+		PoseidonBlock:       big.NewInt(13_232_049),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
