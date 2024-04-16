@@ -599,7 +599,7 @@ var (
 		Category: flags.VMCategory,
 	}
 	VMTraceConfigFlag = &cli.StringFlag{
-		Name:     "vmtrace.config",
+		Name:     "vmtrace.jsonconfig",
 		Usage:    "Tracer configuration (JSON)",
 		Category: flags.VMCategory,
 	}
