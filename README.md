@@ -93,6 +93,15 @@ Steps:
 3. Start your fullnode: `./geth --config ./config.toml --datadir ./node`.
 4. Or start a validator node: `./geth --config ./config.toml --datadir ./node -unlock ${validatorAddr} --mine --allow-insecure-unlock`. The ${validatorAddr} is the wallet account address of your running validator node. 
 
+### Genesis File
+
+*Note: The genesis file for both mainnet and testnet can be found under releases of each version, linked in the mainnet.zip and testnet.zip below.
+
+| Genesis File | Hash |
+|-----------|------|
+| testnet genesis.json | 986c9c6470ae492f86c0fa665ac30d9c23d63c98b1ae977098fa09c0a84510d5 |
+| mainnet genesis.json | de59db36145733851f9180649a54b0ff5fbeec5a4ec5c79278c9badf5d87170b |
+
 More details about [running a node](https://docs.coredao.org/developer/become-a-validator/validators/core-full-nodes) and [becoming a validator](https://docs.coredao.org/developer/become-a-validator/validators/validator-registration).
 
 *Note: Although there are some internal protective measures to prevent transactions from
@@ -110,12 +119,21 @@ configuration file via:
 $ geth --config /path/to/your_config.toml
 ```
 
+A standard config file and the genesis file can be found under releases for both mainnet and testnet.
+- https://github.com/coredao-org/core-chain/releases/download/v1.0.8/mainnet.zip
+- https://github.com/coredao-org/core-chain/releases/download/v1.0.8/testnet.zip
+
 To get an idea how the file should look like you can use the `dumpconfig` subcommand to
 export your existing configuration:
 
 ```shell
 $ geth --your-favourite-flags dumpconfig
 ```
+
+### Snapshots
+
+We have snapshots available for both testnet and mainnet, they can be found here.
+- https://github.com/coredao-org/core-snapshots
 
 ### Programmatically interfacing `geth` nodes
 
