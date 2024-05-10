@@ -173,13 +173,19 @@ func (s *stateObject) getPrefetchedTrie() (Trie, error) {
 
 // GetState retrieves a value from the account storage trie.
 func (s *stateObject) GetState(key common.Hash) common.Hash {
-	// If we have a dirty value for this state entry, return it
+	value, _ := s.getState(key)
+	return value
+}
+
+// getState retrieves a value associated with the given storage key, along with
+// it's original value.
+func (s *stateObject) getState(key common.Hash) (common.Hash, common.Hash) {
+	origin := s.GetCommittedState(key)
 	value, dirty := s.dirtyStorage[key]
 	if dirty {
-		return value
+		return value, origin
 	}
-	// Otherwise return the entry's original value
-	return s.GetCommittedState(key)
+	return origin, origin
 }
 
 func (s *stateObject) getOriginStorage(key common.Hash) (common.Hash, bool) {
@@ -269,21 +275,30 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 
 // SetState updates a value in account storage.
 func (s *stateObject) SetState(key, value common.Hash) {
-	// If the new value is the same as old, don't set
-	prev := s.GetState(key)
+	// If the new value is the same as old, don't set. Otherwise, track only the
+	// dirty changes, supporting reverting all of it back to no change.
+	prev, origin := s.getState(key)
 	if prev == value {
 		return
 	}
 	// New value is different, update and journal the change
 	s.db.journal.append(storageChange{
-		account:  &s.address,
-		key:      key,
-		prevalue: prev,
+		account:   &s.address,
+		key:       key,
+		prevvalue: prev,
+		origvalue: origin,
 	})
-	s.setState(key, value)
+	s.setState(key, value, origin)
 }
 
-func (s *stateObject) setState(key, value common.Hash) {
+// setState updates a value in account dirty storage. The dirtiness will be
+// removed if the value being set equals to the original value.
+func (s *stateObject) setState(key common.Hash, value common.Hash, origin common.Hash) {
+	// Storage slot is set back to its original value, undo the dirty marker
+	if value == origin {
+		delete(s.dirtyStorage, key)
+		return
+	}
 	s.dirtyStorage[key] = value
 }
 
@@ -292,9 +307,13 @@ func (s *stateObject) setState(key, value common.Hash) {
 func (s *stateObject) finalise() {
 	slotsToPrefetch := make([][]byte, 0, len(s.dirtyStorage))
 	for key, value := range s.dirtyStorage {
-		s.pendingStorage[key] = value
 		if value != s.originStorage[key] {
+			s.pendingStorage[key] = value
 			slotsToPrefetch = append(slotsToPrefetch, common.CopyBytes(key[:])) // Copy needed for closure
+		} else {
+			// Otherwise, the slot was reverted to its original value, remove it
+			// from the pending area to avoid thrashing the data structure.
+			delete(s.pendingStorage, key)
 		}
 	}
 	if s.db.prefetcher != nil && len(slotsToPrefetch) > 0 && s.data.Root != types.EmptyRootHash {
