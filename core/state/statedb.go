@@ -25,6 +25,7 @@ import (
 	"slices"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -42,6 +43,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/triestate"
 	"github.com/holiman/uint256"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -108,11 +110,12 @@ type StateDB struct {
 
 	// These maps hold the state changes (including the corresponding
 	// original value) that occurred in this **block**.
-	AccountMux     sync.Mutex                                // Mutex for accounts access
-	StorageMux     sync.Mutex                                // Mutex for storages access
-	accounts       map[common.Hash][]byte                    // The mutated accounts in 'slim RLP' encoding
+	AccountMux     sync.Mutex                // Mutex for accounts access
+	StorageMux     sync.Mutex                // Mutex for storages access
+	accounts       map[common.Hash][]byte    // The mutated accounts in 'slim RLP' encoding
+	accountsOrigin map[common.Address][]byte // The original value of mutated accounts in 'slim RLP' encoding
+
 	storages       map[common.Hash]map[common.Hash][]byte    // The mutated slots in prefix-zero trimmed rlp format
-	accountsOrigin map[common.Address][]byte                 // The original value of mutated accounts in 'slim RLP' encoding
 	storagesOrigin map[common.Address]map[common.Hash][]byte // The original value of mutated slots in prefix-zero trimmed rlp format
 
 	// This map holds 'live' objects, which will get modified while
@@ -184,9 +187,9 @@ type StateDB struct {
 	TrieDBCommits        time.Duration
 
 	AccountUpdated int
-	StorageUpdated int
+	StorageUpdated atomic.Int64
 	AccountDeleted int
-	StorageDeleted int
+	StorageDeleted atomic.Int64
 
 	// Testing hooks
 	onCommit func(states *triestate.Set) // Hook invoked when commit is performed
@@ -270,7 +273,8 @@ func (s *StateDB) StartPrefetcher(namespace string) {
 	s.prefetcherLock.Lock()
 	defer s.prefetcherLock.Unlock()
 	if s.prefetcher != nil {
-		s.prefetcher.close()
+		s.prefetcher.terminate(false)
+		s.prefetcher.report()
 		s.prefetcher = nil
 	}
 	if s.snap != nil {
@@ -291,7 +295,8 @@ func (s *StateDB) StopPrefetcher() {
 	}
 	s.prefetcherLock.Lock()
 	if s.prefetcher != nil {
-		s.prefetcher.close()
+		s.prefetcher.terminate(false)
+		s.prefetcher.report()
 		s.prefetcher = nil
 	}
 	s.prefetcherLock.Unlock()
@@ -686,10 +691,6 @@ func (s *StateDB) updateStateObject(obj *stateObject) {
 	if s.noTrie {
 		return
 	}
-	// Track the amount of time wasted on updating the account from the trie
-	if metrics.EnabledExpensive {
-		defer func(start time.Time) { s.AccountUpdates += time.Since(start) }(time.Now())
-	}
 	// Encode the account and update the account trie
 	addr := obj.Address()
 	if err := s.trie.UpdateAccount(addr, &obj.data); err != nil {
@@ -715,10 +716,6 @@ func (s *StateDB) updateStateObject(obj *stateObject) {
 func (s *StateDB) deleteStateObject(addr common.Address) {
 	if s.noTrie {
 		return
-	}
-	// Track the amount of time wasted on deleting the account from the trie
-	if metrics.EnabledExpensive {
-		defer func(start time.Time) { s.AccountUpdates += time.Since(start) }(time.Now())
 	}
 	// Delete the account from the trie
 	if err := s.trie.DeleteAccount(addr); err != nil {
@@ -917,13 +914,6 @@ func (s *StateDB) copyInternal(doPrefetch bool) *StateDB {
 	}
 	state.transientStorage = s.transientStorage.Copy()
 
-	state.prefetcher = s.prefetcher
-	if s.prefetcher != nil && !doPrefetch {
-		// If there's a prefetcher running, make an inactive copy of it that can
-		// only access data but does not actively preload (since the user will not
-		// know that they need to explicitly terminate an active copy).
-		state.prefetcher = state.prefetcher.copy()
-	}
 	return state
 }
 
@@ -1001,7 +991,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			delete(s.accountsOrigin, obj.address) // Clear out any previously updated account data (may be recreated via a resurrect)
 			delete(s.storagesOrigin, obj.address) // Clear out any previously updated storage data (may be recreated via a resurrect)
 		} else {
-			obj.finalise(true) // Prefetch slots in the background
+			obj.finalise()
 			s.markUpdate(addr)
 		}
 		// At this point, also ship the address off to the precacher. The precacher
@@ -1012,9 +1002,13 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	prefetcher := s.prefetcher
 	if prefetcher != nil && len(addressesToPrefetch) > 0 {
 		if s.snap.Verified() {
-			prefetcher.prefetch(common.Hash{}, s.originalRoot, common.Address{}, addressesToPrefetch)
+			if err := prefetcher.prefetch(common.Hash{}, s.originalRoot, common.Address{}, addressesToPrefetch); err != nil {
+				log.Error("Failed to prefetch addresses", "addresses", len(addressesToPrefetch), "err", err)
+			}
 		} else if prefetcher.rootParent != (common.Hash{}) {
-			prefetcher.prefetch(common.Hash{}, prefetcher.rootParent, common.Address{}, addressesToPrefetch)
+			if err := prefetcher.prefetch(common.Hash{}, prefetcher.rootParent, common.Address{}, addressesToPrefetch); err != nil {
+				log.Error("Failed to prefetch addresses", "addresses", len(addressesToPrefetch), "err", err)
+			}
 		}
 	}
 	// Invalidate journal because reverting across transactions is not allowed.
@@ -1154,32 +1148,65 @@ func (s *StateDB) AccountsIntermediateRoot() {
 }
 
 func (s *StateDB) StateIntermediateRoot() common.Hash {
-	// If there was a trie prefetcher operating, it gets aborted and irrevocably
-	// modified after we start retrieving tries. Remove it from the statedb after
-	// this round of use.
-	//
-	// This is weird pre-byzantium since the first tx runs with a prefetcher and
-	// the remainder without, but pre-byzantium even the initial prefetcher is
-	// useless, so no sleep lost.
-	prefetcher := s.prefetcher
-	defer s.StopPrefetcher()
+	// If there was a trie prefetcher operating, terminate it async so that the
+	// individual storage tries can be updated as soon as the disk load finishes.
+	if s.prefetcher != nil {
+		s.prefetcher.terminate(true)
+		defer func() {
+			s.prefetcher.report()
+			s.prefetcher = nil // Pre-byzantium, unset any used up prefetcher
+		}()
+	}
 
-	// Although naively it makes sense to retrieve the account trie and then do
-	// the contract storage and account updates sequentially, that short circuits
-	// the account prefetcher. Instead, let's process all the storage updates
-	// first, giving the account prefetches just a few more milliseconds of time
-	// to pull useful data from disk.
+	// // Although naively it makes sense to retrieve the account trie and then do
+	// // the contract storage and account updates sequentially, that short circuits
+	// // the account prefetcher. Instead, let's process all the storage updates
+	// // first, giving the account prefetches just a few more milliseconds of time
+	// // to pull useful data from disk.
+	// for addr, op := range s.mutations {
+	// 	if op.applied || op.isDelete() {
+	// 		continue
+	// 	}
+	// 	s.stateObjects[addr].updateRoot()
+	// }
+
+	// Process all storage updates concurrently. The state object update root
+	// method will internally call a blocking trie fetch from the prefetcher,
+	// so there's no need to explicitly wait for the prefetchers to finish.
+	var (
+		start   = time.Now()
+		workers errgroup.Group
+	)
+	if s.db.TrieDB().IsVerkle() {
+		// Whilst MPT storage tries are independent, Verkle has one single trie
+		// for all the accounts and all the storage slots merged together. The
+		// former can thus be simply parallelized, but updating the latter will
+		// need concurrency support within the trie itself. That's a TODO for a
+		// later time.
+		workers.SetLimit(1)
+	}
 	for addr, op := range s.mutations {
 		if op.applied || op.isDelete() {
 			continue
 		}
-		s.stateObjects[addr].updateRoot()
+		obj := s.stateObjects[addr] // closure for the task runner below
+		workers.Go(func() error {
+			obj.updateRoot()
+			return nil
+		})
 	}
+	workers.Wait()
+	s.StorageUpdates += time.Since(start)
+
 	// Now we're about to start to write changes to the trie. The trie is so far
 	// _untouched_. We can check with the prefetcher, if it can give us a trie
 	// which has the same root, but also has some content loaded into it.
-	if prefetcher != nil {
-		if trie := prefetcher.trie(common.Hash{}, s.originalRoot); trie != nil {
+	start = time.Now()
+
+	if s.prefetcher != nil {
+		if trie, err := s.prefetcher.trie(common.Hash{}, s.originalRoot); err != nil {
+			log.Error("Failed to retrieve account pre-fetcher trie", "err", err)
+		} else if trie != nil {
 			s.trie = trie
 		}
 	}
@@ -1224,6 +1251,7 @@ func (s *StateDB) StateIntermediateRoot() common.Hash {
 			s.AccountDeleted += 1
 		}
 		s.AccountUpdates += time.Since(start)
+
 		if s.prefetcher != nil {
 			s.prefetcher.used(common.Hash{}, s.originalRoot, usedAddrs)
 		}

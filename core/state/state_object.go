@@ -26,11 +26,20 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/holiman/uint256"
 )
+
+// hasherPool holds a pool of hashers used by state objects during concurrent
+// trie updates.
+var hasherPool = sync.Pool{
+	New: func() interface{} {
+		return crypto.NewKeccakState()
+	},
+}
 
 type Storage map[common.Hash]common.Hash
 
@@ -129,25 +138,37 @@ func (s *stateObject) touch() {
 	}
 }
 
-// getTrie returns the associated storage trie. The trie will be opened
-// if it's not loaded previously. An error will be returned if trie can't
-// be loaded.
+// getTrie returns the associated storage trie. The trie will be opened if it'
+// not loaded previously. An error will be returned if trie can't be loaded.
+//
+// If a new trie is opened, it will be cached within the state object to allow
+// subsequent reads to expand the same trie instead of reloading from disk.
 func (s *stateObject) getTrie() (Trie, error) {
 	if s.trie == nil {
-		// Try fetching from prefetcher first
-		// if s.data.Root != types.EmptyRootHash && s.db.prefetcher != nil {
-		// When the miner is creating the pending state, there is no prefetcher
-		//	s.trie = s.db.prefetcher.trie(s.addrHash, s.data.Root)
-		// }
-		// if s.trie == nil {
 		tr, err := s.db.db.OpenStorageTrie(s.db.originalRoot, s.address, s.data.Root, s.db.trie)
 		if err != nil {
 			return nil, err
 		}
 		s.trie = tr
-		// }
 	}
 	return s.trie, nil
+}
+
+// getPrefetchedTrie returns the associated trie, as populated by the prefetcher
+// if it's available.
+//
+// Note, opposed to getTrie, this method will *NOT* blindly cache the resulting
+// trie in the state object. The caller might want to do that, but it's cleaner
+// to break the hidden interdependency between retrieving tries from the db or
+// from the prefetcher.
+func (s *stateObject) getPrefetchedTrie() (Trie, error) {
+	// If there's nothing to meaningfully return, let the user figure it out by
+	// pulling the trie from disk.
+	if s.data.Root == types.EmptyRootHash || s.db.prefetcher == nil {
+		return nil, nil
+	}
+	// Attempt to retrieve the trie from the pretecher
+	return s.db.prefetcher.trie(s.addrHash, s.data.Root)
 }
 
 // GetState retrieves a value from the account storage trie.
@@ -268,7 +289,7 @@ func (s *stateObject) setState(key, value common.Hash) {
 
 // finalise moves all dirty storage slots into the pending area to be hashed or
 // committed later. It is invoked at the end of every transaction.
-func (s *stateObject) finalise(prefetch bool) {
+func (s *stateObject) finalise() {
 	slotsToPrefetch := make([][]byte, 0, len(s.dirtyStorage))
 	for key, value := range s.dirtyStorage {
 		s.pendingStorage[key] = value
@@ -276,8 +297,10 @@ func (s *stateObject) finalise(prefetch bool) {
 			slotsToPrefetch = append(slotsToPrefetch, common.CopyBytes(key[:])) // Copy needed for closure
 		}
 	}
-	if s.db.prefetcher != nil && prefetch && len(slotsToPrefetch) > 0 && s.data.Root != types.EmptyRootHash {
-		s.db.prefetcher.prefetch(s.addrHash, s.data.Root, s.address, slotsToPrefetch)
+	if s.db.prefetcher != nil && len(slotsToPrefetch) > 0 && s.data.Root != types.EmptyRootHash {
+		if err := s.db.prefetcher.prefetch(s.addrHash, s.data.Root, s.address, slotsToPrefetch); err != nil {
+			log.Error("Failed to prefetch slots", "addr", s.address, "slots", len(slotsToPrefetch), "err", err)
+		}
 	}
 	if len(s.dirtyStorage) > 0 {
 		s.dirtyStorage = make(Storage)
@@ -296,34 +319,55 @@ func (s *stateObject) finalise(prefetch bool) {
 // storage change at all.
 func (s *stateObject) updateTrie() (Trie, error) {
 	// Make sure all dirty slots are finalized into the pending storage area
-	s.finalise(false)
+	s.finalise()
 
 	// Short circuit if nothing changed, don't bother with hashing anything
 	if len(s.pendingStorage) == 0 {
 		return s.trie, nil
 	}
-	// Track the amount of time wasted on updating the storage trie
-	if metrics.EnabledExpensive {
-		defer func(start time.Time) {
-			s.db.MetricsMux.Lock()
-			s.db.StorageUpdates += time.Since(start)
-			s.db.MetricsMux.Unlock()
-		}(time.Now())
+	// Retrieve a pretecher populated trie, or fall back to the database
+	tr, err := s.getPrefetchedTrie()
+	switch {
+	case err != nil:
+		// Fetcher retrieval failed, something's very wrong, abort
+		s.db.setError(err)
+		return nil, err
+
+	case tr == nil:
+		// Fetcher not running or empty trie, fallback to the database trie
+		tr, err = s.getTrie()
+		if err != nil {
+			s.db.setError(err)
+			return nil, err
+		}
+
+	default:
+		// Prefetcher returned a live trie, swap it out for the current one
+		s.trie = tr
 	}
 	// The snapshot storage map for the object
 	var (
 		storage map[common.Hash][]byte
 		origin  map[common.Hash][]byte
-		hasher  = crypto.NewKeccakState()
+		// hasher  = crypto.NewKeccakState()
 	)
-	tr, err := s.getTrie()
-	if err != nil {
-		s.db.setError(err)
-		return nil, err
-	}
 	// Insert all the pending storage updates into the trie
 	usedStorage := make([][]byte, 0, len(s.pendingStorage))
 	dirtyStorage := make(map[common.Hash][]byte)
+
+	hasher := hasherPool.Get().(crypto.KeccakState)
+	defer hasherPool.Put(hasher)
+
+	// Perform trie updates before deletions.  This prevents resolution of unnecessary trie nodes
+	//  in circumstances similar to the following:
+	//
+	// Consider nodes `A` and `B` who share the same full node parent `P` and have no other siblings.
+	// During the execution of a block:
+	// - `A` is deleted,
+	// - `C` is created, and also shares the parent `P`.
+	// If the deletion is handled first, then `P` would be left with only one child, thus collapsed
+	// into a shortnode. This requires `B` to be resolved from disk.
+	// Whereas if the created node is handled first, then the collapse is avoided, and `B` is not resolved.
 	for key, value := range s.pendingStorage {
 		// Skip noop changes, persist actual changes
 		if value == s.originStorage[key] {
@@ -345,15 +389,15 @@ func (s *stateObject) updateTrie() (Trie, error) {
 				if err := tr.DeleteStorage(s.address, key[:]); err != nil {
 					s.db.setError(err)
 				}
-				s.db.StorageDeleted += 1
+				s.db.StorageDeleted.Add(1)
 			} else {
 				if err := tr.UpdateStorage(s.address, key[:], value); err != nil {
 					s.db.setError(err)
 				}
-				s.db.StorageUpdated += 1
+				s.db.StorageUpdated.Add(1)
 			}
 			// Cache the items for preloading
-			usedStorage = append(usedStorage, common.CopyBytes(key[:]))
+			usedStorage = append(usedStorage, common.CopyBytes(key[:])) // Copy needed for closure
 		}
 	}()
 	// If state snapshotting is active, cache the data til commit
