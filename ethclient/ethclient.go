@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -185,6 +186,27 @@ func (ec *Client) HeaderByNumber(ctx context.Context, number *big.Int) (*types.H
 		err = ethereum.NotFound
 	}
 	return head, err
+}
+
+// GetFinalizedHeader returns the requested finalized block header.
+//   - probabilisticFinalized should be in range [2,21],
+//     then the block header with number `max(fastFinalized, latest-probabilisticFinalized)` is returned
+func (ec *Client) FinalizedHeader(ctx context.Context, probabilisticFinalized int64) (*types.Header, error) {
+	var head *types.Header
+	err := ec.c.CallContext(ctx, &head, "eth_getFinalizedHeader", probabilisticFinalized)
+	if err == nil && head == nil {
+		err = ethereum.NotFound
+	}
+	return head, err
+}
+
+// GetFinalizedBlock returns the requested finalized block.
+//   - probabilisticFinalized should be in range [2,21],
+//     then the block with number `max(fastFinalized, latest-probabilisticFinalized)` is returned
+//   - When fullTx is true all transactions in the block are returned, otherwise
+//     only the transaction hash is returned.
+func (ec *Client) FinalizedBlock(ctx context.Context, probabilisticFinalized int64, fullTx bool) (*types.Block, error) {
+	return ec.getBlock(ctx, "eth_getFinalizedBlock", probabilisticFinalized, true)
 }
 
 // GetDiffAccounts returns changed accounts in a specific block number.
@@ -368,6 +390,17 @@ func (ec *Client) SyncProgress(ctx context.Context) (*ethereum.SyncProgress, err
 // on the given channel.
 func (ec *Client) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
 	return ec.c.EthSubscribe(ctx, ch, "newHeads")
+}
+
+// SubscribeNewFinalizedHeader subscribes to notifications about the current blockchain finalized header
+// on the given channel.
+func (ec *Client) SubscribeNewFinalizedHeader(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
+	return ec.c.EthSubscribe(ctx, ch, "newFinalizedHeaders")
+}
+
+// SubscribeNewVotes subscribes to notifications about the new votes into vote pool
+func (ec *Client) SubscribeNewVotes(ctx context.Context, ch chan<- *types.VoteEnvelope) (ethereum.Subscription, error) {
+	return ec.c.EthSubscribe(ctx, ch, "newVotes")
 }
 
 // State Access
@@ -571,6 +604,18 @@ func (ec *Client) SendTransaction(ctx context.Context, tx *types.Transaction) er
 	return ec.c.CallContext(ctx, nil, "eth_sendRawTransaction", hexutil.Encode(data))
 }
 
+// SendTransactionConditional injects a signed transaction into the pending pool for execution.
+//
+// If the transaction was a contract creation use the TransactionReceipt method to get the
+// contract address after the transaction has been mined.
+func (ec *Client) SendTransactionConditional(ctx context.Context, tx *types.Transaction, opts ethapi.TransactionOpts) error {
+	data, err := tx.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	return ec.c.CallContext(ctx, nil, "eth_sendRawTransactionConditional", hexutil.Encode(data), opts)
+}
+
 func toBlockNumArg(number *big.Int) string {
 	if number == nil {
 		return "latest"
@@ -578,6 +623,14 @@ func toBlockNumArg(number *big.Int) string {
 	pending := big.NewInt(-1)
 	if number.Cmp(pending) == 0 {
 		return "pending"
+	}
+	finalized := big.NewInt(int64(rpc.FinalizedBlockNumber))
+	if number.Cmp(finalized) == 0 {
+		return "finalized"
+	}
+	safe := big.NewInt(int64(rpc.SafeBlockNumber))
+	if number.Cmp(safe) == 0 {
+		return "safe"
 	}
 	return hexutil.EncodeBig(number)
 }

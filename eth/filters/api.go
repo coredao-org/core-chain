@@ -39,6 +39,7 @@ type filter struct {
 	typ      Type
 	deadline *time.Timer // filter is inactiv when deadline triggers
 	hashes   []common.Hash
+	txs      []*types.Transaction
 	crit     FilterCriteria
 	logs     []*types.Log
 	s        *Subscription // associated subscription in event system
@@ -99,7 +100,7 @@ func (api *PublicFilterAPI) timeoutLoop(timeout time.Duration) {
 	}
 }
 
-// NewPendingTransactionFilter creates a filter that fetches pending transaction hashes
+// NewPendingTransactionFilter creates a filter that fetches pending transactions
 // as transactions enter the pending state.
 //
 // It is part of the filter package because this filter can be used through the
@@ -108,20 +109,20 @@ func (api *PublicFilterAPI) timeoutLoop(timeout time.Duration) {
 // https://eth.wiki/json-rpc/API#eth_newpendingtransactionfilter
 func (api *PublicFilterAPI) NewPendingTransactionFilter() rpc.ID {
 	var (
-		pendingTxs   = make(chan []common.Hash)
+		pendingTxs   = make(chan []*types.Transaction)
 		pendingTxSub = api.events.SubscribePendingTxs(pendingTxs)
 	)
 	api.filtersMu.Lock()
-	api.filters[pendingTxSub.ID] = &filter{typ: PendingTransactionsSubscription, deadline: time.NewTimer(api.timeout), hashes: make([]common.Hash, 0), s: pendingTxSub}
+	api.filters[pendingTxSub.ID] = &filter{typ: PendingTransactionsSubscription, deadline: time.NewTimer(api.timeout), txs: make([]*types.Transaction, 0), s: pendingTxSub}
 	api.filtersMu.Unlock()
 
 	gopool.Submit(func() {
 		for {
 			select {
-			case ph := <-pendingTxs:
+			case pTx := <-pendingTxs:
 				api.filtersMu.Lock()
 				if f, found := api.filters[pendingTxSub.ID]; found {
-					f.hashes = append(f.hashes, ph...)
+					f.txs = append(f.txs, pTx...)
 				}
 				api.filtersMu.Unlock()
 			case <-pendingTxSub.Err():
@@ -136,9 +137,10 @@ func (api *PublicFilterAPI) NewPendingTransactionFilter() rpc.ID {
 	return pendingTxSub.ID
 }
 
-// NewPendingTransactions creates a subscription that is triggered each time a transaction
-// enters the transaction pool and was signed from one of the transactions this nodes manages.
-func (api *PublicFilterAPI) NewPendingTransactions(ctx context.Context) (*rpc.Subscription, error) {
+// NewPendingTransactions creates a subscription that is triggered each time a
+// transaction enters the transaction pool. If fullTx is true the full tx is
+// sent to the client, otherwise the hash is sent.
+func (api *PublicFilterAPI) NewPendingTransactions(ctx context.Context, fullTx *bool) (*rpc.Subscription, error) {
 	notifier, supported := rpc.NotifierFromContext(ctx)
 	if !supported {
 		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
@@ -147,22 +149,88 @@ func (api *PublicFilterAPI) NewPendingTransactions(ctx context.Context) (*rpc.Su
 	rpcSub := notifier.CreateSubscription()
 
 	gopool.Submit(func() {
-		txHashes := make(chan []common.Hash, 128)
-		pendingTxSub := api.events.SubscribePendingTxs(txHashes)
+		txs := make(chan []*types.Transaction, 128)
+		pendingTxSub := api.events.SubscribePendingTxs(txs)
 
 		for {
 			select {
-			case hashes := <-txHashes:
+			case txs := <-txs:
 				// To keep the original behaviour, send a single tx hash in one notification.
 				// TODO(rjl493456442) Send a batch of tx hashes in one notification
-				for _, h := range hashes {
-					notifier.Notify(rpcSub.ID, h)
+				for _, tx := range txs {
+					if fullTx != nil && *fullTx {
+						notifier.Notify(rpcSub.ID, tx)
+					} else {
+						notifier.Notify(rpcSub.ID, tx.Hash())
+					}
 				}
 			case <-rpcSub.Err():
 				pendingTxSub.Unsubscribe()
 				return
 			case <-notifier.Closed():
 				pendingTxSub.Unsubscribe()
+				return
+			}
+		}
+	})
+
+	return rpcSub, nil
+}
+
+// NewVotesFilter creates a filter that fetches votes that entered the vote pool.
+// It is part of the filter package since polling goes with eth_getFilterChanges.
+func (api *PublicFilterAPI) NewVotesFilter() rpc.ID {
+	var (
+		votes   = make(chan *types.VoteEnvelope)
+		voteSub = api.events.SubscribeNewVotes(votes)
+	)
+	api.filtersMu.Lock()
+	api.filters[voteSub.ID] = &filter{typ: VotesSubscription, deadline: time.NewTimer(api.timeout), hashes: make([]common.Hash, 0), s: voteSub}
+	api.filtersMu.Unlock()
+
+	gopool.Submit(func() {
+		for {
+			select {
+			case vote := <-votes:
+				api.filtersMu.Lock()
+				if f, found := api.filters[voteSub.ID]; found {
+					f.hashes = append(f.hashes, vote.Hash())
+				}
+				api.filtersMu.Unlock()
+			case <-voteSub.Err():
+				api.filtersMu.Lock()
+				delete(api.filters, voteSub.ID)
+				api.filtersMu.Unlock()
+				return
+			}
+		}
+	})
+
+	return voteSub.ID
+}
+
+// NewVotes creates a subscription that is triggered each time a vote enters the vote pool.
+func (api *PublicFilterAPI) NewVotes(ctx context.Context) (*rpc.Subscription, error) {
+	notifier, supported := rpc.NotifierFromContext(ctx)
+	if !supported {
+		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
+	}
+
+	rpcSub := notifier.CreateSubscription()
+
+	gopool.Submit(func() {
+		votes := make(chan *types.VoteEnvelope, 128)
+		voteSub := api.events.SubscribeNewVotes(votes)
+
+		for {
+			select {
+			case vote := <-votes:
+				notifier.Notify(rpcSub.ID, vote)
+			case <-rpcSub.Err():
+				voteSub.Unsubscribe()
+				return
+			case <-notifier.Closed():
+				voteSub.Unsubscribe()
 				return
 			}
 		}
@@ -218,6 +286,68 @@ func (api *PublicFilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, er
 	gopool.Submit(func() {
 		headers := make(chan *types.Header)
 		headersSub := api.events.SubscribeNewHeads(headers)
+
+		for {
+			select {
+			case h := <-headers:
+				notifier.Notify(rpcSub.ID, h)
+			case <-rpcSub.Err():
+				headersSub.Unsubscribe()
+				return
+			case <-notifier.Closed():
+				headersSub.Unsubscribe()
+				return
+			}
+		}
+	})
+
+	return rpcSub, nil
+}
+
+// NewFinalizedHeaderFilter creates a filter that fetches finalized headers that are reached.
+func (api *PublicFilterAPI) NewFinalizedHeaderFilter() rpc.ID {
+	var (
+		headers   = make(chan *types.Header)
+		headerSub = api.events.SubscribeNewFinalizedHeaders(headers)
+	)
+
+	api.filtersMu.Lock()
+	api.filters[headerSub.ID] = &filter{typ: FinalizedHeadersSubscription, deadline: time.NewTimer(api.timeout), hashes: make([]common.Hash, 0), s: headerSub}
+	api.filtersMu.Unlock()
+
+	gopool.Submit(func() {
+		for {
+			select {
+			case h := <-headers:
+				api.filtersMu.Lock()
+				if f, found := api.filters[headerSub.ID]; found {
+					f.hashes = append(f.hashes, h.Hash())
+				}
+				api.filtersMu.Unlock()
+			case <-headerSub.Err():
+				api.filtersMu.Lock()
+				delete(api.filters, headerSub.ID)
+				api.filtersMu.Unlock()
+				return
+			}
+		}
+	})
+
+	return headerSub.ID
+}
+
+// NewFinalizedHeaders send a notification each time a new finalized header is reached.
+func (api *PublicFilterAPI) NewFinalizedHeaders(ctx context.Context) (*rpc.Subscription, error) {
+	notifier, supported := rpc.NotifierFromContext(ctx)
+	if !supported {
+		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
+	}
+
+	rpcSub := notifier.CreateSubscription()
+
+	gopool.Submit(func() {
+		headers := make(chan *types.Header)
+		headersSub := api.events.SubscribeNewFinalizedHeaders(headers)
 
 		for {
 			select {
@@ -427,10 +557,14 @@ func (api *PublicFilterAPI) GetFilterChanges(id rpc.ID) (interface{}, error) {
 		f.deadline.Reset(api.timeout)
 
 		switch f.typ {
-		case PendingTransactionsSubscription, BlocksSubscription:
+		case BlocksSubscription, FinalizedHeadersSubscription, VotesSubscription:
 			hashes := f.hashes
 			f.hashes = nil
 			return returnHashes(hashes), nil
+		case PendingTransactionsSubscription:
+			txs := f.txs
+			f.txs = nil
+			return txs, nil
 		case LogsSubscription, MinedAndPendingLogsSubscription:
 			logs := f.logs
 			f.logs = nil

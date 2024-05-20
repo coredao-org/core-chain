@@ -23,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -246,10 +248,37 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	return newcfg, stored, nil
 }
 
+// For any block in g.Config which is nil but the same block in defaultConfig is not
+// set the block in genesis config to the block in defaultConfig.
+// Reflection is used to avoid a long series of if statements with hardcoded block names.
+func (g *Genesis) setDefaultBlockValues(defaultConfig *params.ChainConfig) {
+	// Regex to match block names
+	blockRegex := regexp.MustCompile(`.*Block$`)
+
+	// Get reflect values
+	gConfigElem := reflect.ValueOf(g.Config).Elem()
+	defaultConfigElem := reflect.ValueOf(defaultConfig).Elem()
+
+	// Iterate over fields in config
+	for i := 0; i < gConfigElem.NumField(); i++ {
+		gConfigField := gConfigElem.Field(i)
+		defaultConfigField := defaultConfigElem.Field(i)
+		fieldName := gConfigElem.Type().Field(i).Name
+
+		// Use the regex to check if the field is a Block field
+		if gConfigField.Kind() == reflect.Ptr && blockRegex.MatchString(fieldName) {
+			if gConfigField.IsNil() {
+				gConfigField.Set(defaultConfigField)
+			}
+		}
+	}
+}
+
+// Hard fork block height specified in config.toml has higher priority, but
+// if it is not specified in config.toml, use the default height in code.
 func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
+	var defaultConfig *params.ChainConfig
 	switch {
-	case g != nil:
-		return g.Config
 	case ghash == params.MainnetGenesisHash:
 		return params.MainnetChainConfig
 	case ghash == params.CoreGenesisHash:
@@ -257,8 +286,31 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	case ghash == params.BuffaloGenesisHash:
 		return params.BuffaloChainConfig
 	default:
-		return params.AllEthashProtocolChanges
+		if g != nil {
+			// it could be a custom config for QA test, just return
+			return g.Config
+		}
+		defaultConfig = params.AllEthashProtocolChanges
 	}
+	if g == nil || g.Config == nil {
+		return defaultConfig
+	}
+
+	g.setDefaultBlockValues(defaultConfig)
+
+	// CORE Satoshi set up
+	if g.Config.Satoshi == nil {
+		g.Config.Satoshi = defaultConfig.Satoshi
+	} else {
+		if g.Config.Satoshi.Period == 0 {
+			g.Config.Satoshi.Period = defaultConfig.Satoshi.Period
+		}
+		if g.Config.Satoshi.Epoch == 0 {
+			g.Config.Satoshi.Epoch = defaultConfig.Satoshi.Epoch
+		}
+	}
+
+	return g.Config
 }
 
 // ToBlock creates the genesis block and writes state of a genesis specification

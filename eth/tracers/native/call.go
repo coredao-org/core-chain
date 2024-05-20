@@ -21,7 +21,6 @@ import (
 	"errors"
 	"math/big"
 	"sync/atomic"
-	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -142,7 +141,7 @@ func (t *callTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Ad
 }
 
 // CaptureEnd is called after the call finishes to finalize the tracing.
-func (t *callTracer) CaptureEnd(output []byte, gasUsed uint64, d time.Duration, err error) {
+func (t *callTracer) CaptureEnd(output []byte, gasUsed uint64, err error) {
 	t.callstack[0].processOutput(output, err)
 }
 
@@ -233,6 +232,10 @@ func (t *callTracer) CaptureTxEnd(restGas uint64) {
 		// Logs are not emitted when the call fails
 		clearFailedLogs(&t.callstack[0], false)
 	}
+}
+
+func (t *callTracer) CaptureSystemTxEnd(intrinsicGas uint64) {
+	t.callstack[0].GasUsed -= intrinsicGas
 }
 
 // GetResult returns the json-encoded nested list of call traces, and any

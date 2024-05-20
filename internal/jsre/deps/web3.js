@@ -3696,7 +3696,7 @@ var outputBigNumberFormatter = function (number) {
 };
 
 var isPredefinedBlockNumber = function (blockNumber) {
-    return blockNumber === 'latest' || blockNumber === 'pending' || blockNumber === 'earliest';
+    return blockNumber === 'latest' || blockNumber === 'pending' || blockNumber === 'earliest' || blockNumber === 'finalized' || blockNumber === 'safe';
 };
 
 var inputDefaultBlockNumberFormatter = function (blockNumber) {
@@ -5438,6 +5438,13 @@ var methods = function () {
         inputFormatter: [null]
     });
 
+    var sendRawTransactionConditional = new Method({
+        name: 'sendRawTransactionConditional',
+        call: 'eth_sendRawTransactionConditional',
+        params: 2,
+        inputFormatter: [null]
+    });
+
     var sendTransaction = new Method({
         name: 'sendTransaction',
         call: 'eth_sendTransaction',
@@ -5523,6 +5530,7 @@ var methods = function () {
         call,
         estimateGas,
         sendRawTransaction,
+        sendRawTransactionConditional,
         signTransaction,
         sendTransaction,
         sign,

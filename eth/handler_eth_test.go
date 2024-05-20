@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/eth/protocols/bsc"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -90,11 +93,26 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 
 		configNoFork  = &params.ChainConfig{HomesteadBlock: big.NewInt(1)}
 		configProFork = &params.ChainConfig{
-			HomesteadBlock: big.NewInt(1),
-			EIP150Block:    big.NewInt(2),
-			EIP155Block:    big.NewInt(2),
-			EIP158Block:    big.NewInt(2),
-			ByzantiumBlock: big.NewInt(3),
+			HomesteadBlock:      big.NewInt(1),
+			EIP150Block:         big.NewInt(2),
+			EIP155Block:         big.NewInt(2),
+			EIP158Block:         big.NewInt(2),
+			ByzantiumBlock:      big.NewInt(3),
+			ConstantinopleBlock: big.NewInt(4),
+			PetersburgBlock:     big.NewInt(4),
+			IstanbulBlock:       big.NewInt(4),
+			MuirGlacierBlock:    big.NewInt(4),
+			RamanujanBlock:      big.NewInt(4),
+			NielsBlock:          big.NewInt(4),
+			MirrorSyncBlock:     big.NewInt(4),
+			BrunoBlock:          big.NewInt(4),
+			EulerBlock:          big.NewInt(5),
+			GibbsBlock:          big.NewInt(5),
+			NanoBlock:           big.NewInt(5),
+			MoranBlock:          big.NewInt(5),
+			LubanBlock:          big.NewInt(6),
+			PlatoBlock:          big.NewInt(6),
+			HertzBlock:          big.NewInt(7),
 		}
 		dbNoFork  = rawdb.NewMemoryDatabase()
 		dbProFork = rawdb.NewMemoryDatabase()
@@ -115,6 +133,7 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 			Database:   dbNoFork,
 			Chain:      chainNoFork,
 			TxPool:     newTestTxPool(),
+			VotePool:   newTestVotePool(),
 			Merger:     consensus.NewMerger(rawdb.NewMemoryDatabase()),
 			Network:    1,
 			Sync:       downloader.FullSync,
@@ -124,14 +143,15 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 			Database:   dbProFork,
 			Chain:      chainProFork,
 			TxPool:     newTestTxPool(),
+			VotePool:   newTestVotePool(),
 			Merger:     consensus.NewMerger(rawdb.NewMemoryDatabase()),
 			Network:    1,
 			Sync:       downloader.FullSync,
 			BloomCache: 1,
 		})
 	)
-	ethNoFork.Start(1000)
-	ethProFork.Start(1000)
+	ethNoFork.Start(1000, 1000)
+	ethProFork.Start(1000, 1000)
 
 	// Clean up everything after ourselves
 	defer chainNoFork.Stop()
@@ -230,7 +250,7 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 					t.Fatalf("fork ID rejection didn't happen")
 				}
 			}
-		case <-time.After(250 * time.Millisecond):
+		case <-time.After(10000 * time.Millisecond):
 			t.Fatalf("split peers not rejected")
 		}
 	}
@@ -238,76 +258,6 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 
 // Tests that received transactions are added to the local pool.
 func TestRecvTransactions66(t *testing.T) { testRecvTransactions(t, eth.ETH66) }
-
-func TestWaitDiffExtensionTimout(t *testing.T) {
-	t.Parallel()
-
-	// Create a message handler, configure it to accept transactions and watch them
-	handler := newTestHandler()
-	defer handler.close()
-
-	// Create a source peer to send messages through and a sink handler to receive them
-	_, p2pSink := p2p.MsgPipe()
-	defer p2pSink.Close()
-
-	protos := []p2p.Protocol{
-		{
-			Name:    "diff",
-			Version: 1,
-		},
-	}
-
-	sink := eth.NewPeer(eth.ETH67, p2p.NewPeerWithProtocols(enode.ID{2}, protos, "", []p2p.Cap{
-		{
-			Name:    "diff",
-			Version: 1,
-		},
-	}), p2pSink, nil)
-	defer sink.Close()
-
-	err := handler.handler.runEthPeer(sink, func(peer *eth.Peer) error {
-		return eth.Handle((*ethHandler)(handler.handler), peer)
-	})
-
-	if err == nil || err.Error() != "peer wait timeout" {
-		t.Fatalf("error should be `peer wait timeout`")
-	}
-}
-
-func TestWaitSnapExtensionTimout(t *testing.T) {
-	t.Parallel()
-
-	// Create a message handler, configure it to accept transactions and watch them
-	handler := newTestHandler()
-	defer handler.close()
-
-	// Create a source peer to send messages through and a sink handler to receive them
-	_, p2pSink := p2p.MsgPipe()
-	defer p2pSink.Close()
-
-	protos := []p2p.Protocol{
-		{
-			Name:    "snap",
-			Version: 1,
-		},
-	}
-
-	sink := eth.NewPeer(eth.ETH67, p2p.NewPeerWithProtocols(enode.ID{2}, protos, "", []p2p.Cap{
-		{
-			Name:    "snap",
-			Version: 1,
-		},
-	}), p2pSink, nil)
-	defer sink.Close()
-
-	err := handler.handler.runEthPeer(sink, func(peer *eth.Peer) error {
-		return eth.Handle((*ethHandler)(handler.handler), peer)
-	})
-
-	if err == nil || err.Error() != "peer wait timeout" {
-		t.Fatalf("error should be `peer wait timeout`")
-	}
-}
 
 func testRecvTransactions(t *testing.T, protocol uint) {
 	t.Parallel()
@@ -360,6 +310,117 @@ func testRecvTransactions(t *testing.T, protocol uint) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Errorf("no NewTxsEvent received within 2 seconds")
+	}
+}
+
+func TestWaitDiffExtensionTimout67(t *testing.T) { testWaitDiffExtensionTimout(t, eth.ETH67) }
+
+func testWaitDiffExtensionTimout(t *testing.T, protocol uint) {
+	t.Parallel()
+
+	// Create a message handler, configure it to accept transactions and watch them
+	handler := newTestHandler()
+	defer handler.close()
+
+	// Create a source peer to send messages through and a sink handler to receive them
+	_, p2pSink := p2p.MsgPipe()
+	defer p2pSink.Close()
+
+	protos := []p2p.Protocol{
+		{
+			Name:    "diff",
+			Version: 1,
+		},
+	}
+
+	sink := eth.NewPeer(protocol, p2p.NewPeerWithProtocols(enode.ID{2}, protos, "", []p2p.Cap{
+		{
+			Name:    "diff",
+			Version: 1,
+		},
+	}), p2pSink, nil)
+	defer sink.Close()
+
+	err := handler.handler.runEthPeer(sink, func(peer *eth.Peer) error {
+		return eth.Handle((*ethHandler)(handler.handler), peer)
+	})
+
+	if err == nil || err.Error() != "peer wait timeout" {
+		t.Fatalf("error should be `peer wait timeout`")
+	}
+}
+
+func TestWaitSnapExtensionTimout67(t *testing.T) { testWaitSnapExtensionTimout(t, eth.ETH67) }
+
+func testWaitSnapExtensionTimout(t *testing.T, protocol uint) {
+	t.Parallel()
+
+	// Create a message handler, configure it to accept transactions and watch them
+	handler := newTestHandler()
+	defer handler.close()
+
+	// Create a source peer to send messages through and a sink handler to receive them
+	_, p2pSink := p2p.MsgPipe()
+	defer p2pSink.Close()
+
+	protos := []p2p.Protocol{
+		{
+			Name:    "snap",
+			Version: 1,
+		},
+	}
+
+	sink := eth.NewPeer(protocol, p2p.NewPeerWithProtocols(enode.ID{2}, protos, "", []p2p.Cap{
+		{
+			Name:    "snap",
+			Version: 1,
+		},
+	}), p2pSink, nil)
+	defer sink.Close()
+
+	err := handler.handler.runEthPeer(sink, func(peer *eth.Peer) error {
+		return eth.Handle((*ethHandler)(handler.handler), peer)
+	})
+
+	if err == nil || err.Error() != "peer wait timeout" {
+		t.Fatalf("error should be `peer wait timeout`")
+	}
+}
+
+func TestWaitBscExtensionTimout67(t *testing.T) { testWaitBscExtensionTimout(t, eth.ETH67) }
+
+func testWaitBscExtensionTimout(t *testing.T, protocol uint) {
+	t.Parallel()
+
+	// Create a message handler, configure it to accept transactions and watch them
+	handler := newTestHandler()
+	defer handler.close()
+
+	// Create a source peer to send messages through and a sink handler to receive them
+	_, p2pSink := p2p.MsgPipe()
+	defer p2pSink.Close()
+
+	protos := []p2p.Protocol{
+		{
+			Name:    "bsc",
+			Version: bsc.Bsc1,
+		},
+	}
+
+	sink := eth.NewPeer(protocol, p2p.NewPeerWithProtocols(enode.ID{2}, protos, "", []p2p.Cap{
+		{
+			Name:    "bsc",
+			Version: bsc.Bsc1,
+		},
+	}), p2pSink, nil)
+	defer sink.Close()
+
+	err := handler.handler.runEthPeer(sink, func(peer *eth.Peer) error {
+		return eth.Handle((*ethHandler)(handler.handler), peer)
+	})
+
+	if err == nil || err.Error() != "peer wait timeout" {
+		t.Fatalf("error should be `peer wait timeout`")
 	}
 }
 
@@ -868,4 +929,110 @@ func testBroadcastMalformedBlock(t *testing.T, protocol uint) {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+func TestOptionMaxPeersPerIP(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler()
+	defer handler.close()
+	var (
+		genesis       = handler.chain.Genesis()
+		head          = handler.chain.CurrentBlock()
+		td            = handler.chain.GetTd(head.Hash(), head.NumberU64())
+		wg            = sync.WaitGroup{}
+		maxPeersPerIP = handler.handler.maxPeersPerIP
+		uniPort       = 1000
+	)
+
+	tryFunc := func(tryNum int, ip1 string, ip2 string, trust bool, doneCh chan struct{}) {
+		// Create a source peer to send messages through and a sink handler to receive them
+		p2pSrc, p2pSink := p2p.MsgPipe()
+		defer p2pSrc.Close()
+		defer p2pSink.Close()
+
+		peer1 := p2p.NewPeerPipe(enode.ID{0}, "", nil, p2pSrc)
+		peer1.UpdateTestRemoteAddr(ip1 + strconv.Itoa(uniPort))
+		peer2 := p2p.NewPeerPipe(enode.ID{byte(uniPort)}, "", nil, p2pSink)
+		peer2.UpdateTestRemoteAddr(ip2 + strconv.Itoa(uniPort))
+		if trust {
+			peer2.UpdateTrustFlagTest()
+		}
+		uniPort++
+
+		src := eth.NewPeer(eth.ETH66, peer1, p2pSrc, handler.txpool)
+		sink := eth.NewPeer(eth.ETH66, peer2, p2pSink, handler.txpool)
+		defer src.Close()
+		defer sink.Close()
+
+		wg.Add(1)
+		go func(num int) {
+			err := handler.handler.runEthPeer(sink, func(peer *eth.Peer) error {
+				wg.Done()
+				<-doneCh
+				return nil
+			})
+			// err is nil, connection ok and it is closed by the doneCh
+			if err == nil {
+				if trust || num <= maxPeersPerIP {
+					return
+				}
+				// if num > maxPeersPerIP and not trust, should report: p2p.DiscTooManyPeers
+				t.Errorf("current num is %d, maxPeersPerIP is %d, should failed", num, maxPeersPerIP)
+				return
+			}
+			wg.Done()
+			if trust {
+				t.Errorf("trust node should not failed, num is %d, maxPeersPerIP is %d, but failed:%s", num, maxPeersPerIP, err)
+			}
+			// err should be p2p.DiscTooManyPeers and num > maxPeersPerIP
+			if err == p2p.DiscTooManyPeers && num > maxPeersPerIP {
+				return
+			}
+
+			t.Errorf("current num is %d, maxPeersPerIP is %d, but failed:%s", num, maxPeersPerIP, err)
+		}(tryNum)
+
+		if err := src.Handshake(1, td, head.Hash(), genesis.Hash(), forkid.NewIDWithChain(handler.chain), forkid.NewFilter(handler.chain), nil); err != nil {
+			t.Fatalf("failed to run protocol handshake")
+		}
+		// make sure runEthPeer execute one by one.
+		wg.Wait()
+	}
+
+	// case 1: normal case
+	doneCh1 := make(chan struct{})
+	for tryNum := 1; tryNum <= maxPeersPerIP+2; tryNum++ {
+		tryFunc(tryNum, "1.2.3.11:", "1.2.3.22:", false, doneCh1)
+	}
+	close(doneCh1)
+
+	// case 2: once the previous connection was unregisterred, new connections with same IP can be accepted.
+	doneCh2 := make(chan struct{})
+	for tryNum := 1; tryNum <= maxPeersPerIP+2; tryNum++ {
+		tryFunc(tryNum, "1.2.3.11:", "1.2.3.22:", false, doneCh2)
+	}
+	close(doneCh2)
+
+	// case 3: ipv6 address, like: [2001:db8::1]:80
+	doneCh3 := make(chan struct{})
+	for tryNum := 1; tryNum <= maxPeersPerIP+2; tryNum++ {
+		tryFunc(tryNum, "[2001:db8::11]:", "[2001:db8::22]:", false, doneCh3)
+	}
+	close(doneCh3)
+
+	// case 4: same as case 2, but for ipv6
+	doneCh4 := make(chan struct{})
+	for tryNum := 1; tryNum <= maxPeersPerIP+2; tryNum++ {
+		tryFunc(tryNum, "[2001:db8::11]:", "[2001:db8::22]:", false, doneCh4)
+	}
+	close(doneCh4)
+
+	// case 5: test trust node
+	doneCh5 := make(chan struct{})
+	for tryNum := 1; tryNum <= maxPeersPerIP+2; tryNum++ {
+		tryFunc(tryNum, "[2001:db8::11]:", "[2001:db8::22]:", true, doneCh5)
+	}
+	close(doneCh5)
+
 }

@@ -121,9 +121,9 @@ const (
 	// Introduced in Tangerine Whistle (Eip 150)
 	CreateBySelfdestructGas uint64 = 25000
 
-	BaseFeeChangeDenominator = 8          // Bounds the amount the base fee can change between blocks.
-	ElasticityMultiplier     = 2          // Bounds the maximum gas limit an EIP-1559 block may have.
-	InitialBaseFee           = 1000000000 // Initial base fee for EIP-1559 blocks.
+	BaseFeeChangeDenominator = 8 // Bounds the amount the base fee can change between blocks.
+	ElasticityMultiplier     = 2 // Bounds the maximum gas limit an EIP-1559 block may have.
+	InitialBaseFee           = 0 // Initial base fee for EIP-1559 blocks.
 
 	MaxCodeSize = 24576 // Maximum bytecode to permit for a contract
 
@@ -133,13 +133,15 @@ const (
 	BitcoinHeaderValidateGas   uint64 = 20000 // Gas for validate bitcoin consensus state
 	IAVLMerkleProofValidateGas uint64 = 100   // Gas for validate merkle proof
 
-	EcrecoverGas        uint64 = 3000 // Elliptic curve sender recovery gas price
-	Sha256BaseGas       uint64 = 60   // Base price for a SHA256 operation
-	Sha256PerWordGas    uint64 = 12   // Per-word price for a SHA256 operation
-	Ripemd160BaseGas    uint64 = 600  // Base price for a RIPEMD160 operation
-	Ripemd160PerWordGas uint64 = 120  // Per-word price for a RIPEMD160 operation
-	IdentityBaseGas     uint64 = 15   // Base price for a data copy operation
-	IdentityPerWordGas  uint64 = 3    // Per-work price for a data copy operation
+	EcrecoverGas                uint64 = 3000 // Elliptic curve sender recovery gas price
+	Sha256BaseGas               uint64 = 60   // Base price for a SHA256 operation
+	Sha256PerWordGas            uint64 = 12   // Per-word price for a SHA256 operation
+	Ripemd160BaseGas            uint64 = 600  // Base price for a RIPEMD160 operation
+	Ripemd160PerWordGas         uint64 = 120  // Per-word price for a RIPEMD160 operation
+	IdentityBaseGas             uint64 = 15   // Base price for a data copy operation
+	IdentityPerWordGas          uint64 = 3    // Per-work price for a data copy operation
+	BlsSignatureVerifyBaseGas   uint64 = 1000 // base price for a BLS signature verify operation
+	BlsSignatureVerifyPerKeyGas uint64 = 3500 // Per-key price for a BLS signature verify operation
 
 	Bn256AddGasByzantium             uint64 = 500    // Byzantium gas needed for an elliptic curve addition
 	Bn256AddGasIstanbul              uint64 = 150    // Gas needed for an elliptic curve addition

@@ -24,7 +24,6 @@ import (
 	"math/big"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -151,7 +150,6 @@ func (l *StructLogger) CaptureStart(env *vm.EVM, from common.Address, to common.
 func (l *StructLogger) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
 	// If tracing was interrupted, set the error and stop
 	if atomic.LoadUint32(&l.interrupt) > 0 {
-		l.env.Cancel()
 		return
 	}
 	// check if already accumulated the specified number of logs
@@ -220,7 +218,7 @@ func (l *StructLogger) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64, s
 }
 
 // CaptureEnd is called after the call finishes to finalize the tracing.
-func (l *StructLogger) CaptureEnd(output []byte, gasUsed uint64, t time.Duration, err error) {
+func (l *StructLogger) CaptureEnd(output []byte, gasUsed uint64, err error) {
 	l.output = output
 	l.err = err
 	if l.cfg.Debug {
@@ -269,6 +267,10 @@ func (l *StructLogger) CaptureTxStart(gasLimit uint64) {
 
 func (l *StructLogger) CaptureTxEnd(restGas uint64) {
 	l.usedGas = l.gasLimit - restGas
+}
+
+func (l *StructLogger) CaptureSystemTxEnd(intrinsicGas uint64) {
+	l.usedGas -= intrinsicGas
 }
 
 // StructLogs returns the captured log entries.
@@ -386,7 +388,7 @@ func (t *mdLogger) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64, scope
 	fmt.Fprintf(t.out, "\nError: at pc=%d, op=%v: %v\n", pc, op, err)
 }
 
-func (t *mdLogger) CaptureEnd(output []byte, gasUsed uint64, tm time.Duration, err error) {
+func (t *mdLogger) CaptureEnd(output []byte, gasUsed uint64, err error) {
 	fmt.Fprintf(t.out, "\nOutput: `0x%x`\nConsumed gas: `%d`\nError: `%v`\n",
 		output, gasUsed, err)
 }
@@ -399,6 +401,8 @@ func (t *mdLogger) CaptureExit(output []byte, gasUsed uint64, err error) {}
 func (*mdLogger) CaptureTxStart(gasLimit uint64) {}
 
 func (*mdLogger) CaptureTxEnd(restGas uint64) {}
+
+func (*mdLogger) CaptureSystemTxEnd(intrinsicGas uint64) {}
 
 // ExecutionResult groups all structured logs emitted by the EVM
 // while replaying a transaction in debug mode as well as transaction

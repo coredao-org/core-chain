@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -40,6 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 const (
@@ -78,6 +80,10 @@ type Config struct {
 	// MaxPeers is the maximum number of peers that can be
 	// connected. It must be greater than zero.
 	MaxPeers int
+
+	// MaxPeersPerIP is the maximum number of peers that can be
+	// connected from a single IP. It must be greater than zero.
+	MaxPeersPerIP int `toml:",omitempty"`
 
 	// MaxPendingPeers is the maximum number of peers that can be pending in the
 	// handshake phase, counted separately for inbound and outbound connections.
@@ -192,6 +198,8 @@ type Server struct {
 	DiscV5    *discover.UDPv5
 	discmix   *enode.FairMix
 	dialsched *dialScheduler
+
+	forkFilter forkid.Filter
 
 	// Channels into the run loop.
 	quit                    chan struct{}
@@ -593,6 +601,21 @@ func (srv *Server) setupDiscovery() error {
 	}
 	srv.localnode.SetFallbackUDP(realaddr.Port)
 
+	// ENR filter function
+	f := func(r *enr.Record) bool {
+		if srv.forkFilter == nil {
+			return true
+		}
+		var eth struct {
+			ForkID forkid.ID
+			Tail   []rlp.RawValue `rlp:"tail"`
+		}
+		if r.Load(enr.WithEntry("eth", &eth)) != nil {
+			return true
+		}
+		return srv.forkFilter(eth.ForkID) == nil
+	}
+
 	// Discovery V4
 	var unhandled chan discover.ReadPacket
 	var sconn *sharedUDPConn
@@ -602,11 +625,12 @@ func (srv *Server) setupDiscovery() error {
 			sconn = &sharedUDPConn{conn, unhandled}
 		}
 		cfg := discover.Config{
-			PrivateKey:  srv.PrivateKey,
-			NetRestrict: srv.NetRestrict,
-			Bootnodes:   srv.BootstrapNodes,
-			Unhandled:   unhandled,
-			Log:         srv.log,
+			PrivateKey:     srv.PrivateKey,
+			NetRestrict:    srv.NetRestrict,
+			Bootnodes:      srv.BootstrapNodes,
+			Unhandled:      unhandled,
+			Log:            srv.log,
+			FilterFunction: f,
 		}
 		ntab, err := discover.ListenV4(conn, srv.localnode, cfg)
 		if err != nil {
@@ -619,10 +643,11 @@ func (srv *Server) setupDiscovery() error {
 	// Discovery V5
 	if srv.DiscoveryV5 {
 		cfg := discover.Config{
-			PrivateKey:  srv.PrivateKey,
-			NetRestrict: srv.NetRestrict,
-			Bootnodes:   srv.BootstrapNodesV5,
-			Log:         srv.log,
+			PrivateKey:     srv.PrivateKey,
+			NetRestrict:    srv.NetRestrict,
+			Bootnodes:      srv.BootstrapNodesV5,
+			Log:            srv.log,
+			FilterFunction: f,
 		}
 		var err error
 		if sconn != nil {
@@ -664,6 +689,10 @@ func (srv *Server) setupDialScheduler() {
 
 func (srv *Server) maxInboundConns() int {
 	return srv.MaxPeers - srv.maxDialedConns()
+}
+
+func (srv *Server) SetFilter(f forkid.Filter) {
+	srv.forkFilter = f
 }
 
 func (srv *Server) maxDialedConns() (limit int) {

@@ -131,6 +131,7 @@ var (
 		utils.PruneAncientDataFlag,
 		utils.ListenPortFlag,
 		utils.MaxPeersFlag,
+		utils.MaxPeersPerIPFlag,
 		utils.MaxPendingPeersFlag,
 		utils.MiningEnabledFlag,
 		utils.MinerThreadsFlag,
@@ -168,6 +169,12 @@ var (
 		utils.BlockAmountReserved,
 		utils.CheckSnapshotWithMPT,
 		utils.EnableDoubleSignMonitorFlag,
+		utils.VotingEnabledFlag,
+		utils.DisableVoteAttestationFlag,
+		utils.EnableMaliciousVoteMonitorFlag,
+		utils.BLSPasswordFileFlag,
+		utils.BLSWalletDirFlag,
+		utils.VoteJournalDirFlag,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -251,6 +258,7 @@ func init() {
 		utils.ShowDeprecated,
 		// See snapshot.go
 		snapshotCommand,
+		blsCommand,
 	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 

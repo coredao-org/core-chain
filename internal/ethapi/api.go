@@ -54,6 +54,14 @@ import (
 
 const UnHealthyTimeout = 5 * time.Second
 
+// max is a helper function which returns the larger of the two given integers.
+func max(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -771,6 +779,52 @@ func (s *PublicBlockChainAPI) Health() bool {
 		return rpc.RpcServingTimer.Percentile(0.75) < float64(UnHealthyTimeout)
 	}
 	return true
+}
+
+// GetFinalizedHeader returns the requested finalized block header.
+//   - probabilisticFinalized should be in range [2,21],
+//     then the block header with number `max(fastFinalized, latest-probabilisticFinalized)` is returned
+func (s *PublicBlockChainAPI) GetFinalizedHeader(ctx context.Context, probabilisticFinalized int64) (map[string]interface{}, error) {
+	if probabilisticFinalized < 2 || probabilisticFinalized > 21 {
+		return nil, fmt.Errorf("%d out of range [2,21]", probabilisticFinalized)
+	}
+
+	var err error
+	fastFinalizedHeader, err := s.b.HeaderByNumber(ctx, rpc.FinalizedBlockNumber)
+	if err != nil { // impossible
+		return nil, err
+	}
+	latestHeader, err := s.b.HeaderByNumber(ctx, rpc.LatestBlockNumber)
+	if err != nil { // impossible
+		return nil, err
+	}
+	finalizedBlockNumber := max(fastFinalizedHeader.Number.Int64(), latestHeader.Number.Int64()-probabilisticFinalized)
+
+	return s.GetHeaderByNumber(ctx, rpc.BlockNumber(finalizedBlockNumber))
+}
+
+// GetFinalizedBlock returns the requested finalized block.
+//   - probabilisticFinalized should be in range [2,21],
+//     then the block with number `max(fastFinalized, latest-probabilisticFinalized)` is returned
+//   - When fullTx is true all transactions in the block are returned, otherwise
+//     only the transaction hash is returned.
+func (s *PublicBlockChainAPI) GetFinalizedBlock(ctx context.Context, probabilisticFinalized int64, fullTx bool) (map[string]interface{}, error) {
+	if probabilisticFinalized < 2 || probabilisticFinalized > 21 {
+		return nil, fmt.Errorf("%d out of range [2,21]", probabilisticFinalized)
+	}
+
+	var err error
+	fastFinalizedHeader, err := s.b.HeaderByNumber(ctx, rpc.FinalizedBlockNumber)
+	if err != nil { // impossible
+		return nil, err
+	}
+	latestHeader, err := s.b.HeaderByNumber(ctx, rpc.LatestBlockNumber)
+	if err != nil { // impossible
+		return nil, err
+	}
+	finalizedBlockNumber := max(fastFinalizedHeader.Number.Int64(), latestHeader.Number.Int64()-probabilisticFinalized)
+
+	return s.GetBlockByNumber(ctx, rpc.BlockNumber(finalizedBlockNumber), fullTx)
 }
 
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index.
@@ -1860,10 +1914,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceiptsByBlockNumber(ctx conte
 	txReceipts := make([]map[string]interface{}, 0, len(txs))
 	for idx, receipt := range receipts {
 		tx := txs[idx]
-		var signer types.Signer = types.FrontierSigner{}
-		if tx.Protected() {
-			signer = types.NewEIP155Signer(tx.ChainId())
-		}
+		signer := types.MakeSigner(s.b.ChainConfig(), block.Number())
 		from, _ := types.Sender(signer, tx)
 
 		fields := map[string]interface{}{
@@ -1878,6 +1929,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceiptsByBlockNumber(ctx conte
 			"contractAddress":   nil,
 			"logs":              receipt.Logs,
 			"logsBloom":         receipt.Bloom,
+			"type":              hexutil.Uint(tx.Type()),
 		}
 
 		// Assign receipt status or post state.
@@ -1951,6 +2003,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionDataAndReceipt(ctx context.Cont
 		"contractAddress":   nil,
 		"logs":              receipt.Logs,
 		"logsBloom":         receipt.Bloom,
+		"type":              hexutil.Uint(tx.Type()),
 	}
 
 	// Assign receipt status or post state.
@@ -2132,6 +2185,24 @@ func (s *PublicTransactionPoolAPI) FillTransaction(ctx context.Context, args Tra
 func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, input hexutil.Bytes) (common.Hash, error) {
 	tx := new(types.Transaction)
 	if err := tx.UnmarshalBinary(input); err != nil {
+		return common.Hash{}, err
+	}
+	return SubmitTransaction(ctx, s.b, tx)
+}
+
+// SendRawTransactionConditional will add the signed transaction to the transaction pool.
+// The sender/bundler is responsible for signing the transaction
+func (s *PublicTransactionPoolAPI) SendRawTransactionConditional(ctx context.Context, input hexutil.Bytes, opts TransactionOpts) (common.Hash, error) {
+	tx := new(types.Transaction)
+	if err := tx.UnmarshalBinary(input); err != nil {
+		return common.Hash{}, err
+	}
+	header := s.b.CurrentHeader()
+	state, _, err := s.b.StateAndHeaderByNumber(ctx, rpc.BlockNumber(header.Number.Int64()))
+	if state == nil || err != nil {
+		return common.Hash{}, err
+	}
+	if err := opts.Check(header.Number.Uint64(), header.Time, state); err != nil {
 		return common.Hash{}, err
 	}
 	return SubmitTransaction(ctx, s.b, tx)
