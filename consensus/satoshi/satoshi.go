@@ -131,7 +131,9 @@ var (
 	errBlockHashInconsistent = errors.New("the block hash is inconsistent")
 
 	// errUnauthorizedValidator is returned if a header is signed by a non-authorized entity.
-	errUnauthorizedValidator = errors.New("unauthorized validator")
+	errUnauthorizedValidator = func(val string) error {
+		return errors.New("unauthorized validator: " + val)
+	}
 
 	// errCoinBaseMisMatch is returned if a header's coinbase do not match with signature
 	errCoinBaseMisMatch = errors.New("coinbase do not match with signature")
@@ -267,7 +269,7 @@ func New(
 		validatorSetABI: vABI,
 		slashABI:        sABI,
 		candidateHubABI: cABI,
-		signer:          types.NewEIP155Signer(chainConfig.ChainID),
+		signer:          types.LatestSigner(chainConfig),
 	}
 
 	return c
@@ -298,6 +300,22 @@ func (p *Satoshi) IsSystemContract(to *common.Address) bool {
 // Author implements consensus.Engine, returning the SystemAddress
 func (p *Satoshi) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
+}
+
+// getParent returns the parent of a given block.
+func (p *Satoshi) getParent(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (*types.Header, error) {
+	var parent *types.Header
+	number := header.Number.Uint64()
+	if len(parents) > 0 {
+		parent = parents[len(parents)-1]
+	} else {
+		parent = chain.GetHeader(header.ParentHash, number-1)
+	}
+
+	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+		return nil, consensus.ErrUnknownAncestor
+	}
+	return parent, nil
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
@@ -378,6 +396,23 @@ func (p *Satoshi) verifyHeader(chain consensus.ChainHeaderReader, header *types.
 	if err := misc.VerifyForkHashes(chain.Config(), header, false); err != nil {
 		return err
 	}
+
+	parent, err := p.getParent(chain, header, parents)
+	if err != nil {
+		return err
+	}
+
+	// Verify the block's gas usage and (if applicable) verify the base fee.
+	if !chain.Config().IsLondon(header.Number) {
+		// Verify BaseFee not present before EIP-1559 fork.
+		if header.BaseFee != nil {
+			return fmt.Errorf("invalid baseFee before fork: have %d, expected 'nil'", header.BaseFee)
+		}
+	} else if err := misc.VerifyEip1559Header(chain.Config(), parent, header); err != nil {
+		// Verify the header's EIP-1559 attributes.
+		return err
+	}
+
 	// All basic checks passed, verify cascading fields
 	return p.verifyCascadingFields(chain, header, parents)
 }
@@ -393,15 +428,9 @@ func (p *Satoshi) verifyCascadingFields(chain consensus.ChainHeaderReader, heade
 		return nil
 	}
 
-	var parent *types.Header
-	if len(parents) > 0 {
-		parent = parents[len(parents)-1]
-	} else {
-		parent = chain.GetHeader(header.ParentHash, number-1)
-	}
-
-	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
-		return consensus.ErrUnknownAncestor
+	parent, err := p.getParent(chain, header, parents)
+	if err != nil {
+		return err
 	}
 
 	snap, err := p.snapshot(chain, number-1, header.ParentHash, parents)
@@ -580,7 +609,7 @@ func (p *Satoshi) verifySeal(chain consensus.ChainHeaderReader, header *types.He
 	}
 
 	if _, ok := snap.Validators[signer]; !ok {
-		return errUnauthorizedValidator
+		return errUnauthorizedValidator(signer.String())
 	}
 
 	for seen, recent := range snap.Recents {
@@ -888,7 +917,7 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 
 	// Bail out if we're unauthorized to sign a block
 	if _, authorized := snap.Validators[val]; !authorized {
-		return errUnauthorizedValidator
+		return errUnauthorizedValidator(val.String())
 	}
 
 	// If we're amongst the recent signers, wait for the next block
@@ -994,7 +1023,7 @@ func (p *Satoshi) SignRecently(chain consensus.ChainReader, parent *types.Block)
 
 	// Bail out if we're unauthorized to sign a block
 	if _, authorized := snap.Validators[p.val]; !authorized {
-		return true, errUnauthorizedValidator
+		return true, errUnauthorizedValidator(p.val.String())
 	}
 
 	// If we're amongst the recent signers, wait for the next block
@@ -1398,7 +1427,7 @@ func (s *Satoshi) backOffTime(snap *Snapshot, header *types.Header, val common.A
 			}
 		}
 		if idx < 0 {
-			log.Info("The validator is not authorized", "addr", val)
+			log.Debug("The validator is not authorized", "addr", val)
 			return 0
 		}
 
@@ -1418,6 +1447,22 @@ func (s *Satoshi) backOffTime(snap *Snapshot, header *types.Header, val common.A
 		delay += backOffSteps[idx] * wiggleTime
 		return delay
 	}
+}
+
+func (s *Satoshi) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, header *types.Header) (uint64, common.Hash, error) {
+	return 0, common.Hash{}, errors.New("GetJustifiedNumberAndHash not implemented at satoshi")
+}
+
+func (s *Satoshi) GetFinalizedHeader(chain consensus.ChainHeaderReader, header *types.Header) *types.Header {
+	return nil
+}
+
+func (s *Satoshi) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
+	return errors.New("VerifyVote not implemented at satoshi")
+}
+
+func (s *Satoshi) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header, checkVoteKeyFn func(bLSPublicKey *types.BLSPublicKey) bool) bool {
+	return false
 }
 
 // chain context

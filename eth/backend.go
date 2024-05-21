@@ -35,7 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/satoshi"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
-	"github.com/ethereum/go-ethereum/core/monitor"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/pruner"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -45,7 +44,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
-	"github.com/ethereum/go-ethereum/eth/protocols/bsc"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 	"github.com/ethereum/go-ethereum/eth/protocols/trust"
@@ -80,7 +78,6 @@ type Ethereum struct {
 	ethDialCandidates   enode.Iterator
 	snapDialCandidates  enode.Iterator
 	trustDialCandidates enode.Iterator
-	bscDialCandidates   enode.Iterator
 	merger              *consensus.Merger
 
 	// DB interfaces
@@ -279,39 +276,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
-	// Create voteManager instance
-	if posa, ok := eth.engine.(consensus.PoSA); ok {
-		// Create votePool instance
-		votePool := vote.NewVotePool(chainConfig, eth.blockchain, posa)
-		eth.votePool = votePool
-		if satoshi, ok := eth.engine.(*satoshi.Satoshi); ok {
-			if !config.Miner.DisableVoteAttestation {
-				// if there is no VotePool in Satoshi Engine, the miner can't get votes for assembling
-				satoshi.VotePool = votePool
-			}
-		} else {
-			return nil, fmt.Errorf("Engine is not Satoshi type")
-		}
-		log.Info("Create votePool successfully")
-		eth.handler.votepool = votePool
-		if stack.Config().EnableMaliciousVoteMonitor {
-			eth.handler.maliciousVoteMonitor = monitor.NewMaliciousVoteMonitor()
-			log.Info("Create MaliciousVoteMonitor successfully")
-		}
-
-		if config.Miner.VoteEnable {
-			conf := stack.Config()
-			blsPasswordPath := stack.ResolvePath(conf.BLSPasswordFile)
-			blsWalletPath := stack.ResolvePath(conf.BLSWalletDir)
-			voteJournalPath := stack.ResolvePath(conf.VoteJournalDir)
-			if _, err := vote.NewVoteManager(eth, chainConfig, eth.blockchain, votePool, voteJournalPath, blsPasswordPath, blsWalletPath, posa); err != nil {
-				log.Error("Failed to Initialize voteManager", "err", err)
-				return nil, err
-			}
-			log.Info("Create voteManager successfully")
-		}
-	}
-
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {
 		gpoParams.Default = config.Miner.GasPrice
@@ -329,10 +293,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, err
 	}
 	eth.trustDialCandidates, err = dnsclient.NewIterator(eth.config.TrustDiscoveryURLs...)
-	if err != nil {
-		return nil, err
-	}
-	eth.bscDialCandidates, err = dnsclient.NewIterator(eth.config.BscDiscoveryURLs...)
 	if err != nil {
 		return nil, err
 	}
@@ -635,7 +595,6 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.config.EnableTrustProtocol {
 		protos = append(protos, trust.MakeProtocols((*trustHandler)(s.handler), s.snapDialCandidates)...)
 	}
-	protos = append(protos, bsc.MakeProtocols((*bscHandler)(s.handler), s.bscDialCandidates)...)
 
 	return protos
 }
@@ -672,7 +631,6 @@ func (s *Ethereum) Stop() error {
 	s.ethDialCandidates.Close()
 	s.snapDialCandidates.Close()
 	s.trustDialCandidates.Close()
-	s.bscDialCandidates.Close()
 	s.handler.Stop()
 
 	// Then stop everything else.

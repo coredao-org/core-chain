@@ -269,6 +269,33 @@ var (
 		},
 	}
 
+	SatoshiTestChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(2),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		HashPowerBlock:      big.NewInt(0),
+		ZeusBlock:           big.NewInt(0),
+		HeraBlock:           big.NewInt(0),
+		PoseidonBlock:       big.NewInt(0),
+		// TODO modify blockNumber, make sure HertzBlock=BerlinBlock=LondonBlock to enable Berlin and London EIPs
+		BerlinBlock: big.NewInt(0),
+		LondonBlock: big.NewInt(0),
+		HertzBlock:  big.NewInt(0),
+
+		Satoshi: &SatoshiConfig{
+			Period: 3,
+			Epoch:  200,
+			Round:  86400,
+		},
+	}
+
 	// AllEthashProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Ethash consensus.
 	//
@@ -376,9 +403,9 @@ type ChainConfig struct {
 	ZeusBlock      *big.Int `json:"zeusBlock,omitempty"`
 	HeraBlock      *big.Int `json:"heraBlock,omitempty"`
 	PoseidonBlock  *big.Int `json:"poseidonBlock,omitempty"`
-	LubanBlock      *big.Int `json:"lubanBlock,omitempty" toml:",omitempty"`      // lubanBlock switch block (nil = no fork, 0 = already activated)
-	PlatoBlock      *big.Int `json:"platoBlock,omitempty" toml:",omitempty"`      // platoBlock switch block (nil = no fork, 0 = already activated)
-	HertzBlock      *big.Int `json:"hertzBlock,omitempty" toml:",omitempty"`      // hertzBlock switch block (nil = no fork, 0 = already activated)
+	LubanBlock     *big.Int `json:"lubanBlock,omitempty" toml:",omitempty"` // lubanBlock switch block (nil = no fork, 0 = already activated)
+	PlatoBlock     *big.Int `json:"platoBlock,omitempty" toml:",omitempty"` // platoBlock switch block (nil = no fork, 0 = already activated)
+	HertzBlock     *big.Int `json:"hertzBlock,omitempty" toml:",omitempty"` // hertzBlock switch block (nil = no fork, 0 = already activated)
 	// Various consensus engines
 	Ethash  *EthashConfig  `json:"ethash,omitempty" toml:",omitempty"`
 	Clique  *CliqueConfig  `json:"clique,omitempty" toml:",omitempty"`
@@ -791,7 +818,7 @@ type Rules struct {
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
 	IsMerge                                                 bool
-	IsHashPower                                            bool
+	IsHashPower                                             bool
 }
 
 // Rules ensures c's ChainID is not nil.
