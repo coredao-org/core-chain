@@ -244,14 +244,14 @@ func init() {
 	}
 }
 
-func UpgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.Int, statedb *state.StateDB) {
+func UpgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.Int, lastBlockTime uint64, blockTime uint64, statedb *state.StateDB) {
 	if config == nil || blockNumber == nil || statedb == nil {
 		return
 	}
 	var network string
 	switch GenesisHash {
 	/* Add mainnet genesis hash */
-	case params.CoreGenesisHash:
+	case params.COREGenesisHash:
 		network = mainNet
 	case params.BuffaloGenesisHash:
 		network = buffaloNet

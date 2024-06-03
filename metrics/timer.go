@@ -123,7 +123,7 @@ func (NilTimer) Stop() {}
 func (NilTimer) Sum() int64 { return 0 }
 
 // Time is a no-op.
-func (NilTimer) Time(func()) {}
+func (NilTimer) Time(f func()) { f() }
 
 // Update is a no-op.
 func (NilTimer) Update(time.Duration) {}
@@ -225,20 +225,18 @@ func (t *StandardTimer) Time(f func()) {
 	t.Update(time.Since(ts))
 }
 
-// Record the duration of an event.
+// Record the duration of an event, in nanoseconds.
 func (t *StandardTimer) Update(d time.Duration) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	t.histogram.Update(int64(d))
+	t.histogram.Update(d.Nanoseconds())
 	t.meter.Mark(1)
 }
 
 // Record the duration of an event that started at a time and ends now.
+// The record uses nanoseconds.
 func (t *StandardTimer) UpdateSince(ts time.Time) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	t.histogram.Update(int64(time.Since(ts)))
-	t.meter.Mark(1)
+	t.Update(time.Since(ts))
 }
 
 // Variance returns the variance of the values in the sample.

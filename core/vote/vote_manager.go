@@ -13,8 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/params"
 )
+
+const blocksNumberSinceMining = 5 // the number of blocks need to wait before voting, counting from the validator begin to mine
 
 var votesManagerCounter = metrics.NewRegisteredCounter("votesManager/local", nil)
 
@@ -28,8 +29,7 @@ type Backend interface {
 type VoteManager struct {
 	eth Backend
 
-	chain       *core.BlockChain
-	chainconfig *params.ChainConfig
+	chain *core.BlockChain
 
 	chainHeadCh  chan core.ChainHeadEvent
 	chainHeadSub event.Subscription
@@ -45,12 +45,10 @@ type VoteManager struct {
 	engine consensus.PoSA
 }
 
-func NewVoteManager(eth Backend, chainconfig *params.ChainConfig, chain *core.BlockChain, pool *VotePool, journalPath, blsPasswordPath, blsWalletPath string, engine consensus.PoSA) (*VoteManager, error) {
+func NewVoteManager(eth Backend, chain *core.BlockChain, pool *VotePool, journalPath, blsPasswordPath, blsWalletPath string, engine consensus.PoSA) (*VoteManager, error) {
 	voteManager := &VoteManager{
-		eth: eth,
-
+		eth:         eth,
 		chain:       chain,
-		chainconfig: chainconfig,
 		chainHeadCh: make(chan core.ChainHeadEvent, chainHeadChanSize),
 		syncVoteCh:  make(chan core.NewVoteEvent, voteBufferForPut),
 		pool:        pool,
@@ -99,6 +97,7 @@ func (voteManager *VoteManager) loop() {
 	dlEventCh := events.Chan()
 
 	startVote := true
+	blockCountSinceMining := 0
 	var once sync.Once
 	for {
 		select {
@@ -124,7 +123,13 @@ func (voteManager *VoteManager) loop() {
 				continue
 			}
 			if !voteManager.eth.IsMining() {
+				blockCountSinceMining = 0
 				log.Debug("skip voting because mining is disabled, continue")
+				continue
+			}
+			blockCountSinceMining++
+			if blockCountSinceMining <= blocksNumberSinceMining {
+				log.Debug("skip voting", "blockCountSinceMining", blockCountSinceMining, "blocksNumberSinceMining", blocksNumberSinceMining)
 				continue
 			}
 
@@ -213,7 +218,7 @@ func (voteManager *VoteManager) loop() {
 // A validator must not vote within the span of its other votes . (Rule 2)
 // Validators always vote for their canonical chain’s latest block. (Rule 3)
 func (voteManager *VoteManager) UnderRules(header *types.Header) (bool, uint64, common.Hash) {
-	sourceNumber, sourceHash, err := voteManager.engine.GetJustifiedNumberAndHash(voteManager.chain, header)
+	sourceNumber, sourceHash, err := voteManager.engine.GetJustifiedNumberAndHash(voteManager.chain, []*types.Header{header})
 	if err != nil {
 		log.Error("failed to get the highest justified number and hash at cur header", "curHeader's BlockNumber", header.Number, "curHeader's BlockHash", header.Hash())
 		return false, 0, common.Hash{}

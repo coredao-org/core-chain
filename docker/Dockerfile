@@ -1,4 +1,4 @@
-FROM golang:1.19-alpine as core
+FROM golang:1.21-alpine as core
 
 RUN apk add --no-cache make cmake gcc musl-dev linux-headers git bash build-base libc-dev
 
@@ -18,8 +18,7 @@ RUN apk add --no-cache ca-certificates npm nodejs bash alpine-sdk expect
 
 RUN git clone https://github.com/coredao-org/core-genesis-contract.git /root/genesis \
     && cd /root/genesis && npm install
-
-COPY docker/init_holders.template /root/genesis/init_holders.template
+#RUN curl -L https://foundry.paradigm.xyz | bash
 
 COPY --from=core /usr/local/bin/geth /usr/local/bin/geth
 
