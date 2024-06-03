@@ -71,8 +71,8 @@ func testSetupGenesis(t *testing.T, scheme string) {
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
 				return SetupGenesisBlock(db, trie.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
-			wantHash:   params.COREGenesisHash,
-			wantConfig: params.COREChainConfig,
+			wantHash:   params.CoreGenesisHash,
+			wantConfig: params.CoreChainConfig,
 		},
 		{
 			name: "mainnet block in DB, genesis == nil",
@@ -235,26 +235,15 @@ func TestReadWriteGenesisAlloc(t *testing.T) {
 
 func TestConfigOrDefault(t *testing.T) {
 	defaultGenesis := DefaultGenesisBlock()
-	if defaultGenesis.Config.PlanckBlock != nil {
-		t.Errorf("initial config should have PlanckBlock = nil, but instead PlanckBlock = %v", defaultGenesis.Config.PlanckBlock)
-	}
-	gHash := params.COREGenesisHash
+	gHash := params.CoreGenesisHash
 	config := defaultGenesis.configOrDefault(gHash)
 
-	if config.ChainID.Cmp(params.COREChainConfig.ChainID) != 0 {
-		t.Errorf("ChainID of resulting config should be %v, but is %v instead", params.COREChainConfig.ChainID, config.ChainID)
+	if config.ChainID.Cmp(params.CoreChainConfig.ChainID) != 0 {
+		t.Errorf("ChainID of resulting config should be %v, but is %v instead", params.CoreChainConfig.ChainID, config.ChainID)
 	}
 
-	if config.HomesteadBlock.Cmp(params.COREChainConfig.HomesteadBlock) != 0 {
-		t.Errorf("resulting config should have HomesteadBlock = %v, but instead is %v", params.COREChainConfig, config.HomesteadBlock)
-	}
-
-	if config.PlanckBlock == nil {
-		t.Errorf("resulting config should have PlanckBlock = %v , but instead is nil", params.COREChainConfig.PlanckBlock)
-	}
-
-	if config.PlanckBlock.Cmp(params.COREChainConfig.PlanckBlock) != 0 {
-		t.Errorf("resulting config should have PlanckBlock = %v , but instead is %v", params.COREChainConfig.PlanckBlock, config.PlanckBlock)
+	if config.HomesteadBlock.Cmp(params.CoreChainConfig.HomesteadBlock) != 0 {
+		t.Errorf("resulting config should have HomesteadBlock = %v, but instead is %v", params.CoreChainConfig, config.HomesteadBlock)
 	}
 }
 

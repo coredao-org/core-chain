@@ -46,7 +46,7 @@ func ParseEthFilter(chain string) (NodeFilterFunc, error) {
 	var filter forkid.Filter
 	switch chain {
 	case "core":
-		filter = forkid.NewStaticFilter(params.COREChainConfig, params.COREGenesisHash)
+		filter = forkid.NewStaticFilter(params.CoreChainConfig, params.CoreGenesisHash)
 	case "buffalo":
 		filter = forkid.NewStaticFilter(params.BuffaloChainConfig, params.BuffaloGenesisHash)
 	default:

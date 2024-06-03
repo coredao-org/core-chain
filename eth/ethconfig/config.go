@@ -47,10 +47,10 @@ var FullNodeGPO = gasprice.Config{
 	IgnorePrice:     gasprice.DefaultIgnorePrice,
 }
 
-// Defaults contains default settings for use on the BSC main net.
+// Defaults contains default settings for use on the CORE main net.
 var Defaults = Config{
 	SyncMode:           downloader.SnapSync,
-	NetworkId:          56,
+	NetworkId:          1116,
 	TxLookupLimit:      2350000,
 	TransactionHistory: 2350000,
 	StateHistory:       params.FullImmutabilityThreshold,
@@ -67,7 +67,7 @@ var Defaults = Config{
 	Miner:              miner.DefaultConfig,
 	TxPool:             legacypool.DefaultConfig,
 	BlobPool:           blobpool.DefaultConfig,
-	RPCGasCap:          50000000,
+	RPCGasCap:          20000000,
 	RPCEVMTimeout:      5 * time.Second,
 	GPO:                FullNodeGPO,
 	RPCTxFeeCap:        1, // 1 ether

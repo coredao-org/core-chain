@@ -372,7 +372,7 @@ func TestTable_filterNode(t *testing.T) {
 		Tail   []rlp.RawValue `rlp:"tail"`
 	}
 
-	enrFilter, _ := ParseEthFilter("bsc")
+	enrFilter, _ := ParseEthFilter("core")
 
 	// Check test ENR record
 	var r1 enr.Record
@@ -384,7 +384,7 @@ func TestTable_filterNode(t *testing.T) {
 
 	// Check wrong genesis ENR record
 	var r2 enr.Record
-	r2.Set(enr.WithEntry("eth", eth{ForkID: forkid.NewID(params.COREChainConfig, params.BuffaloGenesisHash, uint64(0), uint64(0))}))
+	r2.Set(enr.WithEntry("eth", eth{ForkID: forkid.NewID(params.CoreChainConfig, params.BuffaloGenesisHash, uint64(0), uint64(0))}))
 	if enrFilter(&r2) {
 		t.Fatalf("filterNode doesn't work correctly for wrong genesis entry")
 	}
@@ -392,7 +392,7 @@ func TestTable_filterNode(t *testing.T) {
 
 	// Check correct genesis ENR record
 	var r3 enr.Record
-	r3.Set(enr.WithEntry("eth", eth{ForkID: forkid.NewID(params.COREChainConfig, params.COREChainConfig, uint64(0), uint64(0))}))
+	r3.Set(enr.WithEntry("eth", eth{ForkID: forkid.NewID(params.CoreChainConfig, params.CoreGenesisHash, uint64(0), uint64(0))}))
 	if !enrFilter(&r3) {
 		t.Fatalf("filterNode doesn't work correctly for correct genesis entry")
 	}

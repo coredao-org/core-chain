@@ -174,7 +174,7 @@ var (
 	}
 	BuffaloFlag = &cli.BoolFlag{
 		Name:     "buffalo",
-		Usage:    "Buffalo network: pre-configured Proof-of-Stake-Authority BSC test network",
+		Usage:    "Buffalo network: pre-configured Proof-of-Stake-Authority CORE test network",
 		Category: flags.EthCategory,
 	}
 	DeveloperFlag = &cli.BoolFlag{
@@ -1968,13 +1968,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	switch {
 	case ctx.Bool(COREMainnetFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 56
+			cfg.NetworkId = 1116
 		}
 		cfg.Genesis = core.DefaultCOREGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.COREGenesisHash)
+		SetDNSDiscoveryDefaults(cfg, params.CoreGenesisHash)
 	case ctx.Bool(BuffaloFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 97
+			cfg.NetworkId = 1115
 		}
 		cfg.Genesis = core.DefaultBuffaloGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.BuffaloGenesisHash)

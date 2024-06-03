@@ -199,7 +199,7 @@ func CommitGenesisState(db ethdb.Database, triedb *trie.Database, blockhash comm
 		// - private network, can't recover
 		var genesis *Genesis
 		switch blockhash {
-		case params.COREGenesisHash:
+		case params.CoreGenesisHash:
 			genesis = DefaultCOREGenesisBlock()
 		}
 		if genesis != nil {
@@ -274,7 +274,7 @@ func (e *GenesisMismatchError) Error() string {
 }
 
 // ChainOverrides contains the changes to chain config
-// Typically, these modifications involve hardforks that are not enabled on the BSC mainnet, intended for testing purposes.
+// Typically, these modifications involve hardforks that are not enabled on the CORE mainnet, intended for testing purposes.
 type ChainOverrides struct {
 	OverrideShanghai *uint64
 	OverrideKepler   *uint64
@@ -323,7 +323,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *trie.Database, gen
 	stored := rawdb.ReadCanonicalHash(db, 0)
 	if (stored == common.Hash{}) {
 		if genesis == nil {
-			log.Info("Writing default BSC mainnet genesis block")
+			log.Info("Writing default CORE mainnet genesis block")
 			genesis = DefaultCOREGenesisBlock()
 		} else {
 			log.Info("Writing custom genesis block")
@@ -383,7 +383,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *trie.Database, gen
 	// on top of an existing private network genesis block). In that case, only
 	// apply the overrides.
 	if genesis == nil && stored != params.MainnetGenesisHash &&
-		stored != params.BuffaloGenesisHash && stored != params.COREGenesisHash {
+		stored != params.BuffaloGenesisHash && stored != params.CoreGenesisHash {
 		newcfg = storedcfg
 		applyOverrides(newcfg)
 	}
@@ -439,7 +439,7 @@ func LoadChainConfig(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, 
 	}
 	// There is no stored chain config and no new config provided,
 	// In this case the default chain config(mainnet) will be used
-	return params.COREChainConfig, params.COREGenesisHash, nil
+	return params.CoreChainConfig, params.CoreGenesisHash, nil
 }
 
 func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
@@ -567,7 +567,7 @@ func DefaultGenesisBlock() *Genesis {
 func DefaultCOREGenesisBlock() *Genesis {
 	alloc := decodePrealloc(coreMainnetAllocData)
 	return &Genesis{
-		Config:     params.COREChainConfig,
+		Config:     params.CoreChainConfig,
 		Nonce:      0,
 		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000004121f067b0f5135d77c29b2b329e8cb1bd96c9607f461f8a1c35edecd6816e76eb2e84eb661751eefd806ab93db5742944b7b50ce759e5eee5f6fe507ef3a94ad1c443481fb3d86829355ca90477f8b567d1ad48f91e131413bd0b04e823f3ae4f81e8533fb42cab4416024dc1b4c9e21b9acd0dfcef35f63511e3b8ac7336b99517d324145e9b5bb33e08a4729f39a54304fcc6ec279684c71491a385d7b9aef44a785fd9f23f0abd443541386e71356ce619dc2efd3cf0733421aec3e4202480d0a90bd1575149613b0f519ada008cb99b6130e89122ba416bf159c0925eeb800ff6ba4695ded61562a10102152b5f19e3c7d7e69f273f3f91c060bb438a007f6fc33ce127f110d172a0c4c6209fe045dd71781e8fe9d4f778dc4a199a440dbe9f16d1e13e185bb179b3b70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
 		GasLimit:   0x2625a00,
@@ -579,18 +579,18 @@ func DefaultCOREGenesisBlock() *Genesis {
 	}
 }
 
-// DefaultBuffaloGenesisBlock returns the CORE mainnet genesis block.
+// DefaultBuffaloGenesisBlock returns the CORE testnet genesis block.
 func DefaultBuffaloGenesisBlock() *Genesis {
 	alloc := decodePrealloc(coreBuffaloAllocData)
 	return &Genesis{
 		Config:     params.BuffaloChainConfig,
 		Nonce:      0,
-		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000001284214b9b9c85549ab3d2b972df0deef66ac2c9b71b214cb885500844365e95cd9942c7276e7fd8a2959d3f95eae5dc7d70144ce1b73b403b7eb6e0980a75ecd1309ea12fa2ed87a8744fbfc9b863d535552c16704d214347f29fa77f77da6d75d7c752f474cf03cceff28abc65c9cbae594f725c80e12d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   40000000,
+		ExtraData:  hexutil.MustDecode("0x000000000000000000000000000000000000000000000000000000000000000001bca3615d24d3c638836691517b2b9b49b054b1a458499604a85e90225a14946f36368ae24df16d5e00c0d5c4c10d4c805aba878d51129a89d513e01cd652bc64af3f09b490daae27f46e53726ce230da37ccecbb2d7c83ae27ee2bebfe8ebce162c6000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   0x2625a00,
 		Difficulty: big.NewInt(1),
 		Mixhash:    common.Hash(hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000000")),
 		Coinbase:   common.HexToAddress("0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE"),
-		Timestamp:  0x5e9da7ce,
+		Timestamp:  0x61936E60,
 		Alloc:      alloc,
 	}
 }

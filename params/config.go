@@ -27,7 +27,7 @@ import (
 var (
 	MainnetGenesisHash = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 
-	COREGenesisHash    = common.HexToHash("0xf7fc87f11e61508a5828cd1508060ed1714c8d32a92744ae10acb43c953357ad")
+	CoreGenesisHash    = common.HexToHash("0xf7fc87f11e61508a5828cd1508060ed1714c8d32a92744ae10acb43c953357ad")
 	BuffaloGenesisHash = common.HexToHash("0xd90508c51efd64e75363cdf51114d9f2a90a79e6cd0f78f3c3038b47695c034a")
 )
 
@@ -104,7 +104,7 @@ var (
 		},
 	}
 
-	COREChainConfig = &ChainConfig{
+	CoreChainConfig = &ChainConfig{
 		ChainID:             big.NewInt(1116),
 		HomesteadBlock:      big.NewInt(0),
 		EIP150Block:         big.NewInt(0),
@@ -328,8 +328,8 @@ func GetBuiltInChainConfig(ghash common.Hash) *ChainConfig {
 	switch ghash {
 	case MainnetGenesisHash:
 		return MainnetChainConfig
-	case COREGenesisHash:
-		return COREChainConfig
+	case CoreGenesisHash:
+		return CoreChainConfig
 	case BuffaloGenesisHash:
 		return BuffaloChainConfig
 	default:

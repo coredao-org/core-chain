@@ -708,7 +708,7 @@ func InspectDatabase(db ethdb.Database, keyPrefix, keyStart []byte) error {
 			bloomBits.Add(size)
 		case bytes.HasPrefix(key, CliqueSnapshotPrefix) && len(key) == 7+common.HashLength:
 			cliqueSnaps.Add(size)
-		case bytes.HasPrefix(key, SatoshiSnapshotPrefix) && len(key) == 7+common.HashLength:
+		case bytes.HasPrefix(key, SatoshiSnapshotPrefix) && len(key) == 8+common.HashLength:
 			satoshiSnaps.Add(size)
 		case bytes.HasPrefix(key, ChtTablePrefix) ||
 			bytes.HasPrefix(key, ChtIndexTablePrefix) ||
