@@ -1459,11 +1459,10 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	return nil
 }
 
-// writeBlockWithState writes block, metadata and corresponding state data to the
-// database.
+// writeBlockWithState writes block, metadata and corresponding state data to the database. @lfm
 func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) error {
 	// Calculate the total difficulty of the block
-	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
+	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1) //@lfm commit a new block
 	if ptd == nil {
 		state.StopPrefetcher()
 		return consensus.ErrUnknownAncestor
@@ -1599,7 +1598,7 @@ func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types
 	return bc.writeBlockAndSetHead(block, receipts, logs, state, emitHeadEvent)
 }
 
-// writeBlockAndSetHead writes the block and all associated state to the database,
+// writeBlockAndSetHead writes the block and all associated state to the database,  @lfm
 // and also it applies the given block as the new chain head. This function expects
 // the chain mutex to be held.
 func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {

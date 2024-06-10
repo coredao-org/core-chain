@@ -128,7 +128,7 @@ func MustSignNewTx(prv *ecdsa.PrivateKey, s Signer, txdata TxData) *Transaction 
 // Sender may cache the address, allowing it to be used regardless of
 // signing method. The cache is invalidated if the cached signer does
 // not match the signer used in the current call.
-func Sender(signer Signer, tx *Transaction) (common.Address, error) {
+func Sender(signer Signer, tx *Transaction) (common.Address, error) { //@lfm
 	if sc := tx.from.Load(); sc != nil {
 		sigCache := sc.(sigCache)
 		// If the signer used to derive from in a previous
@@ -369,7 +369,15 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 	V, R, S := tx.RawSignatureValues()
 	V = new(big.Int).Sub(V, s.chainIdMul)
 	V.Sub(V, big8)
-	return recoverPlain(s.Hash(tx), R, S, V, true)
+	//@lfm >> tx hash calculation to obtain orig Sender address
+	var sighash common.Hash
+	origGasPrice := tx.OrigGasPrice()
+	if origGasPrice != nil {
+		sighash = s.RecoveryHash(tx, origGasPrice)
+	} else {
+		sighash = s.Hash(tx)
+	}
+	return recoverPlain(sighash, R, S, V, true)
 }
 
 // SignatureValues returns signature values. This signature
@@ -386,12 +394,20 @@ func (s EIP155Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 	return R, S, V, nil
 }
 
+func (s EIP155Signer) RecoveryHash(tx *Transaction, origGasPrice *big.Int) common.Hash { //@lfm
+	return s.hashImpl(tx, origGasPrice)
+}
+
+func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
+	return s.hashImpl(tx, tx.GasPrice())
+}
+
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
-func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
+func (s EIP155Signer) hashImpl(tx *Transaction, gasPrice *big.Int) common.Hash {
 	return rlpHash([]interface{}{
 		tx.Nonce(),
-		tx.GasPrice(),
+		gasPrice,
 		tx.Gas(),
 		tx.To(),
 		tx.Value(),

@@ -24,13 +24,14 @@ import (
 
 // LegacyTx is the transaction data of regular Ethereum transactions.
 type LegacyTx struct {
-	Nonce    uint64          // nonce of sender account
-	GasPrice *big.Int        // wei per gas
-	Gas      uint64          // gas limit
-	To       *common.Address `rlp:"nil"` // nil means contract creation
-	Value    *big.Int        // wei amount
-	Data     []byte          // contract invocation input data
-	V, R, S  *big.Int        // signature values
+	Nonce        uint64          // nonce of sender account
+	GasPrice     *big.Int        // wei per gas
+	Gas          uint64          // gas limit
+	To           *common.Address `rlp:"nil"` // nil means contract creation
+	Value        *big.Int        // wei amount
+	Data         []byte          // contract invocation input data
+	V, R, S      *big.Int        // signature values
+	OrigGasPrice *big.Int        `rlp:"optional"` //@lfm
 }
 
 // NewTransaction creates an unsigned legacy transaction.
@@ -66,11 +67,12 @@ func (tx *LegacyTx) copy() TxData {
 		Data:  common.CopyBytes(tx.Data),
 		Gas:   tx.Gas,
 		// These are initialized below.
-		Value:    new(big.Int),
-		GasPrice: new(big.Int),
-		V:        new(big.Int),
-		R:        new(big.Int),
-		S:        new(big.Int),
+		Value:        new(big.Int),
+		GasPrice:     new(big.Int),
+		V:            new(big.Int),
+		R:            new(big.Int),
+		S:            new(big.Int),
+		OrigGasPrice: tx.OrigGasPrice,
 	}
 	if tx.Value != nil {
 		cpy.Value.Set(tx.Value)
@@ -97,6 +99,7 @@ func (tx *LegacyTx) accessList() AccessList { return nil }
 func (tx *LegacyTx) data() []byte           { return tx.Data }
 func (tx *LegacyTx) gas() uint64            { return tx.Gas }
 func (tx *LegacyTx) gasPrice() *big.Int     { return tx.GasPrice }
+func (tx *LegacyTx) origGasPrice() *big.Int { return tx.OrigGasPrice }
 func (tx *LegacyTx) gasTipCap() *big.Int    { return tx.GasPrice }
 func (tx *LegacyTx) gasFeeCap() *big.Int    { return tx.GasPrice }
 func (tx *LegacyTx) value() *big.Int        { return tx.Value }
