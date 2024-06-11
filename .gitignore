@@ -8,9 +8,6 @@ mainnet/
 node_1/
 node_2/
 /tmp
-/node_1
-/node_2
-/mainnet
 */**/*un~
 */**/*.test
 *un~
