@@ -371,9 +371,9 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 	V.Sub(V, big8)
 	//@lfm >> tx hash calculation to obtain orig Sender address
 	var sighash common.Hash
-	origGasPrice := tx.OrigGasPrice()
-	if origGasPrice != nil {
-		sighash = s.RecoveryHash(tx, origGasPrice)
+	legacyTx, isLegacy := tx.inner.(*LegacyTx) //@lfm
+	if isLegacy && legacyTx.origGasPrice() != nil {
+		sighash = s.RecoveryHash(tx, legacyTx.origGasPrice())
 	} else {
 		sighash = s.Hash(tx)
 	}
