@@ -1,6 +1,7 @@
 package locaFeeMarket
 
 import (
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 )
@@ -29,11 +30,19 @@ const (
 	lfmDebugMode        = true //@hhhh
 )
 
-//var origGasPriceMap = make(map[common.Hash]big.Int)
-//
-//func ResetMap() {
-//	origGasPriceMap = make(map[common.Hash]big.Int)
-//}
+func AdjustGasPriceForEstimation(_origGasPrice *hexutil.Big, _gas *hexutil.Uint64, _value *hexutil.Big, dataLen int) *hexutil.Big {
+	if _origGasPrice == nil || _gas == nil || _value == nil {
+		return _origGasPrice
+	}
+	origGasPrice := (*big.Int)(_origGasPrice)
+	gas := uint64(*_gas)
+	value := (*big.Int)(_value)
+	adjusted := origGasPrice
+	if isNativeTransferTx(gas, value, dataLen) {
+		adjusted = adjustGasPrice(origGasPrice)
+	}
+	return (*hexutil.Big)(adjusted)
+}
 
 func AdjustGasPrice(origGasPrice *big.Int, gas uint64, value *big.Int, dataLen int) *big.Int { //@lfm
 	if isNativeTransferTx(gas, value, dataLen) {
@@ -103,33 +112,13 @@ func adjustGasPrice(origGasPrice *big.Int) *big.Int {
 		adjusted = maxAdjusted
 	}
 
-	adjusted = min(adjusted, orig)        // sanity check: adjusted gas-price cannot exceed orig
-	adjusted = min(adjusted, maxAdjusted) // sanity check: adjusted gas-price cannot exceed maxAdjusted value
-	adjusted = max(adjusted, orig/2)      // sanity check: adjusted gas-price cannot go below half of the orig price
-
+	if adjusted != orig {
+		adjusted = min(adjusted, orig)        // sanity check: adjusted gas-price cannot exceed orig
+		adjusted = min(adjusted, maxAdjusted) // sanity check: adjusted gas-price cannot exceed maxAdjusted value
+		adjusted = max(adjusted, orig/2)      // sanity check: adjusted gas-price cannot go below half of the orig price
+	}
 	return new(big.Int).SetUint64(adjusted)
 }
-
-//func AdjustGasPriceArg(actualGasPrice *hexutil.Big, actualGas hexutil.Uint64) *hexutil.Big {@lfm
-//	if actualGas == nativeTransferTxGas {
-//		log.Debug("mmx2x: gas price set to ")
-//		newval := big.NewInt(18000000000)
-//		return (*hexutil.Big)(newval)
-//	}
-//	return actualGasPrice
-//}
-
-//func MapOrigGasPrice(hash common.Hash, price *big.Int) {
-//	origGasPriceMap[hash] = *price
-//}
-
-//func GetOrigGasPrice(hash common.Hash) *big.Int {
-//	orig, ok := origGasPriceMap[hash]
-//	if !ok {
-//		return nil
-//	}
-//	return &orig
-//}
 
 func min(a, b uint64) uint64 {
 	if a < b {

@@ -43,6 +43,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/gasprice/locaFeeMarket"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -1005,6 +1006,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		hi  uint64
 		cap uint64
 	)
+	args.GasPrice = locaFeeMarket.AdjustGasPriceForEstimation(args.GasPrice, args.Gas, args.Value, len(args.data())) //@lfm
 	// Use zero address if sender unspecified.
 	if args.From == nil {
 		args.From = new(common.Address)
