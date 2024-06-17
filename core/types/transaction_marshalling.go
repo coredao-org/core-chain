@@ -47,7 +47,7 @@ type txJSON struct {
 	AccessList *AccessList  `json:"accessList,omitempty"`
 
 	// Only used for encoding:
-	Hash         common.Hash  `json:"hash"`
+	Hash common.Hash `json:"hash"`
 	OrigGasPrice *hexutil.Big `json:"origGasPrice" rlp:"optional"`
 }
 

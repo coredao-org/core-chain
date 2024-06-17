@@ -77,8 +77,8 @@ type TxData interface {
 	accessList() AccessList
 	data() []byte
 	gas() uint64
-	origGasPrice() *big.Int
 	gasPrice() *big.Int
+	origGasPrice() *big.Int
 	gasTipCap() *big.Int
 	gasFeeCap() *big.Int
 	value() *big.Int

@@ -67,11 +67,11 @@ func (tx *LegacyTx) copy() TxData {
 		Data:  common.CopyBytes(tx.Data),
 		Gas:   tx.Gas,
 		// These are initialized below.
-		Value:        new(big.Int),
-		GasPrice:     new(big.Int),
-		V:            new(big.Int),
-		R:            new(big.Int),
-		S:            new(big.Int),
+		Value:    new(big.Int),
+		GasPrice: new(big.Int),
+		V:        new(big.Int),
+		R:        new(big.Int),
+		S:        new(big.Int),
 		OrigGasPrice: tx.OrigGasPrice,
 	}
 	if tx.Value != nil {

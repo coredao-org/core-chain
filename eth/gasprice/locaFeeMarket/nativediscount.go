@@ -20,9 +20,9 @@ const (
 			- y never exceeds maxAdjusted value
 			- smooth 'logarithmic' slope
 	*/
-	historicalMeanGasPrice = 35783571428                                     //wei
-	historicalSDGasPrice   = 849870638                                       //wei
-	maxAdjusted            = historicalMeanGasPrice + historicalSDGasPrice/2 // =36208506747wei
+	historicalMeanGasPrice = 35783571428 //wei
+	historicalSDGasPrice = 849870638     //wei
+	maxAdjusted = historicalMeanGasPrice + historicalSDGasPrice/2 // =36208506747wei
 )
 
 const (
