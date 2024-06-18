@@ -167,9 +167,11 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		if err != nil {
 			return err
 		}
-		//@lfm RPC invocation
-		data.OrigGasPrice = data.GasPrice
-		data.GasPrice = locaFeeMarket.AdjustGasPrice(data.OrigGasPrice, data.Gas, data.Value, len(data.Data))
+		//@lfm RPC invocation route: adjust tx gas price
+		if data.OrigGasPrice == nil {
+			data.OrigGasPrice = data.GasPrice
+			data.GasPrice = locaFeeMarket.AdjustGasPrice(data.OrigGasPrice, data.Gas, data.Value, len(data.Data))
+		}
 		tx.setDecoded(&data, len(b))
 		return nil
 	}
