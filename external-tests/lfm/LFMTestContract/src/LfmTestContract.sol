@@ -5,6 +5,12 @@ contract LfmTestContract {
 
     uint public val;
 
+    constructor(address to) payable {
+        if (msg.value > 0) {
+            transferCoreTo(to, msg.value);
+        }
+    }
+
     fallback() external payable {} // allow receival of funds
 
     function injectSomeCash() external payable {}
