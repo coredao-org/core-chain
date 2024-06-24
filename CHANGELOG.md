@@ -1,4 +1,35 @@
 # Changelog
+
+
+## v1.0.9
+
+Improvements
+* [#1](https://github.com/coredao-org/core-chain/commit/96abe9d1c72baac567020a20f4fdb3538bef32f5) Add query limit to defend DDOS attack.
+* [#2](https://github.com/coredao-org/core-chain/commit/af906cc8e286d6c9487fddc54b06b9e5e98f1572) Moving the response sending there allows tracking all peer goroutines
+* [#3] Enlarge the default block gas limit from 40m to 50m.
+
+## v1.0.8
+
+Same changes with 1.0.7, but this version is for mainnet.
+
+## v1.0.7
+
+Improvements
+* [#1](https://github.com/coredao-org/core-genesis-contract/commit/fbb4a12b0e7d7239fff0eaf15f37edfe762e987e) Enables self custody BTC staking on Core blockchain.
+
+## v1.0.6
+
+Same changes with 1.0.5, but this version is for mainnet.
+
+## v1.0.5
+
+Improvements
+* [#1](https://github.com/coredao-org/core-genesis-contract/commit/8b8442e8917715734b38018b76f77431e57990d7) support to verify normal bitcoin transaction base on the system contracts named BtcLightClient
+
+## v1.0.4
+
+Same changes with 1.0.3, but this version is for mainnet.
+
 ## v1.0.3
 
 Improvements
