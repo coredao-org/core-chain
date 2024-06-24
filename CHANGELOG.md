@@ -1,12 +1,19 @@
 # Changelog
 
+## v1.0.11
+
+Improvements
+* [#1](https://github.com/coredao-org/core-genesis-contract/commit/abcc6f9c7323c1202dd1f91a8637fcc00401a4ab) Implemented BTC/CORE dual staking
+* [#2](https://github.com/coredao-org/core-genesis-contract/commit/abcc6f9c7323c1202dd1f91a8637fcc00401a4ab) Implemented lstBTC
+* [#3](https://github.com/coredao-org/core-chain/commit/3f35806416f50f534ad8d1f8a7eccec2582e7b16) Merged versions up to v1.3.9 from Binance smart chain (originally planned as v1.0.10)
 
 ## v1.0.9
 
 Improvements
 * [#1](https://github.com/coredao-org/core-chain/commit/96abe9d1c72baac567020a20f4fdb3538bef32f5) Add query limit to defend DDOS attack.
 * [#2](https://github.com/coredao-org/core-chain/commit/af906cc8e286d6c9487fddc54b06b9e5e98f1572) Moving the response sending there allows tracking all peer goroutines
-* [#3] Enlarge the default block gas limit from 40m to 50m.
+* [#3](https://github.com/coredao-org/core-chain/pull/32/commits/5ebb5fc8e29f225194a603fc753a3f2f006c178a) implement ENR node in p2p/discover
+* [#4] Enlarge the default block gas limit from 40m to 50m.
 
 ## v1.0.8
 
