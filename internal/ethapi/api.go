@@ -1127,7 +1127,7 @@ func (diff *StateOverride) Apply(statedb *state.StateDB, precompiles vm.Precompi
 		}
 		// Override account balance.
 		if account.Balance != nil {
-			u256Balance, _ := uint256.FromBig((*big.Int)(*account.Balance))
+			u256Balance, _ := uint256.FromBig((*big.Int)(account.Balance))
 			statedb.SetBalance(addr, u256Balance, tracing.BalanceChangeUnspecified)
 		}
 		if account.State != nil && account.StateDiff != nil {
@@ -1135,11 +1135,11 @@ func (diff *StateOverride) Apply(statedb *state.StateDB, precompiles vm.Precompi
 		}
 		// Replace entire state if caller requires.
 		if account.State != nil {
-			statedb.SetStorage(addr, *account.State)
+			statedb.SetStorage(addr, account.State)
 		}
 		// Apply state diff into specified accounts.
 		if account.StateDiff != nil {
-			for key, value := range *account.StateDiff {
+			for key, value := range account.StateDiff {
 				statedb.SetState(addr, key, value)
 			}
 		}
