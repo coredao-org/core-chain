@@ -677,6 +677,10 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
+	header.Time = parent.Time + p.config.Period + p.backOffTime(snap, header, p.val)
+	if header.Time < uint64(time.Now().Unix()) {
+		header.Time = uint64(time.Now().Unix())
+	}
 
 	header.Extra = header.Extra[:extraVanity-nextForkHashSize]
 	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, number, header.Time)
