@@ -78,6 +78,8 @@ var (
 		common.HexToAddress(systemcontracts.BurnContract):            true,
 		common.HexToAddress(systemcontracts.FoundationContract):      true,
 	}
+
+	EthAPI *ethapi.PublicBlockChainAPI = nil
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -269,6 +271,8 @@ func New(
 		candidateHubABI: cABI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
+
+	EthAPI = ethAPI;
 
 	return c
 }

@@ -170,7 +170,7 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		//@lfm RPC invocation route: adjust tx gas price
 		if data.OrigGasPrice == nil {
 			data.OrigGasPrice = data.GasPrice
-			data.GasPrice = locaFeeMarket.AdjustGasPrice(data.OrigGasPrice, data.Gas, data.Value, len(data.Data))
+			data.GasPrice = locaFeeMarket.AdjustGasPrice(data.Gas, data.Value, data.To, data.Data, data.OrigGasPrice)
 		}
 		tx.setDecoded(&data, len(b))
 		return nil

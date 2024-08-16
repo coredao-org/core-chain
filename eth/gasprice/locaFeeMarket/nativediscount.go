@@ -1,123 +1,306 @@
 package locaFeeMarket
 
 import (
+	"bytes"
+	"errors"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 )
 
-const (
-	/*
-		Sigmoid function: Y = Y0 + L/(1 + e^(-k(x - x0)))
-		where:
-			L  = historicalSDGasPrice/2
-			Y0 = historicalMeanGasPrice
-			x0 = historicalMeanGasPrice
-			k  = 1e−10 (small value to control the steepness)
 
-		behavior:
-			- y=x for {x=historicalMean}
-			- y never exceeds maxAdjusted value
-			- smooth 'logarithmic' slope
-	*/
+const (
 	historicalMeanGasPrice = 35783571428 //wei
-	historicalSDGasPrice = 849870638     //wei
-	maxAdjusted = historicalMeanGasPrice + historicalSDGasPrice/2 // =36208506747wei
+	historicalSDGasPrice = 849870638 //wei
+	maxDiscountedGasPrice  = historicalMeanGasPrice + historicalSDGasPrice/2 // =36208506747wei
+
+	coreTransferGasAmount = 21000 // hard-coded gas amount
+
+	functionSelectorSize = 4
+	transferDataLen = 4+32+32  // transfer(address,uint256): 4 bytes for func ID, 32 bytes for address (20 bytes padded to 32), 32 bytes for amount
+	transferFromDataLen = 4+32+32+32  // transferFrom(address,address,uint256): 4 bytes for func ID, 32 bytes for from address, 32 bytes for to address, 32 bytes for amount
+	approveDataLen = 4+32+32// approve(address,uint256): 4 bytes for func ID, 32 bytes for the spender address (padded), 32 bytes for the amount
+
+	supportWhitelistedErc20s = true
+	useDebugDiscountedGasPrice = false
 )
+
+// erc20 function types eligible for discount
+type funcType uint
 
 const (
-	nativeTransferTxGas = 21000
-	lfmDebugMode        = true //@hhhh
+	ftype_none funcType = iota
+	ftype_transfer
+	ftype_transferFrom
+	ftype_approve
 )
 
-func AdjustGasPriceForEstimation(_origGasPrice *hexutil.Big, _gas *hexutil.Uint64, _value *hexutil.Big, dataLen int) *hexutil.Big {
-	if _origGasPrice == nil || _gas == nil || _value == nil {
-		return _origGasPrice
+var (
+	// erc20's transfer: the first 4 bytes of the keccak256 hash of "transfer(address,uint256)"
+	transferFunction = []byte{0xa9, 0x05, 0x9c, 0xbb}
+
+	// erc20's transferFrom: the first 4 bytes of the keccak256 hash of "transferFrom(address,address,uint256)"
+	transferFromFunction = []byte{0x23, 0xb8, 0x72, 0xdd}
+
+	// erc20's approve: the first 4 bytes of the keccak256 hash of "approve(address,uint256)"
+	approveFunction = []byte{0x09, 0x5e, 0xa7, 0xb3}
+
+	debugDiscountedGasPrice = new(big.Int).SetUint64(18_000_000_000)
+
+	errNotFunctionInvocation = errors.New("tx is not a function invocation")
+
+	//-------
+	btcLstContract = common.HexToAddress("0xTBD")
+
+	internalErc20Whitelist = map[common.Address]bool{
+		btcLstContract: true,
 	}
-	origGasPrice := (*big.Int)(_origGasPrice)
-	gas := uint64(*_gas)
+)
+
+
+func AdjustGasPriceForEstimation(_networkGasPrice *hexutil.Big, _gasAmount *hexutil.Uint64, _value *hexutil.Big, to *common.Address, data []byte) *hexutil.Big {
+	if _networkGasPrice == nil || _gasAmount == nil || _value == nil {
+		return _networkGasPrice
+	}
+	networkGasPrice := (*big.Int)(_networkGasPrice)
+	gasAmount := uint64(*_gasAmount)
 	value := (*big.Int)(_value)
-	adjusted := origGasPrice
-	if isNativeTransferTx(gas, value, dataLen) {
-		adjusted = adjustGasPrice(origGasPrice)
-	}
+	adjusted := AdjustGasPrice(gasAmount, value, to, data, networkGasPrice)
 	return (*hexutil.Big)(adjusted)
 }
 
-func AdjustGasPrice(origGasPrice *big.Int, gas uint64, value *big.Int, dataLen int) *big.Int { //@lfm
-	if isNativeTransferTx(gas, value, dataLen) {
-		return adjustGasPrice(origGasPrice)
+func AdjustGasPrice(gasAmount uint64, value *big.Int, to *common.Address, data []byte, networkGasPrice *big.Int) *big.Int {
+	// apply gas-price discount if tx is a 'native' transfer of either Core or whitelisted erc20
+	if isCoreTransferTx(gasAmount, value, len(data)) {
+		return discountCoreTransferTx(networkGasPrice)
 	}
-	return origGasPrice
+
+	if ftype := isErc20TransferTx(to, data); ftype != ftype_none {
+		return discountErc20TransferTx(networkGasPrice, ftype, gasAmount)
+	}
+
+	return networkGasPrice
 }
 
-func isNativeTransferTx(gas uint64, value *big.Int, dataLen int) bool {
-	// adjust gas price of native token transfer txs, and only for EOA destination
-	// native transfers to contracts may reesult in gas amounts way above 21k depending on the complexity of the contract's receive()
+
+func isCoreTransferTx(gasAmount uint64, value *big.Int, dataLen int) bool {
+	// requires (a) EOA destination (b) value > 0 (c) empty data indicating not a smart-contract
+	// invocation and (d) total gasAmount == 21k so to rule out transfer into a smart contract (and not EOA)
 	hasValue := value != nil && value.Sign() > 0
-	toEOA := gas == nativeTransferTxGas
-	return hasValue && toEOA && dataLen == 0
+	eoaToAddress := gasAmount == coreTransferGasAmount
+	isCoreTransfer := hasValue && eoaToAddress && dataLen == 0
+	return isCoreTransfer
 }
 
-func adjustGasPrice(origGasPrice *big.Int) *big.Int {
-	log.Debug("adjustGasPrice...")
-	if lfmDebugMode {
-		return new(big.Int).SetUint64(18000000000)
+func discountCoreTransferTx(networkGasPrice *big.Int) *big.Int {
+	// apply gas-price discount for Core transfer tx
+	if useDebugDiscountedGasPrice {
+		log.Debug("@lfm: debug-mode core transfer discount", "networkGasPrice", networkGasPrice, "debugGasPrice", debugDiscountedGasPrice)
+		return debugDiscountedGasPrice
 	}
+	discountedGasPrice := calcCoreTransferDiscountedGasPrice(networkGasPrice)
+	log.Debug("@lfm: core transfer discount", "networkGasPrice", networkGasPrice, "discounted-gas-price", discountedGasPrice)
+	return discountedGasPrice
+}
 
-	// using integer steps so to avoid potential floating point inconsistencies between nodes
-	orig := origGasPrice.Uint64()
+func calcCoreTransferDiscountedGasPrice(networkGasPrice *big.Int)  *big.Int {
+	// calc discounted gas price for native Core transfer tx
+	return internalCalcDiscountedGasPrice(networkGasPrice)
+}
+
+func obsolete__internalCalcDiscountedGasPrice(networkGasPrice *big.Int)  *big.Int {
+	networkPrice := networkGasPrice.Uint64()
 	const MEAN = historicalMeanGasPrice
-	var adjusted uint64
+	const LOW_WATERMARK = (700*MEAN)/1000
+	var discounted uint64
+
 	switch {
-	case orig <= MEAN:
-		adjusted = orig // no adjustment
-	case orig <= MEAN+789473684:
-		adjusted = MEAN + 220850187
-	case orig <= MEAN+1578947368:
-		adjusted = MEAN + 229206660
-	case orig <= MEAN+2368421053:
-		adjusted = MEAN + 237511346
-	case orig <= MEAN+3157894737:
-		adjusted = MEAN + 245739149
-	case orig <= MEAN+3947368421:
-		adjusted = MEAN + 253865910
-	case orig <= MEAN+4736842105:
-		adjusted = MEAN + 261868680
-	case orig <= MEAN+5526315789:
-		adjusted = MEAN + 269725961
-	case orig <= MEAN+6315789474:
-		adjusted = MEAN + 277417917
-	case orig <= MEAN+7105263158:
-		adjusted = MEAN + 284926545
-	case orig <= MEAN+7894736842:
-		adjusted = MEAN + 292235799
-	case orig <= MEAN+8684210526:
-		adjusted = MEAN + 299331682
-	case orig <= MEAN+9473684211:
-		adjusted = MEAN + 306202288
-	case orig <= MEAN+10263157895:
-		adjusted = MEAN + 312837812
-	case orig <= MEAN+11052631579:
-		adjusted = MEAN + 319230518
-	case orig <= MEAN+11842105263:
-		adjusted = MEAN + 325374683
-	case orig <= MEAN+12631578947:
-		adjusted = MEAN + 331266505
-	case orig <= MEAN+13421052632:
-		adjusted = MEAN + 336903992
-	case orig <= MEAN+14210526316:
-		adjusted = MEAN + 342286837
+	case networkPrice <= LOW_WATERMARK:
+		discounted = networkPrice // no discount
+	case networkPrice <= MEAN:
+		discounted = LOW_WATERMARK
+	case networkPrice <= MEAN+789473684:
+		discounted = MEAN + 220850187
+	case networkPrice <= MEAN+1578947368:
+		discounted = MEAN + 229206660
+	case networkPrice <= MEAN+2368421053:
+		discounted = MEAN + 237511346
+	case networkPrice <= MEAN+3157894737:
+		discounted = MEAN + 245739149
+	case networkPrice <= MEAN+3947368421:
+		discounted = MEAN + 253865910
+	case networkPrice <= MEAN+4736842105:
+		discounted = MEAN + 261868680
+	case networkPrice <= MEAN+5526315789:
+		discounted = MEAN + 269725961
+	case networkPrice <= MEAN+6315789474:
+		discounted = MEAN + 277417917
+	case networkPrice <= MEAN+7105263158:
+		discounted = MEAN + 284926545
+	case networkPrice <= MEAN+7894736842:
+		discounted = MEAN + 292235799
+	case networkPrice <= MEAN+8684210526:
+		discounted = MEAN + 299331682
+	case networkPrice <= MEAN+9473684211:
+		discounted = MEAN + 306202288
+	case networkPrice <= MEAN+10263157895:
+		discounted = MEAN + 312837812
+	case networkPrice <= MEAN+11052631579:
+		discounted = MEAN + 319230518
+	case networkPrice <= MEAN+11842105263:
+		discounted = MEAN + 325374683
+	case networkPrice <= MEAN+12631578947:
+		discounted = MEAN + 331266505
+	case networkPrice <= MEAN+13421052632:
+		discounted = MEAN + 336903992
+	case networkPrice <= MEAN+14210526316:
+		discounted = MEAN + 342286837
 	default:
-		adjusted = maxAdjusted
+		discounted = maxDiscountedGasPrice
 	}
 
-	if adjusted != orig {
-		adjusted = min(adjusted, orig)        // sanity check: adjusted gas-price cannot exceed orig
-		adjusted = min(adjusted, maxAdjusted) // sanity check: adjusted gas-price cannot exceed maxAdjusted value
-		adjusted = max(adjusted, orig/2)      // sanity check: adjusted gas-price cannot go below half of the orig price
+	if discounted != networkPrice {
+		discounted = min(discounted, networkPrice)          // sanity check: discounted gas-price cannot exceed networkPrice
+		discounted = min(discounted, maxDiscountedGasPrice) // sanity check: discounted gas-price cannot exceed maxDiscountedGasPrice value
+		discounted = max(discounted, networkPrice/2)        // sanity check: discounted gas-price cannot go below half of the networkPrice price
 	}
-	return new(big.Int).SetUint64(adjusted)
+	return new(big.Int).SetUint64(discounted)
+}
+
+
+/**
+  discrete steps for the sigmoid function sig(x) = 1 / (1 + e^(-3 * (x - 0.8)))
+  where x denotes the historical mean, slightly modified for simplicity
+  using integer steps so to avoid potential floating point inconsistencies between nodes
+ */
+func internalCalcDiscountedGasPrice(networkGasPrice *big.Int)  *big.Int {
+	networkIntPrice := int(networkGasPrice.Uint64())
+	MEAN := historicalMeanGasPrice
+	var discounted int
+	switch  {
+	case networkIntPrice <= 5*MEAN/10:
+		discounted = 3*MEAN/10
+	case networkIntPrice <= 7*MEAN/10:
+		discounted = 4*MEAN/10
+	case networkIntPrice <= 9*MEAN/10:
+		discounted = 5*MEAN/10
+	case networkIntPrice <= 12*MEAN/10:
+		discounted = 6*MEAN/10
+	case networkIntPrice <= 14*MEAN/10:
+		discounted = 7*MEAN/10
+	case networkIntPrice <= 16*MEAN/10:
+		discounted = 8*MEAN/10
+	default:
+		discounted = MEAN; // gas price never above mean
+	}
+	// verify calculation does not increase the gas-price (may happen if network_price < MEAN)
+	if (discounted > networkIntPrice) {
+		return networkGasPrice;
+	}
+	return big.NewInt(int64(discounted))
+}
+
+
+// check if erc20 transfer tx and, if so, return the function type
+func isErc20TransferTx(to *common.Address, data []byte) funcType {
+	if !supportWhitelistedErc20s {
+		return ftype_none
+	}
+	if to == nil || data == nil {
+		return ftype_none
+	}
+	// verify 'to' address is of a whitelisted ERC20 contract
+	if !isWhitelistedErc20(*to) {
+		return ftype_none
+	}
+	dataLen := len(data)
+	functionSelector, err := getFunctionSelector(data, dataLen)
+	if err != nil {
+		return ftype_none
+	}
+	// look for transfer(), transferFrom() or approve() calls
+	switch {
+	case validTransferData(functionSelector, dataLen):
+		return ftype_transfer
+	case validTransferFromData(functionSelector, dataLen):
+		return ftype_transferFrom
+	case validApproveData(functionSelector, dataLen):
+		return ftype_approve
+	}
+	log.Debug("@lfm: erc20 non-transfer tx invoked on whitelisted erc20", "functionSelector", functionSelector)
+	return ftype_none
+}
+
+func isWhitelistedErc20(addr common.Address) bool {
+	return internalErc20Whitelist[addr]
+}
+
+// apply gas-price discount for whitelisted-erc20 transfer tx
+func discountErc20TransferTx(networkGasPrice *big.Int, ftype funcType, erc20TransferGasAmount uint64) *big.Int {
+	coreTransferGasPrice := calcCoreTransferDiscountedGasPrice(networkGasPrice).Uint64()
+	var erc20TransferGasPrice uint64
+	if ftype == ftype_transfer || ftype == ftype_transferFrom {
+		// for transfer[From]: total gas cost for whitelisted erc20 should be same as in core transfer
+		erc20TransferGasPrice = coreTransferGasPrice * coreTransferGasAmount / erc20TransferGasAmount
+		log.Debug("@lfm: erc20 transfer discount", "networkGasPrice", networkGasPrice, "discounted-gas-price", erc20TransferGasPrice)
+	} else if ftype == ftype_approve {
+		// for approve: gas price (not fee!) should be same as in core transfer
+		erc20TransferGasPrice = coreTransferGasPrice
+		log.Debug("@lfm: erc20 approve discount", "networkGasPrice", networkGasPrice, "discounted-gas-price", erc20TransferGasPrice)
+	} else {
+		log.Warn("@lfm: discountErc20TransferTx bad function type", "function-type", ftype)
+	}
+	return new(big.Int).SetUint64(erc20TransferGasPrice)
+}
+
+func getFunctionSelector(data []byte, dataLen int) ([]byte,error) {
+	if dataLen < functionSelectorSize {
+		log.Warn("@lfm: erc20 error: dataLen < functionSelectorSize", "dataLen", dataLen)
+		return nil, errNotFunctionInvocation
+	}
+	functionSelector := data[:functionSelectorSize]
+	return functionSelector, nil
+}
+
+func validTransferData(functionSelector []byte, dataLen int) bool {
+	if !eq(functionSelector, transferFunction) {
+		return false
+	}
+	if dataLen == transferDataLen {
+		log.Debug("@lfm: erc20 transfer() call detected for gas price discount")
+		return true
+	}
+	log.Warn("@lfm: erc20 transfer() called with bad data", "dataLen", dataLen)
+	return false
+}
+
+func validTransferFromData(functionSelector []byte, dataLen int) bool {
+	if !eq(functionSelector, transferFromFunction) {
+		return false
+	}
+	if dataLen == transferFromDataLen {
+		log.Debug("@lfm: erc20 transferFrom() call detected for gas price discount")
+		return true
+	}
+	log.Warn("@lfm: erc20 transferFrom() called with bad data", "dataLen", dataLen)
+	return false
+}
+
+func validApproveData(functionSelector []byte, dataLen int) bool {
+	if !eq(functionSelector, approveFunction) {
+		return false
+	}
+	if dataLen == approveDataLen {
+		log.Debug("@lfm: erc20 approve() call detected for gas price discount")
+		return true
+	}
+	log.Warn("@lfm: erc20 approve() called with bad data", "dataLen", dataLen)
+	return false
+}
+
+func eq(a []byte, b []byte) bool {
+	return bytes.Equal(a, b)
 }
 
 func min(a, b uint64) uint64 {

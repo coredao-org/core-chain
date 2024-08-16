@@ -1006,7 +1006,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		hi  uint64
 		cap uint64
 	)
-	args.GasPrice = locaFeeMarket.AdjustGasPriceForEstimation(args.GasPrice, args.Gas, args.Value, len(args.data())) //@lfm
+	args.GasPrice = locaFeeMarket.AdjustGasPriceForEstimation(args.GasPrice, args.Gas, args.Value, args.To, args.data()) //@lfm
 	// Use zero address if sender unspecified.
 	if args.From == nil {
 		args.From = new(common.Address)
