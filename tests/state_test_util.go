@@ -295,13 +295,19 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	}
 	evm := vm.NewEVM(context, txContext, st.StateDB, config, vmconfig)
 
+	if tracer := vmconfig.Tracer; tracer != nil && tracer.OnTxStart != nil {
+		tracer.OnTxStart(evm.GetVMContext(), nil, msg.From)
+	}
 	// Execute the message.
 	snapshot := st.StateDB.Snapshot()
 	gaspool := new(core.GasPool)
 	gaspool.AddGas(block.GasLimit())
-	_, err = core.ApplyMessage(evm, msg, gaspool)
+	vmRet, err := core.ApplyMessage(evm, msg, gaspool)
 	if err != nil {
 		st.StateDB.RevertToSnapshot(snapshot)
+		if tracer := evm.Config.Tracer; tracer != nil && tracer.OnTxEnd != nil {
+			evm.Config.Tracer.OnTxEnd(nil, err)
+		}
 	}
 
 	// Commit block
@@ -316,6 +322,10 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	root = st.StateDB.IntermediateRoot(config.IsEIP158(block.Number()))
 	st.StateDB.SetExpectedStateRoot(root)
 	root, _, _ = st.StateDB.Commit(block.NumberU64(), config.IsEIP158(block.Number()))
+	if tracer := evm.Config.Tracer; tracer != nil && tracer.OnTxEnd != nil {
+		receipt := &types.Receipt{GasUsed: vmRet.UsedGas}
+		tracer.OnTxEnd(receipt, nil)
+	}
 	return st, root, err
 }
 
