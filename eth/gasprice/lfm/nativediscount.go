@@ -209,36 +209,37 @@ func validTransferData(functionSelector []byte, dataLen int) bool {
 	if !eq(functionSelector, transferFunction) {
 		return false
 	}
-	if dataLen == transferDataLen {
-		log.Debug("@lfm: erc20 transfer() call detected for gas price discount")
-		return true
+	if dataLen != transferDataLen {
+		log.Warn("@lfm: erc20 transfer() called with bad data", "dataLen", dataLen)
+		return false
 	}
-	log.Warn("@lfm: erc20 transfer() called with bad data", "dataLen", dataLen)
-	return false
+	log.Debug("@lfm: erc20 transfer() call detected for gas price discount")
+	return true
 }
 
 func validTransferFromData(functionSelector []byte, dataLen int) bool {
 	if !eq(functionSelector, transferFromFunction) {
 		return false
 	}
-	if dataLen == transferFromDataLen {
-		log.Debug("@lfm: erc20 transferFrom() call detected for gas price discount")
-		return true
+	if dataLen != transferFromDataLen {
+		log.Warn("@lfm: erc20 transferFrom() called with bad data", "dataLen", dataLen)
+		return false
 	}
-	log.Warn("@lfm: erc20 transferFrom() called with bad data", "dataLen", dataLen)
-	return false
+	log.Debug("@lfm: erc20 transferFrom() call detected for gas price discount")
+	return true
+
 }
 
 func validApproveData(functionSelector []byte, dataLen int) bool {
 	if !eq(functionSelector, approveFunction) {
 		return false
 	}
-	if dataLen == approveDataLen {
-		log.Debug("@lfm: erc20 approve() call detected for gas price discount")
-		return true
+	if dataLen != approveDataLen {
+		log.Warn("@lfm: erc20 approve() called with bad data", "dataLen", dataLen)
+		return false
 	}
-	log.Warn("@lfm: erc20 approve() called with bad data", "dataLen", dataLen)
-	return false
+	log.Debug("@lfm: erc20 approve() call detected for gas price discount")
+	return true
 }
 
 func eq(a []byte, b []byte) bool {
