@@ -377,6 +377,7 @@ type ChainConfig struct {
 
 	ShanghaiTime *uint64 `json:"shanghaiTime,omitempty" ` // Shanghai switch time (nil = no fork, 0 = already on shanghai)
 	KeplerTime   *uint64 `json:"keplerTime,omitempty"`    // Kepler switch time (nil = no fork, 0 = already activated)
+	DemeterTime  *uint64 `json:"demeterTime,omitempty" `  // Demeter switch time (nil = no fork, 0 = already on demeter)
 	CancunTime   *uint64 `json:"cancunTime,omitempty" `   // Cancun switch time (nil = no fork, 0 = already on cancun)
 	PragueTime   *uint64 `json:"pragueTime,omitempty" `   // Prague switch time (nil = no fork, 0 = already on prague)
 	VerkleTime   *uint64 `json:"verkleTime,omitempty" `   // Verkle switch time (nil = no fork, 0 = already on verkle)
@@ -464,7 +465,12 @@ func (c *ChainConfig) String() string {
 		KeplerTime = big.NewInt(0).SetUint64(*c.KeplerTime)
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, Engine: %v}",
+	var DemeterTime *big.Int
+	if c.DemeterTime != nil {
+		DemeterTime = big.NewInt(0).SetUint64(*c.DemeterTime)
+	}
+
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -489,6 +495,7 @@ func (c *ChainConfig) String() string {
 		c.HertzBlock,
 		ShanghaiTime,
 		KeplerTime,
+		DemeterTime,
 		engine,
 	)
 }
@@ -663,6 +670,20 @@ func (c *ChainConfig) IsOnKepler(currentBlockNumber *big.Int, lastBlockTime uint
 	return !c.IsKepler(lastBlockNumber, lastBlockTime) && c.IsKepler(currentBlockNumber, currentBlockTime)
 }
 
+// IsDemeter returns whether time is either equal to the demeter fork time or greater.
+func (c *ChainConfig) IsDemeter(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.DemeterTime, time)
+}
+
+// IsOnDemeter returns whether currentBlockTime is either equal to the demeter fork time or greater firstly.
+func (c *ChainConfig) IsOnDemeter(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsDemeter(lastBlockNumber, lastBlockTime) && c.IsDemeter(currentBlockNumber, currentBlockTime)
+}
+
 // IsCancun returns whether num is either equal to the Cancun fork time or greater.
 func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
@@ -724,6 +745,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "poseidonBlock", block: c.PoseidonBlock},
 		{name: "hertzBlock", block: c.HertzBlock},
 		{name: "keplerTime", timestamp: c.KeplerTime},
+		{name: "demeterTime", timestamp: c.DemeterTime},
 		{name: "cancunTime", timestamp: c.CancunTime, optional: true},
 		{name: "pragueTime", timestamp: c.PragueTime, optional: true},
 		{name: "verkleTime", timestamp: c.VerkleTime, optional: true},
@@ -844,6 +866,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.KeplerTime, newcfg.KeplerTime, headTimestamp) {
 		return newTimestampCompatError("Kepler fork timestamp", c.KeplerTime, newcfg.KeplerTime)
+	}
+	if isForkTimestampIncompatible(c.DemeterTime, newcfg.DemeterTime, headTimestamp) {
+		return newTimestampCompatError("Demeter fork timestamp", c.DemeterTime, newcfg.DemeterTime)
 	}
 	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {
 		return newTimestampCompatError("Cancun fork timestamp", c.CancunTime, newcfg.CancunTime)
