@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/gasprice/locaFeeMarket"
+	"github.com/ethereum/go-ethereum/eth/gasprice/lfm"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -170,7 +170,7 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		//@lfm RPC invocation route: adjust tx gas price
 		if data.OrigGasPrice == nil {
 			data.OrigGasPrice = data.GasPrice
-			data.GasPrice = locaFeeMarket.AdjustGasPrice(data.Gas, data.Value, data.To, data.Data, data.OrigGasPrice)
+			data.GasPrice = lfm.AdjustGasPrice(data.Gas, data.Value, data.To, data.Data, data.OrigGasPrice)
 		}
 		tx.setDecoded(&data, len(b))
 		return nil

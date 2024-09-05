@@ -269,7 +269,6 @@ func New(
 		candidateHubABI: cABI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
-	
 	return c
 }
 

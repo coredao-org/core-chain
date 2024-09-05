@@ -1,4 +1,4 @@
-package locaFeeMarket
+package lfm
 
 import (
 	"bytes"
@@ -49,8 +49,10 @@ var (
 	debugDiscountedGasPrice = new(big.Int).SetUint64(18_000_000_000)
 
 	errNotFunctionInvocation = errors.New("tx is not a function invocation")
+)
 
-	//-------
+// white-listed erc20 map
+var (
 	btcLstContract = common.HexToAddress("0xTBD")
 
 	internalErc20Whitelist = map[common.Address]bool{
@@ -108,66 +110,6 @@ func calcCoreTransferDiscountedGasPrice(networkGasPrice *big.Int)  *big.Int {
 	// calc discounted gas price for native Core transfer tx
 	return internalCalcDiscountedGasPrice(networkGasPrice)
 }
-
-func obsolete__internalCalcDiscountedGasPrice(networkGasPrice *big.Int)  *big.Int {
-	networkPrice := networkGasPrice.Uint64()
-	const MEAN = historicalMeanGasPrice
-	const LOW_WATERMARK = (700*MEAN)/1000
-	var discounted uint64
-
-	switch {
-	case networkPrice <= LOW_WATERMARK:
-		discounted = networkPrice // no discount
-	case networkPrice <= MEAN:
-		discounted = LOW_WATERMARK
-	case networkPrice <= MEAN+789473684:
-		discounted = MEAN + 220850187
-	case networkPrice <= MEAN+1578947368:
-		discounted = MEAN + 229206660
-	case networkPrice <= MEAN+2368421053:
-		discounted = MEAN + 237511346
-	case networkPrice <= MEAN+3157894737:
-		discounted = MEAN + 245739149
-	case networkPrice <= MEAN+3947368421:
-		discounted = MEAN + 253865910
-	case networkPrice <= MEAN+4736842105:
-		discounted = MEAN + 261868680
-	case networkPrice <= MEAN+5526315789:
-		discounted = MEAN + 269725961
-	case networkPrice <= MEAN+6315789474:
-		discounted = MEAN + 277417917
-	case networkPrice <= MEAN+7105263158:
-		discounted = MEAN + 284926545
-	case networkPrice <= MEAN+7894736842:
-		discounted = MEAN + 292235799
-	case networkPrice <= MEAN+8684210526:
-		discounted = MEAN + 299331682
-	case networkPrice <= MEAN+9473684211:
-		discounted = MEAN + 306202288
-	case networkPrice <= MEAN+10263157895:
-		discounted = MEAN + 312837812
-	case networkPrice <= MEAN+11052631579:
-		discounted = MEAN + 319230518
-	case networkPrice <= MEAN+11842105263:
-		discounted = MEAN + 325374683
-	case networkPrice <= MEAN+12631578947:
-		discounted = MEAN + 331266505
-	case networkPrice <= MEAN+13421052632:
-		discounted = MEAN + 336903992
-	case networkPrice <= MEAN+14210526316:
-		discounted = MEAN + 342286837
-	default:
-		discounted = maxDiscountedGasPrice
-	}
-
-	if discounted != networkPrice {
-		discounted = min(discounted, networkPrice)          // sanity check: discounted gas-price cannot exceed networkPrice
-		discounted = min(discounted, maxDiscountedGasPrice) // sanity check: discounted gas-price cannot exceed maxDiscountedGasPrice value
-		discounted = max(discounted, networkPrice/2)        // sanity check: discounted gas-price cannot go below half of the networkPrice price
-	}
-	return new(big.Int).SetUint64(discounted)
-}
-
 
 /**
   discrete steps for the sigmoid function sig(x) = 1 / (1 + e^(-3 * (x - 0.8)))
@@ -301,18 +243,4 @@ func validApproveData(functionSelector []byte, dataLen int) bool {
 
 func eq(a []byte, b []byte) bool {
 	return bytes.Equal(a, b)
-}
-
-func min(a, b uint64) uint64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-	return b
 }
