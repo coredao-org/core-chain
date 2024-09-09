@@ -78,6 +78,13 @@ var (
 		common.HexToAddress(systemcontracts.PledgeCandidateContract): true,
 		common.HexToAddress(systemcontracts.BurnContract):            true,
 		common.HexToAddress(systemcontracts.FoundationContract):      true,
+		common.HexToAddress(systemcontracts.StakeHubContract):        true,
+		common.HexToAddress(systemcontracts.CoreAgentContract):       true,
+		common.HexToAddress(systemcontracts.HashAgentContract):       true,
+		common.HexToAddress(systemcontracts.BTCAgentContract):        true,
+		common.HexToAddress(systemcontracts.BTCStakeContract):        true,
+		common.HexToAddress(systemcontracts.BTCLSTStakeContract):     true,
+		common.HexToAddress(systemcontracts.BTCLSTTokenContract):     true,
 	}
 )
 
@@ -710,6 +717,25 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) (err error) {
 	cx := chainContext{Chain: chain, satoshi: p}
+
+	parent := chain.GetHeaderByHash(header.ParentHash)
+	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
+		contracts := []string{
+			systemcontracts.StakeHubContract,
+			systemcontracts.CoreAgentContract,
+			systemcontracts.HashAgentContract,
+			systemcontracts.BTCAgentContract,
+			systemcontracts.BTCStakeContract,
+			systemcontracts.BTCLSTStakeContract,
+			systemcontracts.BTCLSTTokenContract,
+		}
+
+		err := p.initContractWithContracts(state, header, cx, txs, receipts, systemTxs, usedGas, false, contracts)
+		if err != nil {
+			log.Error("init contract failed on demeter fork")
+		}
+	}
+
 	// If the block is the last one in a round, execute turn round to update the validator set.
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
@@ -726,6 +752,25 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error) {
 	cx := chainContext{Chain: chain, satoshi: p}
+
+	parent := chain.GetHeaderByHash(header.ParentHash)
+	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
+		contracts := []string{
+			systemcontracts.StakeHubContract,
+			systemcontracts.CoreAgentContract,
+			systemcontracts.HashAgentContract,
+			systemcontracts.BTCAgentContract,
+			systemcontracts.BTCStakeContract,
+			systemcontracts.BTCLSTStakeContract,
+			systemcontracts.BTCLSTTokenContract,
+		}
+
+		err := p.initContractWithContracts(state, header, cx, txs, receipts, nil, &header.GasUsed, true, contracts)
+		if err != nil {
+			log.Error("init contract failed on demeter fork")
+		}
+	}
+
 	// If the block is the last one in a round, execute turn round to update the validator set.
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
@@ -1203,9 +1248,6 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 // init contract
 func (p *Satoshi) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
-	// method
-	method := "init"
-	// contracts
 	contracts := []string{
 		systemcontracts.ValidatorContract,
 		systemcontracts.SlashContract,
@@ -1217,6 +1259,24 @@ func (p *Satoshi) initContract(state *state.StateDB, header *types.Header, chain
 		systemcontracts.PledgeCandidateContract,
 		systemcontracts.BurnContract,
 	}
+
+	if p.chainConfig.IsDemeter(header.Number, header.Time) {
+		contracts = append(contracts, systemcontracts.StakeHubContract)
+		contracts = append(contracts, systemcontracts.CoreAgentContract)
+		contracts = append(contracts, systemcontracts.HashAgentContract)
+		contracts = append(contracts, systemcontracts.BTCAgentContract)
+		contracts = append(contracts, systemcontracts.BTCStakeContract)
+		contracts = append(contracts, systemcontracts.BTCLSTStakeContract)
+		contracts = append(contracts, systemcontracts.BTCLSTTokenContract)
+	}
+
+	return p.initContractWithContracts(state, header, chain, txs, receipts, receivedTxs, usedGas, mining, contracts)
+}
+
+func (p *Satoshi) initContractWithContracts(state *state.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, contracts []string) error {
+	// method
+	method := "init"
 
 	// get packed data
 	data, err := p.validatorSetABI.Pack(method)
