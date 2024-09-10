@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/gasprice/lfm"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -77,6 +78,7 @@ type TxData interface {
 	data() []byte
 	gas() uint64
 	gasPrice() *big.Int
+	origGasPrice() *big.Int
 	gasTipCap() *big.Int
 	gasFeeCap() *big.Int
 	value() *big.Int
@@ -164,6 +166,11 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		err := rlp.DecodeBytes(b, &data)
 		if err != nil {
 			return err
+		}
+		//@lfm RPC invocation route: adjust tx gas price
+		if data.OrigGasPrice == nil {
+			data.OrigGasPrice = data.GasPrice
+			data.GasPrice = lfm.AdjustGasPrice(data.Gas, data.Value, data.To, data.Data, data.OrigGasPrice)
 		}
 		tx.setDecoded(&data, len(b))
 		return nil
@@ -274,6 +281,14 @@ func (tx *Transaction) Gas() uint64 { return tx.inner.gas() }
 // GasPrice returns the gas price of the transaction.
 func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.inner.gasPrice()) }
 
+func (tx *Transaction) OrigGasPrice() *big.Int {
+	orig := tx.inner.origGasPrice()
+	if orig == nil {
+		return nil
+	}
+	return new(big.Int).Set(orig)
+}
+
 // GasTipCap returns the gasTipCap per gas of the transaction.
 func (tx *Transaction) GasTipCap() *big.Int { return new(big.Int).Set(tx.inner.gasTipCap()) }
 
@@ -332,6 +347,10 @@ func (tx *Transaction) GasTipCapCmp(other *Transaction) int {
 
 // GasTipCapIntCmp compares the gasTipCap of the transaction against the given gasTipCap.
 func (tx *Transaction) GasTipCapIntCmp(other *big.Int) int {
+	legacyTx, isLegacy := tx.inner.(*LegacyTx) //@lfm
+	if isLegacy && legacyTx.origGasPrice() != nil {
+		return legacyTx.origGasPrice().Cmp(other) // tx gas price might have been reduced by the lfm module
+	}
 	return tx.inner.gasTipCap().Cmp(other)
 }
 

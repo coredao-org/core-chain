@@ -344,6 +344,7 @@ func (c *BoundContract) estimateGasLimit(opts *TransactOpts, contract *common.Ad
 		Value:     value,
 		Data:      input,
 	}
+	//@lfm: no need for price adjustment here as only invoked via contract-invoked txs
 	return c.transactor.EstimateGas(ensureContext(opts.Context), msg)
 }
 

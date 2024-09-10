@@ -100,6 +100,7 @@ func (tx *AccessListTx) accessList() AccessList { return tx.AccessList }
 func (tx *AccessListTx) data() []byte           { return tx.Data }
 func (tx *AccessListTx) gas() uint64            { return tx.Gas }
 func (tx *AccessListTx) gasPrice() *big.Int     { return tx.GasPrice }
+func (tx *AccessListTx) origGasPrice() *big.Int { return nil }
 func (tx *AccessListTx) gasTipCap() *big.Int    { return tx.GasPrice }
 func (tx *AccessListTx) gasFeeCap() *big.Int    { return tx.GasPrice }
 func (tx *AccessListTx) value() *big.Int        { return tx.Value }

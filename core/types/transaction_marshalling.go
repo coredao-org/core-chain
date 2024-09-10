@@ -48,6 +48,7 @@ type txJSON struct {
 
 	// Only used for encoding:
 	Hash common.Hash `json:"hash"`
+	OrigGasPrice *hexutil.Big `json:"origGasPrice" rlp:"optional"`
 }
 
 // MarshalJSON marshals as JSON with a hash.
@@ -63,6 +64,7 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.Nonce = (*hexutil.Uint64)(&tx.Nonce)
 		enc.Gas = (*hexutil.Uint64)(&tx.Gas)
 		enc.GasPrice = (*hexutil.Big)(tx.GasPrice)
+		enc.OrigGasPrice = (*hexutil.Big)(tx.OrigGasPrice)
 		enc.Value = (*hexutil.Big)(tx.Value)
 		enc.Data = (*hexutil.Bytes)(&tx.Data)
 		enc.To = t.To()
@@ -122,6 +124,7 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 			return errors.New("missing required field 'gasPrice' in transaction")
 		}
 		itx.GasPrice = (*big.Int)(dec.GasPrice)
+		itx.OrigGasPrice = (*big.Int)(dec.OrigGasPrice)
 		if dec.Gas == nil {
 			return errors.New("missing required field 'gas' in transaction")
 		}

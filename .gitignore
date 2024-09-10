@@ -4,6 +4,9 @@
 # or operating system, you probably want to add a global ignore instead:
 #   git config --global core.excludesfile ~/.gitignore_global
 
+mainnet/
+node_1/
+node_2/
 /tmp
 */**/*un~
 */**/*.test
@@ -11,6 +14,7 @@
 .DS_Store
 */**/.DS_Store
 .ethtest
+password.txt
 */**/*tx_database*
 */**/*dapps*
 build/_vendor/pkg

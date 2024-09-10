@@ -369,7 +369,15 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 	V, R, S := tx.RawSignatureValues()
 	V = new(big.Int).Sub(V, s.chainIdMul)
 	V.Sub(V, big8)
-	return recoverPlain(s.Hash(tx), R, S, V, true)
+	//@lfm: crypto calc to obtain via tx hash the sender address
+	var sighash common.Hash
+	legacyTx, isLegacy := tx.inner.(*LegacyTx)
+	if isLegacy && legacyTx.origGasPrice() != nil {
+		sighash = s.RecoveryHash(tx, legacyTx.origGasPrice())
+	} else {
+		sighash = s.Hash(tx)
+	}
+	return recoverPlain(sighash, R, S, V, true)
 }
 
 // SignatureValues returns signature values. This signature
@@ -386,12 +394,20 @@ func (s EIP155Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 	return R, S, V, nil
 }
 
+func (s EIP155Signer) RecoveryHash(tx *Transaction, origGasPrice *big.Int) common.Hash { //@lfm
+	return s.hashImpl(tx, origGasPrice)
+}
+
+func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
+	return s.hashImpl(tx, tx.GasPrice())
+}
+
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
-func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
+func (s EIP155Signer) hashImpl(tx *Transaction, gasPrice *big.Int) common.Hash {
 	return rlpHash([]interface{}{
 		tx.Nonce(),
-		tx.GasPrice(),
+		gasPrice,
 		tx.Gas(),
 		tx.To(),
 		tx.Value(),
