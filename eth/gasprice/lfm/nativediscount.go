@@ -73,7 +73,7 @@ func AdjustGasPriceForEstimation(_networkGasPrice *hexutil.Big, _gasAmount *hexu
 }
 
 func AdjustGasPrice(gasAmount uint64, value *big.Int, to *common.Address, data []byte, networkGasPrice *big.Int) *big.Int {
-	// apply gas-price discount if tx is a 'native' transfer of either Core or whitelisted erc20
+	// apply gas-price discount if tx is a 'native' transfer of either CORE or whitelisted erc20
 	if isCoreTransferTx(gasAmount, value, len(data)) {
 		return discountCoreTransferTx(networkGasPrice)
 	}
