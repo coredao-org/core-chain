@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-// package web3ext contains geth specific web3.js extensions.
+// Package web3ext contains geth specific web3.js extensions.
 package web3ext
 
 var Modules = map[string]string{
@@ -28,8 +28,7 @@ var Modules = map[string]string{
 	"personal": PersonalJs,
 	"rpc":      RpcJs,
 	"txpool":   TxpoolJs,
-	"les":      LESJs,
-	"vflux":    VfluxJs,
+	"dev":      DevJs,
 }
 
 const CliqueJs = `
@@ -224,13 +223,23 @@ web3._extend({
 			outputFormatter: console.log
 		}),
 		new web3._extend.Method({
-			name: 'getHeaderRlp',
-			call: 'debug_getHeaderRlp',
+			name: 'getRawHeader',
+			call: 'debug_getRawHeader',
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'getBlockRlp',
-			call: 'debug_getBlockRlp',
+			name: 'getRawBlock',
+			call: 'debug_getRawBlock',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'getRawReceipts',
+			call: 'debug_getRawReceipts',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'getRawTransaction',
+			call: 'debug_getRawTransaction',
 			params: 1
 		}),
 		new web3._extend.Method({
@@ -465,6 +474,31 @@ web3._extend({
 			params: 2,
 			inputFormatter:[web3._extend.formatters.inputBlockNumberFormatter, web3._extend.formatters.inputBlockNumberFormatter],
 		}),
+		new web3._extend.Method({
+			name: 'dbGet',
+			call: 'debug_dbGet',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'dbAncient',
+			call: 'debug_dbAncient',
+			params: 2
+		}),
+		new web3._extend.Method({
+			name: 'dbAncients',
+			call: 'debug_dbAncients',
+			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'setTrieFlushInterval',
+			call: 'debug_setTrieFlushInterval',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'getTrieFlushInterval',
+			call: 'debug_getTrieFlushInterval',
+			params: 0
+		}),
 	],
 	properties: []
 });
@@ -500,8 +534,8 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'estimateGas',
 			call: 'eth_estimateGas',
-			params: 2,
-			inputFormatter: [web3._extend.formatters.inputCallFormatter, web3._extend.formatters.inputBlockNumberFormatter],
+			params: 3,
+			inputFormatter: [web3._extend.formatters.inputCallFormatter, web3._extend.formatters.inputBlockNumberFormatter, null],
 			outputFormatter: web3._extend.utils.toDecimal
 		}),
 		new web3._extend.Method({
@@ -569,6 +603,17 @@ web3._extend({
 			call: 'eth_getLogs',
 			params: 1,
 		}),
+		new web3._extend.Method({
+			name: 'call',
+			call: 'eth_call',
+			params: 4,
+			inputFormatter: [web3._extend.formatters.inputCallFormatter, web3._extend.formatters.inputDefaultBlockNumberFormatter, null, null],
+		}),
+		new web3._extend.Method({
+			name: 'getBlockReceipts',
+			call: 'eth_getBlockReceipts',
+			params: 1,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
@@ -599,8 +644,6 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'start',
 			call: 'miner_start',
-			params: 1,
-			inputFormatter: [null]
 		}),
 		new web3._extend.Method({
 			name: 'stop',
@@ -757,87 +800,21 @@ web3._extend({
 });
 `
 
-const LESJs = `
+const DevJs = `
 web3._extend({
-	property: 'les',
+	property: 'dev',
 	methods:
 	[
 		new web3._extend.Method({
-			name: 'getCheckpoint',
-			call: 'les_getCheckpoint',
+			name: 'addWithdrawal',
+			call: 'dev_addWithdrawal',
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'clientInfo',
-			call: 'les_clientInfo',
+			name: 'setFeeRecipient',
+			call: 'dev_setFeeRecipient',
 			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'priorityClientInfo',
-			call: 'les_priorityClientInfo',
-			params: 3
-		}),
-		new web3._extend.Method({
-			name: 'setClientParams',
-			call: 'les_setClientParams',
-			params: 2
-		}),
-		new web3._extend.Method({
-			name: 'setDefaultParams',
-			call: 'les_setDefaultParams',
-			params: 1
-		}),
-		new web3._extend.Method({
-			name: 'addBalance',
-			call: 'les_addBalance',
-			params: 2
 		}),
 	],
-	properties:
-	[
-		new web3._extend.Property({
-			name: 'latestCheckpoint',
-			getter: 'les_latestCheckpoint'
-		}),
-		new web3._extend.Property({
-			name: 'checkpointContractAddress',
-			getter: 'les_getCheckpointContractAddress'
-		}),
-		new web3._extend.Property({
-			name: 'serverInfo',
-			getter: 'les_serverInfo'
-		}),
-	]
-});
-`
-
-const VfluxJs = `
-web3._extend({
-	property: 'vflux',
-	methods:
-	[
-		new web3._extend.Method({
-			name: 'distribution',
-			call: 'vflux_distribution',
-			params: 2
-		}),
-		new web3._extend.Method({
-			name: 'timeout',
-			call: 'vflux_timeout',
-			params: 2
-		}),
-		new web3._extend.Method({
-			name: 'value',
-			call: 'vflux_value',
-			params: 2
-		}),
-	],
-	properties:
-	[
-		new web3._extend.Property({
-			name: 'requestStats',
-			getter: 'vflux_requestStats'
-		}),
-	]
 });
 `

@@ -1,8 +1,9 @@
 package satoshi
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	mrand "math/rand"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -38,7 +39,7 @@ func simulateValidatorOutOfService(totalValidators int, downValidators int) {
 		validators[i] = true
 		down[i] = i
 	}
-	rand.Shuffle(totalValidators, func(i, j int) {
+	mrand.Shuffle(totalValidators, func(i, j int) {
 		down[i], down[j] = down[j], down[i]
 	})
 	for i := 0; i < downValidators; i++ {
@@ -116,9 +117,8 @@ func simulateValidatorOutOfService(totalValidators int, downValidators int) {
 }
 
 func producerBlockDelay(candidates map[int]bool, height, numOfValidators int) (int, uint64) {
-
-	s := rand.NewSource(int64(height))
-	r := rand.New(s)
+	s := mrand.NewSource(int64(height))
+	r := mrand.New(s)
 	n := numOfValidators
 	backOffSteps := make([]int, 0, n)
 	for idx := 0; idx < n; idx++ {

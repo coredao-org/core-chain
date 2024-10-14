@@ -24,12 +24,13 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 )
 
 var (
 	// ErrNoCode is returned by call and transact operations for which the requested
 	// recipient contract to operate on does not exist in the state db or does not
-	// have any code associated with it (i.e. suicided).
+	// have any code associated with it (i.e. self-destructed).
 	ErrNoCode = errors.New("no contract code at given address")
 
 	// ErrNoPendingState is raised when attempting to perform a pending state action
@@ -96,6 +97,9 @@ type ContractTransactor interface {
 
 	// SendTransaction injects the transaction into the pending pool for execution.
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
+
+	// SendTransactionConditional injects the conditional transaction into the pending pool for execution after verification.
+	SendTransactionConditional(ctx context.Context, tx *types.Transaction, opts ethapi.TransactionOpts) error
 }
 
 // ContractFilterer defines the methods needed to access log events using one-off

@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -72,24 +73,32 @@ func (p *testTxPool) Has(hash common.Hash) bool {
 
 // Get retrieves the transaction from local txpool with given
 // tx hash.
-func (p *testTxPool) Get(hash common.Hash) *types.Transaction {
+func (p *testTxPool) Get(hash common.Hash) *txpool.Transaction {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	return p.pool[hash]
+	if tx := p.pool[hash]; tx != nil {
+		return &txpool.Transaction{Tx: tx}
+	}
+	return nil
 }
 
-// AddRemotes appends a batch of transactions to the pool, and notifies any
+// Add appends a batch of transactions to the pool, and notifies any
 // listeners if the addition channel is non nil
-func (p *testTxPool) AddRemotes(txs []*types.Transaction) []error {
+func (p *testTxPool) Add(txs []*txpool.Transaction, local bool, sync bool) []error {
+	unwrapped := make([]*types.Transaction, len(txs))
+	for i, tx := range txs {
+		unwrapped[i] = tx.Tx
+	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	for _, tx := range txs {
+	for _, tx := range unwrapped {
 		p.pool[tx.Hash()] = tx
 	}
-	p.txFeed.Send(core.NewTxsEvent{Txs: txs})
-	return make([]error, len(txs))
+
+	p.txFeed.Send(core.NewTxsEvent{Txs: unwrapped})
+	return make([]error, len(unwrapped))
 }
 
 // ReannouceTransactions announce the transactions to some peers.
@@ -105,11 +114,11 @@ func (p *testTxPool) ReannouceTransactions(txs []*types.Transaction) []error {
 }
 
 // Pending returns all the transactions known to the pool
-func (p *testTxPool) Pending(enforceTips bool) map[common.Address]types.Transactions {
+func (p *testTxPool) Pending(enforceTips bool) map[common.Address][]*txpool.LazyTransaction {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
-	batches := make(map[common.Address]types.Transactions)
+	batches := make(map[common.Address][]*types.Transaction)
 	for _, tx := range p.pool {
 		from, _ := types.Sender(types.HomesteadSigner{}, tx)
 		batches[from] = append(batches[from], tx)
@@ -117,7 +126,19 @@ func (p *testTxPool) Pending(enforceTips bool) map[common.Address]types.Transact
 	for _, batch := range batches {
 		sort.Sort(types.TxByNonce(batch))
 	}
-	return batches
+	pending := make(map[common.Address][]*txpool.LazyTransaction)
+	for addr, batch := range batches {
+		for _, tx := range batch {
+			pending[addr] = append(pending[addr], &txpool.LazyTransaction{
+				Hash:      tx.Hash(),
+				Tx:        &txpool.Transaction{Tx: tx},
+				Time:      tx.Time(),
+				GasFeeCap: tx.GasFeeCap(),
+				GasTipCap: tx.GasTipCap(),
+			})
+		}
+	}
+	return pending
 }
 
 // SubscribeNewTxsEvent should return an event subscription of NewTxsEvent and
@@ -136,10 +157,11 @@ func (p *testTxPool) SubscribeReannoTxsEvent(ch chan<- core.ReannoTxsEvent) even
 // preinitialized with some sane testing defaults and the transaction pool mocked
 // out.
 type testHandler struct {
-	db      ethdb.Database
-	chain   *core.BlockChain
-	txpool  *testTxPool
-	handler *handler
+	db       ethdb.Database
+	chain    *core.BlockChain
+	txpool   *testTxPool
+	votepool *testVotePool
+	handler  *handler
 }
 
 // newTestHandler creates a new handler for testing purposes with no blocks.
@@ -152,35 +174,37 @@ func newTestHandler() *testHandler {
 func newTestHandlerWithBlocks(blocks int) *testHandler {
 	// Create a database pre-initialize with a genesis block
 	db := rawdb.NewMemoryDatabase()
-	(&core.Genesis{
+	gspec := &core.Genesis{
 		Config: params.TestChainConfig,
 		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
-	}).MustCommit(db)
+	}
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil, nil)
-
-	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), ethash.NewFaker(), db, blocks, nil)
+	_, bs, _ := core.GenerateChainWithGenesis(gspec, ethash.NewFaker(), blocks, nil)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
 	}
 	txpool := newTestTxPool()
+	votepool := newTestVotePool()
 
 	handler, _ := newHandler(&handlerConfig{
 		Database:   db,
 		Chain:      chain,
 		TxPool:     txpool,
 		Merger:     consensus.NewMerger(rawdb.NewMemoryDatabase()),
+		VotePool:   votepool,
 		Network:    1,
 		Sync:       downloader.SnapSync,
 		BloomCache: 1,
 	})
-	handler.Start(1000)
+	handler.Start(1000, 3)
 
 	return &testHandler{
-		db:      db,
-		chain:   chain,
-		txpool:  txpool,
-		handler: handler,
+		db:       db,
+		chain:    chain,
+		txpool:   txpool,
+		votepool: votepool,
+		handler:  handler,
 	}
 }
 
@@ -188,4 +212,46 @@ func newTestHandlerWithBlocks(blocks int) *testHandler {
 func (b *testHandler) close() {
 	b.handler.Stop()
 	b.chain.Stop()
+}
+
+// newTestVotePool creates a mock vote pool.
+type testVotePool struct {
+	pool map[common.Hash]*types.VoteEnvelope // Hash map of collected votes
+
+	voteFeed event.Feed   // Notification feed to allow waiting for inclusion
+	lock     sync.RWMutex // Protects the vote pool
+}
+
+// newTestVotePool creates a mock vote pool.
+func newTestVotePool() *testVotePool {
+	return &testVotePool{
+		pool: make(map[common.Hash]*types.VoteEnvelope),
+	}
+}
+
+func (t *testVotePool) PutVote(vote *types.VoteEnvelope) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	t.pool[vote.Hash()] = vote
+	t.voteFeed.Send(core.NewVoteEvent{Vote: vote})
+}
+
+func (t *testVotePool) FetchVoteByBlockHash(blockHash common.Hash) []*types.VoteEnvelope {
+	panic("implement me")
+}
+
+func (t *testVotePool) GetVotes() []*types.VoteEnvelope {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
+
+	votes := make([]*types.VoteEnvelope, 0, len(t.pool))
+	for _, vote := range t.pool {
+		votes = append(votes, vote)
+	}
+	return votes
+}
+
+func (t *testVotePool) SubscribeNewVoteEvent(ch chan<- core.NewVoteEvent) event.Subscription {
+	return t.voteFeed.Subscribe(ch)
 }

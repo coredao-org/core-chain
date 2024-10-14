@@ -36,7 +36,7 @@ import (
 // Snapshot is the state of the validatorSet at a given point.
 type Snapshot struct {
 	config   *params.SatoshiConfig // Consensus engine parameters to fine tune behavior
-	ethAPI   *ethapi.PublicBlockChainAPI
+	ethAPI   *ethapi.BlockChainAPI
 	sigCache *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
 
 	Number           uint64                      `json:"number"`             // Block number where the snapshot was created
@@ -55,7 +55,7 @@ func newSnapshot(
 	number uint64,
 	hash common.Hash,
 	validators []common.Address,
-	ethAPI *ethapi.PublicBlockChainAPI,
+	ethAPI *ethapi.BlockChainAPI,
 ) *Snapshot {
 	snap := &Snapshot{
 		config:           config,
@@ -81,7 +81,7 @@ func (s validatorsAscending) Less(i, j int) bool { return bytes.Compare(s[i][:],
 func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // loadSnapshot loads an existing snapshot from the database.
-func loadSnapshot(config *params.SatoshiConfig, sigCache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
+func loadSnapshot(config *params.SatoshiConfig, sigCache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.BlockChainAPI) (*Snapshot, error) {
 	blob, err := db.Get(append([]byte("satoshi-"), hash[:]...))
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			return nil, err
 		}
 		if _, ok := snap.Validators[validator]; !ok {
-			return nil, errUnauthorizedValidator
+			return nil, errUnauthorizedValidator(validator.String())
 		}
 		for _, recent := range snap.Recents {
 			if recent == validator {

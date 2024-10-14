@@ -36,18 +36,18 @@ import (
 	"crypto/hmac"
 	"crypto/subtle"
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"hash"
 	"io"
 	"math/big"
 )
 
 var (
-	ErrImport                     = fmt.Errorf("ecies: failed to import key")
-	ErrInvalidCurve               = fmt.Errorf("ecies: invalid elliptic curve")
-	ErrInvalidPublicKey           = fmt.Errorf("ecies: invalid public key")
-	ErrSharedKeyIsPointAtInfinity = fmt.Errorf("ecies: shared key is point at infinity")
-	ErrSharedKeyTooBig            = fmt.Errorf("ecies: shared key params are too big")
+	ErrImport                     = errors.New("ecies: failed to import key")
+	ErrInvalidCurve               = errors.New("ecies: invalid elliptic curve")
+	ErrInvalidPublicKey           = errors.New("ecies: invalid public key")
+	ErrSharedKeyIsPointAtInfinity = errors.New("ecies: shared key is point at infinity")
+	ErrSharedKeyTooBig            = errors.New("ecies: shared key params are too big")
 )
 
 // PublicKey is a representation of an elliptic curve public key.
@@ -95,7 +95,7 @@ func ImportECDSA(prv *ecdsa.PrivateKey) *PrivateKey {
 // Generate an elliptic curve public / private keypair. If params is nil,
 // the recommended default parameters for the key will be chosen.
 func GenerateKey(rand io.Reader, curve elliptic.Curve, params *ECIESParams) (prv *PrivateKey, err error) {
-	pb, x, y, err := elliptic.GenerateKey(curve, rand)
+	pb, x, y, err := elliptic.GenerateKey(curve, rand) //nolint:all //TODO
 	if err != nil {
 		return
 	}
@@ -138,8 +138,8 @@ func (prv *PrivateKey) GenerateShared(pub *PublicKey, skLen, macLen int) (sk []b
 }
 
 var (
-	ErrSharedTooLong  = fmt.Errorf("ecies: shared secret is too long")
-	ErrInvalidMessage = fmt.Errorf("ecies: invalid message")
+	ErrSharedTooLong  = errors.New("ecies: shared secret is too long")
+	ErrInvalidMessage = errors.New("ecies: invalid message")
 )
 
 // NIST SP 800-56 Concatenation Key Derivation Function (see section 5.8.1).
@@ -255,7 +255,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, m, s1, s2 []byte) (ct []byte, err e
 
 	d := messageTag(params.Hash, Km, em, s2)
 
-	Rb := elliptic.Marshal(pub.Curve, R.PublicKey.X, R.PublicKey.Y)
+	Rb := elliptic.Marshal(pub.Curve, R.PublicKey.X, R.PublicKey.Y) //nolint:all //TODO
 	ct = make([]byte, len(Rb)+len(em)+len(d))
 	copy(ct, Rb)
 	copy(ct[len(Rb):], em)
@@ -297,7 +297,7 @@ func (prv *PrivateKey) Decrypt(c, s1, s2 []byte) (m []byte, err error) {
 
 	R := new(PublicKey)
 	R.Curve = prv.PublicKey.Curve
-	R.X, R.Y = elliptic.Unmarshal(R.Curve, c[:rLen])
+	R.X, R.Y = elliptic.Unmarshal(R.Curve, c[:rLen]) //nolint:all //TODO
 	if R.X == nil {
 		return nil, ErrInvalidPublicKey
 	}

@@ -1,4 +1,4 @@
-// Copyright 2015 The go-ethereum Authors
+// Copyright 2020 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -136,7 +136,7 @@ func (t *rlpxTransport) doProtoHandshake(our *protoHandshake) (their *protoHands
 	// Writing our handshake happens concurrently, we prefer
 	// returning the handshake read error. If the remote side
 	// disconnects us early with a valid reason, we should return it
-	// as the error so it can be tracked elsewhere.
+	// as the error, so it can be tracked elsewhere.
 	werr := make(chan error, 1)
 	gopool.Submit(func() { werr <- Send(t, handshakeMsg, our) })
 	if their, err = readProtocolHandshake(t); err != nil {

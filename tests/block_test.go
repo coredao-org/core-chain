@@ -18,6 +18,8 @@ package tests
 
 import (
 	"testing"
+
+	"github.com/ethereum/go-ethereum/core/rawdb"
 )
 
 func TestBlockchain(t *testing.T) {
@@ -28,7 +30,7 @@ func TestBlockchain(t *testing.T) {
 	// For speedier CI-runs, the line below can be uncommented, so those are skipped.
 	// For now, in hardfork-times (Berlin), we run the tests both as StateTests and
 	// as blockchain tests, since the latter also covers things like receipt root
-	bt.skipLoad(`^GeneralStateTests/`)
+	// bt.skipLoad(`^GeneralStateTests/`)
 
 	// Skip random failures due to selfish mining test
 	bt.skipLoad(`.*bcForgedTest/bcForkUncle\.json`)
@@ -42,16 +44,24 @@ func TestBlockchain(t *testing.T) {
 	bt.slow(`.*/bcWalletTest/`)
 
 	// Very slow test
+	bt.skipLoad(`^GeneralStateTests/VMTests/vmPerformance/.*`)
 	bt.skipLoad(`.*/stTimeConsuming/.*`)
 	// test takes a lot for time and goes easily OOM because of sha3 calculation on a huge range,
 	// using 4.6 TGas
 	bt.skipLoad(`.*randomStatetest94.json.*`)
+
 	bt.walk(t, blockTestDir, func(t *testing.T, name string, test *BlockTest) {
-		if err := bt.checkFailure(t, test.Run(false)); err != nil {
-			t.Errorf("test without snapshotter failed: %v", err)
+		if err := bt.checkFailure(t, test.Run(false, rawdb.HashScheme, nil)); err != nil {
+			t.Errorf("test in hash mode without snapshotter failed: %v", err)
 		}
-		if err := bt.checkFailure(t, test.Run(true)); err != nil {
-			t.Errorf("test with snapshotter failed: %v", err)
+		if err := bt.checkFailure(t, test.Run(true, rawdb.HashScheme, nil)); err != nil {
+			t.Errorf("test in hash mode with snapshotter failed: %v", err)
+		}
+		if err := bt.checkFailure(t, test.Run(false, rawdb.PathScheme, nil)); err != nil {
+			t.Errorf("test in path mode without snapshotter failed: %v", err)
+		}
+		if err := bt.checkFailure(t, test.Run(true, rawdb.PathScheme, nil)); err != nil {
+			t.Errorf("test in path mode with snapshotter failed: %v", err)
 		}
 	})
 	// There is also a LegacyTests folder, containing blockchain tests generated

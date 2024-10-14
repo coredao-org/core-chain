@@ -40,6 +40,7 @@ const (
 
 	Keccak256Gas     uint64 = 30 // Once per KECCAK256 operation.
 	Keccak256WordGas uint64 = 6  // Once per word of the KECCAK256 operation's data.
+	InitCodeWordGas  uint64 = 2  // Once per word of the init code when creating a contract.
 
 	SstoreSetGas    uint64 = 20000 // Once per SSTORE operation.
 	SstoreResetGas  uint64 = 5000  // Once per SSTORE operation if the zeroness changes from zero.
@@ -121,11 +122,12 @@ const (
 	// Introduced in Tangerine Whistle (Eip 150)
 	CreateBySelfdestructGas uint64 = 25000
 
-	BaseFeeChangeDenominator = 8          // Bounds the amount the base fee can change between blocks.
-	ElasticityMultiplier     = 2          // Bounds the maximum gas limit an EIP-1559 block may have.
-	InitialBaseFee           = 1000000000 // Initial base fee for EIP-1559 blocks.
+	DefaultBaseFeeChangeDenominator = 8 // Bounds the amount the base fee can change between blocks.
+	DefaultElasticityMultiplier     = 2 // Bounds the maximum gas limit an EIP-1559 block may have.
+	InitialBaseFee                  = 0 // Initial base fee for EIP-1559 blocks.
 
-	MaxCodeSize = 24576 // Maximum bytecode to permit for a contract
+	MaxCodeSize     = 24576           // Maximum bytecode to permit for a contract
+	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
 
 	// Precompiled contract gas prices
 
@@ -133,13 +135,15 @@ const (
 	BitcoinHeaderValidateGas   uint64 = 20000 // Gas for validate bitcoin consensus state
 	IAVLMerkleProofValidateGas uint64 = 100   // Gas for validate merkle proof
 
-	EcrecoverGas        uint64 = 3000 // Elliptic curve sender recovery gas price
-	Sha256BaseGas       uint64 = 60   // Base price for a SHA256 operation
-	Sha256PerWordGas    uint64 = 12   // Per-word price for a SHA256 operation
-	Ripemd160BaseGas    uint64 = 600  // Base price for a RIPEMD160 operation
-	Ripemd160PerWordGas uint64 = 120  // Per-word price for a RIPEMD160 operation
-	IdentityBaseGas     uint64 = 15   // Base price for a data copy operation
-	IdentityPerWordGas  uint64 = 3    // Per-work price for a data copy operation
+	EcrecoverGas                uint64 = 3000 // Elliptic curve sender recovery gas price
+	Sha256BaseGas               uint64 = 60   // Base price for a SHA256 operation
+	Sha256PerWordGas            uint64 = 12   // Per-word price for a SHA256 operation
+	Ripemd160BaseGas            uint64 = 600  // Base price for a RIPEMD160 operation
+	Ripemd160PerWordGas         uint64 = 120  // Per-word price for a RIPEMD160 operation
+	IdentityBaseGas             uint64 = 15   // Base price for a data copy operation
+	IdentityPerWordGas          uint64 = 3    // Per-work price for a data copy operation
+	BlsSignatureVerifyBaseGas   uint64 = 1000 // base price for a BLS signature verify operation
+	BlsSignatureVerifyPerKeyGas uint64 = 3500 // Per-key price for a BLS signature verify operation
 
 	Bn256AddGasByzantium             uint64 = 500    // Byzantium gas needed for an elliptic curve addition
 	Bn256AddGasIstanbul              uint64 = 150    // Gas needed for an elliptic curve addition
@@ -163,6 +167,19 @@ const (
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529
 	RefundQuotient        uint64 = 2
 	RefundQuotientEIP3529 uint64 = 5
+
+	BlobTxBytesPerFieldElement         = 32      // Size in bytes of a field element
+	BlobTxFieldElementsPerBlob         = 4096    // Number of field elements stored in a single data blob
+	BlobTxHashVersion                  = 0x01    // Version byte of the commitment hash
+	BlobTxMaxBlobGasPerBlock           = 1 << 19 // Maximum consumable blob gas for data blobs per block
+	BlobTxTargetBlobGasPerBlock        = 1 << 18 // Target consumable blob gas for data blobs per block (for 1559-like pricing)
+	BlobTxBlobGasPerBlob               = 1 << 17 // Gas consumption of a single data blob (== blob byte size)
+	BlobTxMinBlobGasprice              = 1       // Minimum gas price for data blobs
+	BlobTxBlobGaspriceUpdateFraction   = 2225652 // Controls the maximum rate of change for blob gas price
+	BlobTxPointEvaluationPrecompileGas = 50000   // Gas price for the point evaluation precompile.
+
+	// used for test
+	InitialBaseFeeForEthMainnet = int64(1000000000) // Initial base fee for EIP-1559 blocks on Eth hMainnet
 )
 
 // Gas discount table for BLS12-381 G1 and G2 multi exponentiation operations

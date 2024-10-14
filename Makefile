@@ -4,7 +4,6 @@
 
 .PHONY: geth android ios evm all test truffle-test clean
 .PHONY: docker
-.PHONY: geth-linux-arm geth-linux-arm64 geth-linux-arm5 geth-linux-arm6 geth-linux-arm7
 
 GOBIN = ./build/bin
 GO ?= latest
@@ -17,37 +16,8 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
-ldflags = -X main.gitCommit=$(GIT_COMMIT) \
-          -X main.gitDate=$(GIT_COMMIT_DATE)
-
-geth-linux-arm: geth-linux-arm5 geth-linux-arm6 geth-linux-arm7 geth-linux-arm64
-
-geth-linux-arm5:
-	env GO111MODULE=on GOARCH=arm GOARM=5 GOOS=linux go build -ldflags="$(ldflags)" -o build/bin/geth-linux-arm-5 ./cmd/geth
-
-geth-linux-arm6:
-	env GO111MODULE=on GOARCH=arm GOARM=6 GOOS=linux go build -ldflags="$(ldflags)" -o build/bin/geth-linux-arm-6 ./cmd/geth
-
-geth-linux-arm7:
-	env GO111MODULE=on GOARCH=arm GOARM=7 GOOS=linux go build -ldflags="$(ldflags)" -o build/bin/geth-linux-arm-7 ./cmd/geth
-
-geth-linux-arm64:
-	env GO111MODULE=on GOARCH=arm64 GOOS=linux go build -ldflags="$(ldflags)" -o build/bin/geth-linux-arm64 ./cmd/geth
-
 all:
 	$(GORUN) build/ci.go install
-
-android:
-	$(GORUN) build/ci.go aar --local
-	@echo "Done building."
-	@echo "Import \"$(GOBIN)/geth.aar\" to use the library."
-	@echo "Import \"$(GOBIN)/geth-sources.jar\" to add javadocs"
-	@echo "For more info see https://stackoverflow.com/questions/20994336/android-studio-how-to-attach-javadoc"
-
-ios:
-	$(GORUN) build/ci.go xcode --local
-	@echo "Done building."
-	@echo "Import \"$(GOBIN)/Geth.framework\" to use the library."
 
 test: all
 	$(GORUN) build/ci.go test -timeout 1h
@@ -64,7 +34,6 @@ clean:
 
 devtools:
 	env GOBIN= go install golang.org/x/tools/cmd/stringer@latest
-	env GOBIN= go install github.com/kevinburke/go-bindata@latest
 	env GOBIN= go install github.com/fjl/gencodec@latest
 	env GOBIN= go install github.com/golang/protobuf/protoc-gen-go@latest
 	env GOBIN= go install ./cmd/abigen
