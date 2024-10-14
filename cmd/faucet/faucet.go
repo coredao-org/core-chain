@@ -75,7 +75,7 @@ var (
 )
 
 var (
-	ether        = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	ether = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 )
 
 //go:embed faucet.html
@@ -99,10 +99,10 @@ func main() {
 
 	website := new(bytes.Buffer)
 	err := template.Must(template.New("").Parse(websiteTmpl)).Execute(website, map[string]interface{}{
-		"Network":    *netnameFlag,
-		"Amounts":    amounts,
-		"Recaptcha":  *captchaToken,
-		"NoAuth":     *noauthFlag,
+		"Network":   *netnameFlag,
+		"Amounts":   amounts,
+		"Recaptcha": *captchaToken,
+		"NoAuth":    *noauthFlag,
 	})
 	if err != nil {
 		log.Crit("Failed to render the faucet template", "err", err)
@@ -185,13 +185,13 @@ func newFaucet(genesis *core.Genesis, url string, ks *keystore.KeyStore, index [
 	}
 
 	return &faucet{
-		config:     genesis.Config,
-		client:     client,
-		index:      index,
-		keystore:   ks,
-		account:    ks.Accounts()[0],
-		timeouts:   make(map[string]time.Time),
-		update:     make(chan struct{}, 1),
+		config:   genesis.Config,
+		client:   client,
+		index:    index,
+		keystore: ks,
+		account:  ks.Accounts()[0],
+		timeouts: make(map[string]time.Time),
+		update:   make(chan struct{}, 1),
 	}, nil
 }
 

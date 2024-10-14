@@ -141,7 +141,7 @@ var (
 	BloomTrieTablePrefix = []byte("blt-")
 	BloomTrieIndexPrefix = []byte("bltIndex-")
 
-	CliqueSnapshotPrefix = []byte("clique-")
+	CliqueSnapshotPrefix  = []byte("clique-")
 	SatoshiSnapshotPrefix = []byte("satoshi-")
 
 	preimageCounter    = metrics.NewRegisteredCounter("db/preimage/total", nil)
