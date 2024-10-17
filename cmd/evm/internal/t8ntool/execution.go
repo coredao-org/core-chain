@@ -124,7 +124,7 @@ type rejectedTx struct {
 // Apply applies a set of transactions to a pre-state
 func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 	txs types.Transactions, miningReward int64,
-	getTracerFn func(txIndex int, txHash common.Hash) (*tracers.Tracer, io.WriteCloser, error)) (*state.StateDB, *ExecutionResult, []byte, error) {
+	getTracerFn func(txIndex int, txHash common.Hash, chainConfig *params.ChainConfig) (*tracers.Tracer, io.WriteCloser, error)) (*state.StateDB, *ExecutionResult, []byte, error) {
 	// Capture errors for BLOCKHASH operation, if we haven't been supplied the
 	// required blockhashes
 	var hashError error
@@ -204,7 +204,7 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 			rejectedTxs = append(rejectedTxs, &rejectedTx{i, err.Error()})
 			continue
 		}
-		tracer, traceOutput, err := getTracerFn(txIndex, tx.Hash())
+		tracer, traceOutput, err := getTracerFn(txIndex, tx.Hash(), chainConfig)
 		if err != nil {
 			return nil, nil, err
 		}

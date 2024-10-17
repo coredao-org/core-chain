@@ -88,7 +88,9 @@ type input struct {
 
 func Transition(ctx *cli.Context) error {
 
-	var getTracer = func(txIndex int, txHash common.Hash) (*tracers.Tracer, io.WriteCloser, error) { return nil, nil, nil }
+	var getTracer = func(txIndex int, txHash common.Hash, chainConfig *params.ChainConfig) (*tracers.Tracer, io.WriteCloser, error) {
+		return nil, nil, nil
+	}
 
 	baseDir, err := createBasedir(ctx)
 	if err != nil {
@@ -109,7 +111,7 @@ func Transition(ctx *cli.Context) error {
 				prevFile.Close()
 			}
 		}()
-		getTracer = func(txIndex int, txHash common.Hash) (*tracers.Tracer, io.WriteCloser, error) {
+		getTracer = func(txIndex int, txHash common.Hash, _ *params.ChainConfig) (*tracers.Tracer, io.WriteCloser, error) {
 			if prevFile != nil {
 				prevFile.Close()
 			}
