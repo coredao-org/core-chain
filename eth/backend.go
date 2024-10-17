@@ -288,7 +288,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		bcOps = append(bcOps, core.EnablePersistDiff(config.DiffBlock))
 	}
 	if config.VMTrace != "" {
-		var traceConfig json.RawMessage
+		traceConfig := json.RawMessage("{}")
 		if config.VMTraceJsonConfig != "" {
 			traceConfig = json.RawMessage(config.VMTraceJsonConfig)
 		}
