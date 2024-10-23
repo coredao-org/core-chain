@@ -100,11 +100,10 @@ var (
 	blockReorgAddMeter  = metrics.NewRegisteredMeter("chain/reorg/add", nil)
 	blockReorgDropMeter = metrics.NewRegisteredMeter("chain/reorg/drop", nil)
 
-	errStateRootVerificationFailed = errors.New("state root verification failed")
-	errInsertionInterrupted        = errors.New("insertion is interrupted")
-	errChainStopped                = errors.New("blockchain is stopped")
-	errInvalidOldChain             = errors.New("invalid old chain")
-	errInvalidNewChain             = errors.New("invalid new chain")
+	errInsertionInterrupted = errors.New("insertion is interrupted")
+	errChainStopped         = errors.New("blockchain is stopped")
+	errInvalidOldChain      = errors.New("invalid old chain")
+	errInvalidNewChain      = errors.New("invalid new chain")
 )
 
 const (
@@ -114,7 +113,6 @@ const (
 	receiptsCacheLimit  = 10000
 	sidecarsCacheLimit  = 1024
 	txLookupCacheLimit  = 1024
-	maxBadBlockLimit    = 16
 	maxFutureBlocks     = 256
 	maxTimeFutureBlocks = 30
 	TriesInMemory       = 128
@@ -123,8 +121,6 @@ const (
 
 	diffLayerFreezerRecheckInterval = 3 * time.Second
 	maxDiffForkDist                 = 11 // Maximum allowed backward distance from the chain head
-
-	rewindBadBlockInterval = 1 * time.Second
 
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	//
@@ -290,8 +286,6 @@ type BlockChain struct {
 
 	// future blocks are blocks added for later processing
 	futureBlocks *lru.Cache[common.Hash, *types.Block]
-	// Cache for the blocks that failed to pass MPT root verification
-	badBlockCache *lru.Cache[common.Hash, time.Time]
 
 	// trusted diff layers
 	diffLayerCache             *exlru.Cache                          // Cache for the diffLayers
@@ -312,7 +306,6 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
-	pipeCommit bool
 
 	// monitor
 	doubleSignMonitor *monitor.DoubleSignMonitor
@@ -374,7 +367,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		blockCache:         lru.NewCache[common.Hash, *types.Block](blockCacheLimit),
 		txLookupCache:      lru.NewCache[common.Hash, txLookup](txLookupCacheLimit),
 		futureBlocks:       lru.NewCache[common.Hash, *types.Block](maxFutureBlocks),
-		badBlockCache:      lru.NewCache[common.Hash, time.Time](maxBadBlockLimit),
 		diffLayerCache:     diffLayerCache,
 		diffLayerChanCache: diffLayerChanCache,
 		engine:             engine,
@@ -553,11 +545,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	if bc.db.DiffStore() != nil {
 		bc.wg.Add(1)
 		go bc.trustedDiffLayerLoop()
-	}
-	if bc.pipeCommit {
-		// check current block and rewind invalid one
-		bc.wg.Add(1)
-		go bc.rewindInvalidHeaderBlockLoop()
 	}
 
 	if bc.doubleSignMonitor != nil {
@@ -817,26 +804,6 @@ func (bc *BlockChain) SetHeadWithTimestamp(timestamp uint64) error {
 	}
 	bc.chainHeadFeed.Send(ChainHeadEvent{Block: block})
 	return nil
-}
-
-func (bc *BlockChain) tryRewindBadBlocks() {
-	if !bc.chainmu.TryLock() {
-		return
-	}
-	defer bc.chainmu.Unlock()
-	block := bc.CurrentBlock()
-	snaps := bc.snaps
-	// Verified and Result is false
-	if snaps != nil && snaps.Snapshot(block.Root) != nil &&
-		snaps.Snapshot(block.Root).Verified() && !snaps.Snapshot(block.Root).WaitAndGetVerifyRes() {
-		// Rewind by one block
-		log.Warn("current block verified failed, rewind to its parent", "height", block.Number.Uint64(), "hash", block.Hash())
-		bc.futureBlocks.Remove(block.Hash())
-		bc.badBlockCache.Add(block.Hash(), time.Now())
-		bc.diffLayerCache.Remove(block.Hash())
-		bc.reportBlock(bc.GetBlockByHash(block.Hash()), nil, errStateRootVerificationFailed)
-		bc.setHeadBeyondRoot(block.Number.Uint64()-1, 0, common.Hash{}, false)
-	}
 }
 
 // rewindHashHead implements the logic of rewindHead in the context of hash scheme.
@@ -1889,7 +1856,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		return nil
 	}
 	// Commit all cached state changes into underlying memory database.
-	_, diffLayer, err := state.Commit(block.NumberU64(), bc.tryRewindBadBlocks, tryCommitTrieDB)
+	_, diffLayer, err := state.Commit(block.NumberU64(), tryCommitTrieDB)
 	if err != nil {
 		return err
 	}
@@ -2257,9 +2224,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		}
 
 		// Process block using the parent state as reference point
-		if bc.pipeCommit {
-			statedb.EnablePipeCommit()
-		}
 		statedb.SetExpectedStateRoot(block.Root())
 		pstart := time.Now()
 		statedb, receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
@@ -2896,22 +2860,6 @@ func (bc *BlockChain) updateFutureBlocks() {
 	}
 }
 
-func (bc *BlockChain) rewindInvalidHeaderBlockLoop() {
-	recheck := time.NewTicker(rewindBadBlockInterval)
-	defer func() {
-		recheck.Stop()
-		bc.wg.Done()
-	}()
-	for {
-		select {
-		case <-recheck.C:
-			bc.tryRewindBadBlocks()
-		case <-bc.quit:
-			return
-		}
-	}
-}
-
 func (bc *BlockChain) trustedDiffLayerLoop() {
 	recheck := time.NewTicker(diffLayerFreezerRecheckInterval)
 	defer func() {
@@ -3049,17 +2997,6 @@ func (bc *BlockChain) skipBlock(err error, it *insertIterator) bool {
 	return false
 }
 
-func (bc *BlockChain) isCachedBadBlock(block *types.Block) bool {
-	if timeAt, exist := bc.badBlockCache.Get(block.Hash()); exist {
-		if time.Since(timeAt) >= badBlockCacheExpire {
-			bc.badBlockCache.Remove(block.Hash())
-			return false
-		}
-		return true
-	}
-	return false
-}
-
 // reportBlock logs a bad block error.
 // bad block need not save receipts & sidecars.
 func (bc *BlockChain) reportBlock(block *types.Block, receipts types.Receipts, err error) {
@@ -3120,11 +3057,6 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header) (int, error) {
 }
 
 func (bc *BlockChain) TriesInMemory() uint64 { return bc.triesInMemory }
-
-func EnablePipelineCommit(bc *BlockChain) (*BlockChain, error) {
-	bc.pipeCommit = false
-	return bc, nil
-}
 
 func EnablePersistDiff(limit uint64) BlockChainOption {
 	return func(chain *BlockChain) (*BlockChain, error) {
