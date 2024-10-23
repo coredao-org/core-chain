@@ -93,7 +93,6 @@ type StateDB struct {
 	stateRoot    common.Hash // The calculation result of IntermediateRoot
 
 	fullProcessed bool
-	pipeCommit    bool
 
 	// This map holds 'live' objects, which will get modified while
 	// processing a state transition.
@@ -199,8 +198,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 	}
 
 	tr, err := db.OpenTrie(root)
-	// return error when 1. failed to open trie and 2. the snap is nil or the snap is not nil and done verification
-	if err != nil && (sdb.snap == nil || sdb.snap.Verified()) {
+	if err != nil {
 		return nil, err
 	}
 	_, sdb.noTrie = tr.(*trie.EmptyTrie)
@@ -304,20 +302,6 @@ func (s *StateDB) SetExpectedStateRoot(root common.Hash) {
 	s.expectedRoot = root
 }
 
-// Enable the pipeline commit function of statedb
-func (s *StateDB) EnablePipeCommit() {
-	if s.snap != nil && s.snaps.Layers() > 1 {
-		// after big merge, disable pipeCommit for now,
-		// because `s.db.TrieDB().Update` should be called after `s.trie.Commit(true)`
-		s.pipeCommit = false
-	}
-}
-
-// IsPipeCommit checks whether pipecommit is enabled on the statedb or not
-func (s *StateDB) IsPipeCommit() bool {
-	return s.pipeCommit
-}
-
 // Mark that the block is full processed
 func (s *StateDB) MarkFullProcessed() {
 	s.fullProcessed = true
@@ -337,22 +321,6 @@ func (s *StateDB) NoTrie() bool {
 // Error returns the memorized database failure occurred earlier.
 func (s *StateDB) Error() error {
 	return s.dbErr
-}
-
-// Not thread safe
-func (s *StateDB) Trie() (Trie, error) {
-	if s.trie == nil {
-		err := s.WaitPipeVerification()
-		if err != nil {
-			return nil, err
-		}
-		tr, err := s.db.OpenTrie(s.originalRoot)
-		if err != nil {
-			return nil, err
-		}
-		s.trie = tr
-	}
-	return s.trie, nil
 }
 
 func (s *StateDB) AddLog(log *types.Log) {
@@ -881,17 +849,6 @@ func (s *StateDB) GetRefund() uint64 {
 	return s.refund
 }
 
-// WaitPipeVerification waits until the snapshot been verified
-func (s *StateDB) WaitPipeVerification() error {
-	// Need to wait for the parent trie to commit
-	if s.snap != nil {
-		if valid := s.snap.WaitAndGetVerifyRes(); !valid {
-			return errors.New("verification on parent snap failed")
-		}
-	}
-	return nil
-}
-
 // Finalise finalises the state by removing the destructed objects and clears
 // the journal as well as the refunds. Finalise, however, will not push any updates
 // into the tries just yet. Only IntermediateRoot or Commit will do that.
@@ -929,14 +886,8 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	}
 	prefetcher := s.prefetcher
 	if prefetcher != nil && len(addressesToPrefetch) > 0 {
-		if s.snap.Verified() {
-			if err := prefetcher.prefetch(common.Hash{}, s.originalRoot, common.Address{}, addressesToPrefetch); err != nil {
-				log.Error("Failed to prefetch addresses", "addresses", len(addressesToPrefetch), "err", err)
-			}
-		} else if prefetcher.rootParent != (common.Hash{}) {
-			if err := prefetcher.prefetch(common.Hash{}, prefetcher.rootParent, common.Address{}, addressesToPrefetch); err != nil {
-				log.Error("Failed to prefetch addresses", "addresses", len(addressesToPrefetch), "err", err)
-			}
+		if err := prefetcher.prefetch(common.Hash{}, s.originalRoot, common.Address{}, addressesToPrefetch); err != nil {
+			log.Error("Failed to prefetch addresses", "addresses", len(addressesToPrefetch), "err", err)
 		}
 	}
 	// Invalidate journal because reverting across transactions is not allowed.
