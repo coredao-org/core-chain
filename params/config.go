@@ -119,10 +119,12 @@ var (
 		ZeusBlock:           big.NewInt(8_020_000),
 		HeraBlock:           big.NewInt(12_195_500),
 		PoseidonBlock:       big.NewInt(13_232_049),
-		BerlinBlock:         nil,
-		LondonBlock:         nil,
-		HertzBlock:          nil,
-		ShanghaiTime:        nil,
+		BerlinBlock:         big.NewInt(19_537_200),
+		LondonBlock:         big.NewInt(19_537_200),
+		HertzBlock:          big.NewInt(19_537_200),
+		ShanghaiTime:        newUint64(1731999600), // 2024-11-19 7:00:00 AM UTC
+		KeplerTime:          newUint64(1731999600),
+		DemeterTime:         newUint64(1731999600),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,

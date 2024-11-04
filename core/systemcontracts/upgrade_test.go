@@ -79,12 +79,12 @@ func checkUpgradeConfig(url string, upgrade *Upgrade) error {
 }
 
 func TestUpgrade(t *testing.T) {
-	err := checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/branch_testnet/genesis.json", poseidonUpgrade[buffaloNet])
+	err := checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/branch_testnet/genesis.json", demeterUpgrade[buffaloNet])
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/master/genesis.json", poseidonUpgrade[mainNet])
+	err = checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/master/genesis.json", demeterUpgrade[mainNet])
 	if err != nil {
 		t.Error(err)
 	}
