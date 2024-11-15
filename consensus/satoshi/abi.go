@@ -1591,3 +1591,53 @@ const candidateHubABI = `
 		}
 	]
 `
+
+const networkConfigABI = `
+[
+	{
+		"inputs": [],
+		"name": "getConfigParams",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "meanGasPrice",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "refreshIntervalInBlocks",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256[]",
+				"name": "gasPriceSteps",
+				"type": "uint256[]"
+			},
+			{
+				"internalType": "uint256[]",
+				"name": "gasDiscountedPrices",
+				"type": "uint256[]"
+			},
+			{
+				"internalType": "address[]",
+				"name": "destinationAddresses",
+				"type": "address[]"
+			},
+			{
+				"internalType": "uint256[]",
+				"name": "destinationGasFactors",
+				"type": "uint256[]"
+			}
+		],
+		"stateMutability": "pure",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "init",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
+]
+`

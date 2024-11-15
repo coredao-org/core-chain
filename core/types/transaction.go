@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"container/heap"
 	"errors"
+	"github.com/ethereum/go-ethereum/eth/gasprice/lfm"
 	"io"
 	"math/big"
 	"sync/atomic"
@@ -28,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/gasprice/lfm"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 

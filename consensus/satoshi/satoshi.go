@@ -58,6 +58,7 @@ const (
 	wiggleTime           = uint64(1) // second, Random delay (per signer) to allow concurrent signers
 	initialBackOffTime   = uint64(1) // second
 	processBackOffTime   = uint64(1) // second
+	networkConfigGetterFunction = "getConfigParams()"
 )
 
 var (
@@ -77,7 +78,10 @@ var (
 		common.HexToAddress(systemcontracts.PledgeCandidateContract): true,
 		common.HexToAddress(systemcontracts.BurnContract):            true,
 		common.HexToAddress(systemcontracts.FoundationContract):      true,
+		common.HexToAddress(systemcontracts.NetworkConfigContract):   true,
 	}
+
+	networkConfigContractAddress = common.HexToAddress(systemcontracts.NetworkConfigContract)
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -210,6 +214,7 @@ type Satoshi struct {
 	validatorSetABI abi.ABI
 	slashABI        abi.ABI
 	candidateHubABI abi.ABI
+	networkConfigABI abi.ABI
 
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
@@ -256,6 +261,10 @@ func New(
 	if err != nil {
 		panic(err)
 	}
+	cfgABI, err := abi.JSON(strings.NewReader(networkConfigABI))
+	if err != nil {
+		panic(err)
+	}
 	c := &Satoshi{
 		chainConfig:     chainConfig,
 		config:          satoshiConfig,
@@ -267,6 +276,7 @@ func New(
 		validatorSetABI: vABI,
 		slashABI:        sABI,
 		candidateHubABI: cABI,
+		networkConfigABI: cfgABI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
 	return c
@@ -677,6 +687,10 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error) {
 	cx := chainContext{Chain: chain, satoshi: p}
+
+	// periodically load network-config values into node's cache
+	p.refreshNetworkConfigCacheIfNeeded(header.Number.Uint64())
+
 	// If the block is the last one in a round, execute turn round to update the validator set.
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
@@ -1178,6 +1192,7 @@ func (p *Satoshi) initContract(state *state.StateDB, header *types.Header, chain
 		systemcontracts.GovHubContract,
 		systemcontracts.PledgeCandidateContract,
 		systemcontracts.BurnContract,
+		systemcontracts.NetworkConfigContract,
 	}
 
 	// get packed data
