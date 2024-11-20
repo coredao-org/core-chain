@@ -123,10 +123,9 @@ type EVM struct {
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
-func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config) *EVM {
+func NewEVM(blockCtx BlockContext, statedb StateDB, chainConfig *params.ChainConfig, config Config) *EVM {
 	evm := EvmPool.Get().(*EVM)
 	evm.Context = blockCtx
-	evm.TxContext = txCtx
 	evm.StateDB = statedb
 	evm.Config = config
 	evm.chainConfig = chainConfig
@@ -142,6 +141,11 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 	return evm
 }
 
+// SetTracer sets the tracer for following state transition.
+func (evm *EVM) SetTracer(tracer *tracing.Hooks) {
+	evm.Config.Tracer = tracer
+}
+
 // SetPrecompiles sets the precompiled contracts for the EVM.
 // This method is only used through RPC calls.
 // It is not thread-safe.
@@ -149,11 +153,10 @@ func (evm *EVM) SetPrecompiles(precompiles PrecompiledContracts) {
 	evm.precompiles = precompiles
 }
 
-// Reset resets the EVM with a new transaction context.Reset
+// SetTxContext resets the EVM with a new transaction context.
 // This is not threadsafe and should only be done very cautiously.
-func (evm *EVM) Reset(txCtx TxContext, statedb StateDB) {
+func (evm *EVM) SetTxContext(txCtx TxContext) {
 	evm.TxContext = txCtx
-	evm.StateDB = statedb
 }
 
 // Cancel cancels any running EVM operation. This may be called concurrently and

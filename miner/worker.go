@@ -91,6 +91,7 @@ type environment struct {
 	tcount   int            // tx count in cycle
 	gasPool  *core.GasPool  // available gas used to pack transactions
 	coinbase common.Address
+	evm      *vm.EVM
 
 	header   *types.Header
 	txs      []*types.Transaction
@@ -712,6 +713,7 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 		state:    state,
 		coinbase: coinbase,
 		header:   header,
+		evm:      vm.NewEVM(core.NewEVMBlockContext(header, miner.chain, &coinbase), state, miner.chainConfig, vm.Config{}),
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -781,7 +783,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, recei
 		gp   = env.gasPool.Gas()
 	)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, vm.Config{}, receiptProcessors...)
+	receipt, err := core.ApplyTransaction(w.chainConfig, env.evm, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, receiptProcessors...)
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
 		env.gasPool.SetGas(gp)
@@ -1053,9 +1055,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	systemcontracts.UpgradeBuildInSystemContract(w.chainConfig, header.Number, parent.Time, header.Time, env.state)
 
 	if header.ParentBeaconRoot != nil {
-		context := core.NewEVMBlockContext(header, w.chain, nil)
-		vmenv := vm.NewEVM(context, vm.TxContext{}, env.state, w.chainConfig, vm.Config{})
-		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, env.state)
+		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, env.evm, env.state)
 	}
 	return env, nil
 }

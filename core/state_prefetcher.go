@@ -64,7 +64,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 			}
 			gaspool := new(GasPool).AddGas(block.GasLimit())
 			blockContext := NewEVMBlockContext(header, p.bc, nil)
-			evm := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, *cfg)
+			evm := vm.NewEVM(blockContext, statedb, p.config, cfg)
 			// Iterate over and process the individual transactions
 			for {
 				select {
@@ -164,9 +164,9 @@ func (p *statePrefetcher) PrefetchMining(txs TransactionsByPriceAndNonce, header
 // precacheTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment. The goal is not to execute
 // the transaction successfully, rather to warm up touched data slots.
-func precacheTransaction(msg *Message, config *params.ChainConfig, gaspool *GasPool, statedb *state.StateDB, header *types.Header, evm *vm.EVM) error {
+func precacheTransaction(msg *Message, gaspool *GasPool, evm *vm.EVM) error {
 	// Update the evm with the new transaction context.
-	evm.Reset(NewEVMTxContext(msg), statedb)
+	evm.SetTxContext(NewEVMTxContext(msg))
 	// Add addresses to access list if applicable
 	_, err := ApplyMessage(evm, msg, gaspool)
 	if err == nil {

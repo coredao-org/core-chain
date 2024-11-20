@@ -192,11 +192,17 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		chainConfig.DAOForkBlock.Cmp(new(big.Int).SetUint64(pre.Env.Number)) == 0 {
 		misc.ApplyDAOHardFork(statedb)
 	}
+	evm := vm.NewEVM(vmContext, statedb, chainConfig, vmConfig)
 	if beaconRoot := pre.Env.ParentBeaconBlockRoot; beaconRoot != nil {
-		evm := vm.NewEVM(vmContext, vm.TxContext{}, statedb, chainConfig, vmConfig)
 		core.ProcessBeaconBlockRoot(*beaconRoot, evm, statedb)
 	}
-
+	if pre.Env.BlockHashes != nil && chainConfig.IsPrague(new(big.Int).SetUint64(pre.Env.Number), pre.Env.Timestamp) {
+		var (
+			prevNumber = pre.Env.Number - 1
+			prevHash   = pre.Env.BlockHashes[math.HexOrDecimal64(prevNumber)]
+		)
+		core.ProcessParentBlockHash(prevHash, evm, statedb)
+	}
 	for i := 0; txIt.Next(); i++ {
 		tx, err := txIt.Tx()
 		if err != nil {
@@ -230,8 +236,10 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 		if err != nil {
 			return nil, nil, nil, err
 		}
+		// TODO (rjl493456442) it's a bit weird to reset the tracer in the
+		// middle of block execution, please improve it somehow.
 		if tracer != nil {
-			vmConfig.Tracer = tracer.Hooks
+			evm.SetTracer(tracer.Hooks)
 		}
 		statedb.SetTxContext(tx.Hash(), txIndex)
 
@@ -240,12 +248,12 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 			snapshot  = statedb.Snapshot()
 			prevGas   = gaspool.Gas()
 		)
-		evm := vm.NewEVM(vmContext, txContext, statedb, chainConfig, vmConfig)
-
 		if tracer != nil && tracer.OnTxStart != nil {
 			tracer.OnTxStart(evm.GetVMContext(), tx, msg.From)
 		}
 		// (ret []byte, usedGas uint64, failed bool, err error)
+
+		evm.SetTxContext(txContext)
 		msgResult, err := core.ApplyMessage(evm, msg, gaspool)
 		if err != nil {
 			statedb.RevertToSnapshot(snapshot)
