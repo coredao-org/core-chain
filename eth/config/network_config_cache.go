@@ -36,8 +36,9 @@ func DefaultNetworkConfigCache() *NetworkConfigCache {
 	}
 }
 
-func (cache *NetworkConfigCache) UpdateValues(meanGasPrice int, blockNumber uint64, refreshIntervalInBlocks uint64,
-											  gasPriceSteps []uint64, gasDiscountedPrices []uint64, destinationGasFactors map[common.Address]uint64) {
+func (cache *NetworkConfigCache) UpdateValues(meanGasPrice int, refreshIntervalInBlocks uint64,
+											  gasPriceSteps []uint64, gasDiscountedPrices []uint64,
+											  destinationGasFactors map[common.Address]uint64, blockNumber uint64) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	cache.initialized = true
@@ -50,6 +51,7 @@ func (cache *NetworkConfigCache) UpdateValues(meanGasPrice int, blockNumber uint
 
 	log.Debug("@lfm: UpdateValues", "meanGasPrice", cache.meanGasPrice,
 					"lastRefreshBlockNumber", cache.lastRefreshBlockNumber, "refreshIntervalInBlocks", refreshIntervalInBlocks,
+					"gasPriceSteps", cache.gasPriceSteps, "gasDiscountedPrices", cache.gasDiscountedPrices,
 					"destinationGasFactors", joinAddrMap(cache.destinationGasFactorsMillis))
 }
 
@@ -96,14 +98,16 @@ func (cache *NetworkConfigCache) RefreshIntervalInBlocks() uint64 {
 }
 
 func (cache *NetworkConfigCache) DynamicDiscountedGasPrice(networkGasPrice *big.Int) *big.Int {
-	networkGasPrice64 := networkGasPrice.Uint64()
+	currentGasPrice := networkGasPrice.Uint64()
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
-	// iteration more efficient than bsearch for small datasets
-	numSteps := len(cache.gasPriceSteps)
+	// steps/prices both ascending and small (hence no need for bsearch)
+	steps := cache.gasPriceSteps
+	prices := cache.gasDiscountedPrices
+	numSteps := len(steps)
 	for i := 0; i < numSteps; i++ {
-		if networkGasPrice64 <= cache.gasPriceSteps[i] {
-			discounted := cache.gasDiscountedPrices[i];
+		if currentGasPrice <= steps[i] {
+			discounted := prices[i];
 			return new(big.Int).SetUint64(discounted)
 		}
 	}

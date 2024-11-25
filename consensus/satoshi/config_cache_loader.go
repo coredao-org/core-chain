@@ -2,7 +2,6 @@ package satoshi
 
 import (
 	"context"
-	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -19,24 +18,43 @@ func (p *Satoshi) refreshNetworkConfigCacheIfNeeded(currentBlockNumber uint64) {
 	if !timeToRefreshCache(currentBlockNumber, networkConfigCache) {
 		return
 	}
+	meanGasPrice, refreshIntervalInBlocks, gasPriceSteps, gasDiscountedPrices, destinationGasFactors, ok := p.readConfigParamsFromContract()
+	if !ok {
+		return
+	}
+	// and update the node's config cache
+	networkConfigCache.UpdateValues(meanGasPrice, refreshIntervalInBlocks, gasPriceSteps, gasDiscountedPrices, destinationGasFactors, currentBlockNumber)
+}
+
+func (p *Satoshi) readConfigParamsFromContract() (int, uint64, []uint64, []uint64, map[common.Address]uint64, bool) {
+	// get raw results from config contract
 	resultBytes := queryNetworkConfigContract(p.ethAPI, p.networkConfigABI)
 	if resultBytes == nil {
 		log.Warn("@lfm LoadNetworkConfigIfNeeded - failed to read contract")
-		return
+		return configParamsError()
 	}
-	// Unpack the result
+	// unpack and parse results into config values
+	meanGasPrice, refreshIntervalInBlocks, gasPriceSteps, gasDiscountedPrices, destinationGasFactors, ok := p.parseConfigResults(resultBytes)
+	if !ok {
+		log.Warn("@lfm LoadNetworkConfigIfNeeded - failed to parse config results")
+		return configParamsError()
+	}
+	return meanGasPrice, refreshIntervalInBlocks, gasPriceSteps, gasDiscountedPrices, destinationGasFactors, true
+}
+
+func (p *Satoshi) parseConfigResults(resultBytes hexutil.Bytes) (int, uint64, []uint64, []uint64, map[common.Address]uint64, bool) {
 	var unpacked []interface{}
 	err := p.networkConfigABI.UnpackIntoInterface(&unpacked, networkConfigGetterFunction, resultBytes)
 	if err != nil {
 		log.Warn("@lfm LoadNetworkConfigIfNeeded - failed to invoke networkConfig getter function", "error", err)
-		return
+		return configParamsError()
 	}
-	meanGasPrice, refreshIntervalInBlocks, gasPriceSteps, gasDiscountedPrices, destinationGasFactors, err := parseUnpackedResults(unpacked)
-	if err != nil {
-		log.Warn("@lfm LoadNetworkConfigIfNeeded - failed to parse getter results", "error", err)
-		return
+	meanGasPrice, refreshIntervalInBlocks, gasPriceSteps, gasDiscountedPrices, destinationGasFactors, ok := parseUnpackedResults(unpacked)
+	if !ok {
+		log.Warn("@lfm LoadNetworkConfigIfNeeded - failed to parse getter results")
+		return configParamsError()
 	}
-	networkConfigCache.UpdateValues(meanGasPrice, currentBlockNumber, refreshIntervalInBlocks, gasPriceSteps, gasDiscountedPrices, destinationGasFactors)
+	return meanGasPrice, refreshIntervalInBlocks, gasPriceSteps, gasDiscountedPrices, destinationGasFactors, true
 }
 
 func queryNetworkConfigContract(ethAPI *ethapi.PublicBlockChainAPI, networkConfigABI abi.ABI) hexutil.Bytes {
@@ -86,28 +104,94 @@ func timeToRefreshCache(currentBlockNumber uint64, networkConfigCache *config.Ne
 	return true
 }
 
-
-func parseUnpackedResults(unpacked []interface{}) (int, uint64, []uint64, []uint64, map[common.Address]uint64, error) {
-	// type-assert and assign the unpacked values
-	meanGasPrice := int(unpacked[0].(*big.Int).Int64())
-	refreshInterval := unpacked[1].(*big.Int).Uint64()
-	gasPriceStepsBig := unpacked[2].([]*big.Int)
-	gasDiscountedPricesBig := unpacked[3].([]*big.Int)
-	destinationAddresses := unpacked[4].([]common.Address)
-	destinationGasFactors := unpacked[5].([]uint64)
-
-	gasPriceSteps, err := toUint64Arr(gasPriceStepsBig)
-	if err != nil {
-		log.Warn("@lfm LoadNetworkConfigIfNeeded - failed to parse gasPriceSteps array", "error", err)
-		return 0, 0, nil, nil, nil, err
+func parseUnpackedResults(unpacked []interface{}) (int, uint64, []uint64, []uint64, map[common.Address]uint64, bool) {
+	const configParamCount = 6
+	count := len(unpacked)
+	if count != configParamCount {
+		log.Warn("@lfm parseUnpackedResults - bad returned value count", "count", count)
+		return configParamsError()
 	}
-	gasDiscountedPrices, err := toUint64Arr(gasDiscountedPricesBig)
-	if err != nil {
-		log.Warn("@lfm LoadNetworkConfigIfNeeded - failed to parse discountedPrices array", "error", err)
-		return 0, 0, nil, nil, nil, err
+	meanGasPrice, ok := unpackedToInt(unpacked[0], "meanGasPrice")
+	if !ok {
+		log.Warn("@lfm parseUnpackedResults - failed to unpack meanGasPrice")
+		return configParamsError()
 	}
+	refreshInterval, ok := unpackedToUInt(unpacked[1], "refreshInterval")
+	if !ok {
+		log.Warn("parseUnpackedResults - failed to unpack refreshInterval")
+		return configParamsError()
+	}
+	gasPriceSteps, ok := unpackedToUIntArray(unpacked[2], "gasPriceSteps")
+	if !ok {
+		log.Warn("parseUnpackedResults - failed to unpack gasPriceSteps")
+		return configParamsError()
+	}
+	gasDiscountedPrices, ok := unpackedToUIntArray(unpacked[3], "gasDiscountedPrices")
+	if !ok {
+		log.Warn("parseUnpackedResults - failed to unpack gasDiscountedPrices")
+		return configParamsError()
+	}
+	if len(gasPriceSteps) != len(gasDiscountedPrices) {
+		log.Warn("parseUnpackedResults - gas price steps and discounted lengths for native CORE transfer don't match")
+		return configParamsError()
+	}
+	destinationAddresses, ok := unpacked[4].([]common.Address)
+	if !ok {
+		log.Warn("parseUnpackedResults - failed to unpack destinationAddresses")
+		return configParamsError()
+	}
+	destinationGasFactors, ok := unpackedToUIntArray(unpacked[5], "destinationGasFactors")
+	if !ok {
+		log.Warn("parseUnpackedResults - failed to unpack destinationGasFactors")
+		return configParamsError()
+	}
+	if len(destinationAddresses) != len(destinationGasFactors) {
+		log.Warn("parseUnpackedResults - destination addresses and gasFactor lengths don't match")
+		return configParamsError()
+	}
+	// params are fine
 	destinationGasFactorMap := createDestinationGasFactorMap(destinationAddresses, destinationGasFactors)
-	return meanGasPrice, refreshInterval, gasPriceSteps, gasDiscountedPrices, destinationGasFactorMap, nil
+	return meanGasPrice, refreshInterval, gasPriceSteps, gasDiscountedPrices, destinationGasFactorMap, true
+}
+
+func unpackedToUIntArray(unpacked interface{}, name string) ([]uint64, bool) {
+	gasPriceStepsBig, ok := unpacked.([]*big.Int)
+	if !ok {
+		log.Warn("unpackedToUIntArray - result not BigInt array", "name", name)
+		return nil, false
+	}
+	gasPriceSteps, ok := convertBigToUIntArray(gasPriceStepsBig)
+	if !ok {
+		log.Warn("unpackedToUIntArray - failed to cast array to uint array","name", name)
+		return nil, false
+	}
+	return gasPriceSteps, true
+}
+
+func unpackedToInt(unpacked interface{}, name string) (int, bool) {
+	bigInt, ok := unpacked.(*big.Int)
+	if !ok {
+		log.Warn("@lfm unpackedToInt - bad parameter type - expected BigInt", "name", name)
+		return 0, false
+	}
+	if !bigInt.IsInt64() {
+		log.Warn("@lfm unpackedToInt - not a valid int64 value", "name", name)
+		return 0, false
+	}
+	return int(bigInt.Int64()), true
+}
+
+func unpackedToUInt(unpacked interface{}, name string) (uint64, bool) {
+	bigInt, ok := unpacked.(*big.Int)
+	if !ok {
+		log.Warn("@lfm unpackedToUInt - bad parameter type - expected BigInt", "name", name)
+		return 0, false
+	}
+	if !bigInt.IsUint64() {
+		log.Warn("@lfm unpackedToUInt - not a valid uint64 value", "name", name)
+		return 0, false
+	}
+	return bigInt.Uint64(), true
 }
 
 func createDestinationGasFactorMap(addresses []common.Address, factors []uint64) map[common.Address]uint64 {
@@ -118,14 +202,19 @@ func createDestinationGasFactorMap(addresses []common.Address, factors []uint64)
 	return gasFactors
 }
 
-func toUint64Arr(bigInts []*big.Int) ([]uint64, error) {
-	uint64Slice := make([]uint64, len(bigInts))
-	for i, bint := range bigInts {
-		if !bint.IsUint64() {
-			return nil, fmt.Errorf("value at index %d is too large for uint64", i)
+func convertBigToUIntArray(bigIntArr []*big.Int) ([]uint64, bool) {
+	uint64Slice := make([]uint64, len(bigIntArr))
+	for i, bigInt := range bigIntArr {
+		if !bigInt.IsUint64() {
+			log.Warn("value at index %d is too large for uint64", "index", i, "value", bigInt)
+			return nil, false
 		}
-		uint64Slice[i] = bint.Uint64()
+		uint64Slice[i] = bigInt.Uint64()
 	}
-	return uint64Slice, nil
+	return uint64Slice, true
+}
+
+func configParamsError() (int, uint64, []uint64, []uint64, map[common.Address]uint64, bool) {
+	return 0, 0, nil, nil, nil, false
 }
 
