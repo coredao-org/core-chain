@@ -152,11 +152,7 @@ connect via HTTP, WS or IPC to a `geth` node configured with the above flags and
 need to speak [JSON-RPC](https://www.jsonrpc.org/specification) on all transports. You
 can reuse the same connection for multiple requests!
 
-**Note: Please understand the security implications of opening up an HTTP/WS based
-transport before doing so! Hackers on the internet are actively trying to subvert
-Core chain nodes with exposed APIs! Further, all browser tabs can access locally
-running web servers, so malicious web pages could try to subvert locally available
-APIs!**
+
 
 ## Contribution
 
