@@ -1098,8 +1098,11 @@ func (api *API) traceTx(ctx context.Context, tx *types.Transaction, message *cor
 		}
 	}
 	// The actual TxContext will be created as part of ApplyTransactionWithEVM.
-	evm := vm.NewEVM(vmctx, statedb, api.backend.ChainConfig(), vm.Config{Tracer: tracer.Hooks, NoBaseFee: true})
-	evm.SetTxContext(vm.TxContext{GasPrice: message.GasPrice, BlobFeeCap: message.BlobGasFeeCap})
+	tracingStateDB := state.NewHookedState(statedb, tracer.Hooks)
+	evm := vm.NewEVM(vmctx, tracingStateDB, api.backend.ChainConfig(), vm.Config{Tracer: tracer.Hooks, NoBaseFee: true})
+
+	// TODO(CZ): do we need this one?
+	// evm.SetTxContext(vm.TxContext{GasPrice: message.GasPrice, BlobFeeCap: message.BlobGasFeeCap})
 
 	// Define a meaningful timeout of a single transaction trace
 	if config.Timeout != nil {
