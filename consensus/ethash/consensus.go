@@ -33,16 +33,17 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
 
 // Ethash proof-of-work protocol constants.
 var (
-	FrontierBlockReward           = big.NewInt(5e+18) // Block reward in wei for successfully mining a block
-	ByzantiumBlockReward          = big.NewInt(3e+18) // Block reward in wei for successfully mining a block upward from Byzantium
-	ConstantinopleBlockReward     = big.NewInt(2e+18) // Block reward in wei for successfully mining a block upward from Constantinople
-	maxUncles                     = 2                 // Maximum number of uncles allowed in a single block
-	allowedFutureBlockTimeSeconds = int64(15)         // Max seconds from current time allowed for blocks, before they're considered future blocks
+	FrontierBlockReward           = uint256.NewInt(5e+18) // Block reward in wei for successfully mining a block
+	ByzantiumBlockReward          = uint256.NewInt(3e+18) // Block reward in wei for successfully mining a block upward from Byzantium
+	ConstantinopleBlockReward     = uint256.NewInt(2e+18) // Block reward in wei for successfully mining a block upward from Constantinople
+	maxUncles                     = 2                     // Maximum number of uncles allowed in a single block
+	allowedFutureBlockTimeSeconds = int64(15)             // Max seconds from current time allowed for blocks, before they're considered future blocks
 
 	// calcDifficultyEip5133 is the difficulty adjustment algorithm as specified by EIP 5133.
 	// It offsets the bomb a total of 11.4M blocks.
@@ -266,8 +267,21 @@ func (ethash *Ethash) verifyHeader(chain consensus.ChainHeaderReader, header, pa
 	if chain.Config().IsShanghai(header.Number, header.Time) {
 		return errors.New("ethash does not support shanghai fork")
 	}
+	// Verify the non-existence of withdrawalsHash.
+	if header.WithdrawalsHash != nil {
+		return fmt.Errorf("invalid withdrawalsHash: have %x, expected nil", header.WithdrawalsHash)
+	}
 	if chain.Config().IsCancun(header.Number, header.Time) {
 		return errors.New("ethash does not support cancun fork")
+	}
+	// Verify the non-existence of cancun-specific header fields
+	switch {
+	case header.ExcessBlobGas != nil:
+		return fmt.Errorf("invalid excessBlobGas: have %d, expected nil", header.ExcessBlobGas)
+	case header.BlobGasUsed != nil:
+		return fmt.Errorf("invalid blobGasUsed: have %d, expected nil", header.BlobGasUsed)
+	case header.ParentBeaconRoot != nil:
+		return fmt.Errorf("invalid parentBeaconRoot, have %#x, expected nil", header.ParentBeaconRoot)
 	}
 	// Add some fake checks for tests
 	if ethash.fakeDelay != nil {
@@ -475,6 +489,11 @@ var FrontierDifficultyCalculator = calcDifficultyFrontier
 var HomesteadDifficultyCalculator = calcDifficultyHomestead
 var DynamicDifficultyCalculator = makeDifficultyCalculator
 
+// NextInTurnValidator return the next in-turn validator for header
+func (ethash *Ethash) NextInTurnValidator(chain consensus.ChainHeaderReader, header *types.Header) (common.Address, error) {
+	return common.Address{}, errors.New("not implemented")
+}
+
 // Prepare implements consensus.Engine, initializing the difficulty field of a
 // header to conform to the ethash protocol. The changes are done inline.
 func (ethash *Ethash) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
@@ -550,6 +569,15 @@ func (ethash *Ethash) SealHash(header *types.Header) (hash common.Hash) {
 	if header.WithdrawalsHash != nil {
 		panic("withdrawal hash set on ethash")
 	}
+	if header.ExcessBlobGas != nil {
+		panic("excess blob gas set on ethash")
+	}
+	if header.BlobGasUsed != nil {
+		panic("blob gas used set on ethash")
+	}
+	if header.ParentBeaconRoot != nil {
+		panic("parent beacon root set on ethash")
+	}
 	rlp.Encode(hasher, enc)
 	hasher.Sum(hash[:0])
 	return hash
@@ -557,8 +585,8 @@ func (ethash *Ethash) SealHash(header *types.Header) (hash common.Hash) {
 
 // Some weird constants to avoid constant memory allocs for them.
 var (
-	big8  = big.NewInt(8)
-	big32 = big.NewInt(32)
+	u256_8  = uint256.NewInt(8)
+	u256_32 = uint256.NewInt(32)
 )
 
 // AccumulateRewards credits the coinbase of the given block with the mining
@@ -574,16 +602,18 @@ func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header 
 		blockReward = ConstantinopleBlockReward
 	}
 	// Accumulate the rewards for the miner and any included uncles
-	reward := new(big.Int).Set(blockReward)
-	r := new(big.Int)
+	reward := new(uint256.Int).Set(blockReward)
+	r := new(uint256.Int)
+	hNum, _ := uint256.FromBig(header.Number)
 	for _, uncle := range uncles {
-		r.Add(uncle.Number, big8)
-		r.Sub(r, header.Number)
+		uNum, _ := uint256.FromBig(uncle.Number)
+		r.AddUint64(uNum, 8)
+		r.Sub(r, hNum)
 		r.Mul(r, blockReward)
-		r.Div(r, big8)
+		r.Div(r, u256_8)
 		state.AddBalance(uncle.Coinbase, r)
 
-		r.Div(blockReward, big32)
+		r.Div(blockReward, u256_32)
 		reward.Add(reward, r)
 	}
 	state.AddBalance(header.Coinbase, reward)

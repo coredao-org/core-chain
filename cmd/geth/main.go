@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
-// geth is the official command-line client for Ethereum.
+// geth is a command-line client for Ethereum.
 package main
 
 import (
@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -69,10 +71,13 @@ var (
 		utils.RangeLimitFlag,
 		utils.USBFlag,
 		utils.SmartCardDaemonPathFlag,
-		utils.OverrideShanghai,
-		utils.OverrideKepler,
 		utils.OverrideCancun,
+		utils.OverrideHaber,
 		utils.OverrideVerkle,
+		utils.OverrideFullImmutabilityThreshold,
+		utils.OverrideMinBlocksForBlobRequests,
+		utils.OverrideDefaultExtraReserveForBlobRequests,
+		utils.OverrideBreatheBlockInterval,
 		utils.EnablePersonal,
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
@@ -91,15 +96,15 @@ var (
 		utils.BlobPoolPriceBumpFlag,
 		utils.SyncModeFlag,
 		utils.TriesVerifyModeFlag,
-		utils.SyncTargetFlag,
+		// utils.SyncTargetFlag,
 		utils.ExitWhenSyncedFlag,
 		utils.GCModeFlag,
 		utils.SnapshotFlag,
 		utils.TxLookupLimitFlag, // deprecated
 		utils.TransactionHistoryFlag,
-		utils.StateSchemeFlag,
 		utils.StateHistoryFlag,
 		utils.PathDBSyncFlag,
+		utils.JournalFileFlag,
 		utils.LightServeFlag,       // deprecated
 		utils.LightIngressFlag,     // deprecated
 		utils.LightEgressFlag,      // deprecated
@@ -141,8 +146,10 @@ var (
 		// utils.MinerNewPayloadTimeout,
 		utils.NATFlag,
 		utils.NoDiscoverFlag,
+		utils.PeerFilterPatternsFlag,
 		utils.DiscoveryV4Flag,
 		utils.DiscoveryV5Flag,
+		utils.InstanceFlag,
 		utils.LegacyDiscoveryV5Flag, // deprecated
 		utils.NetrestrictFlag,
 		utils.NodeKeyFileFlag,
@@ -169,7 +176,10 @@ var (
 		utils.BLSPasswordFileFlag,
 		utils.BLSWalletDirFlag,
 		utils.VoteJournalDirFlag,
-	}, utils.NetworkFlags, utils.DatabasePathFlags)
+		utils.LogDebugFlag,
+		utils.LogBacktraceAtFlag,
+		utils.BlobExtraReserveFlag,
+	}, utils.NetworkFlags, utils.DatabaseFlags)
 
 	rpcFlags = []cli.Flag{
 		utils.HTTPEnabledFlag,
@@ -233,8 +243,9 @@ func init() {
 		initNetworkCommand,
 		importCommand,
 		exportCommand,
+		importHistoryCommand,
+		exportHistoryCommand,
 		importPreimagesCommand,
-		exportPreimagesCommand,
 		removedbCommand,
 		dumpCommand,
 		dumpGenesisCommand,
@@ -262,6 +273,9 @@ func init() {
 		// See verkle.go
 		verkleCommand,
 	}
+	if logTestCommand != nil {
+		app.Commands = append(app.Commands, logTestCommand)
+	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 
 	app.Flags = flags.Merge(
@@ -271,11 +285,16 @@ func init() {
 		debug.Flags,
 		metricsFlags,
 	)
+	flags.AutoEnvVars(app.Flags, "GETH")
 
 	app.Before = func(ctx *cli.Context) error {
 		maxprocs.Set() // Automatically set GOMAXPROCS to match Linux container CPU quota.
 		flags.MigrateGlobalFlags(ctx)
-		return debug.Setup(ctx)
+		if err := debug.Setup(ctx); err != nil {
+			return err
+		}
+		flags.CheckEnvVars(ctx, app.Flags, "GETH")
+		return nil
 	}
 	app.After = func(ctx *cli.Context) error {
 		debug.Exit()
@@ -439,6 +458,10 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 		// Set the gas price to the limits from the CLI and start mining
 		gasprice := flags.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
 		ethBackend.TxPool().SetGasTip(gasprice)
+		gasCeil := ethBackend.Miner().GasCeil()
+		if gasCeil > params.SystemTxsGas {
+			ethBackend.TxPool().SetMaxGas(gasCeil - params.SystemTxsGas)
+		}
 		if err := ethBackend.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}

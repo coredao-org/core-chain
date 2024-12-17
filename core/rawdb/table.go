@@ -27,6 +27,26 @@ type table struct {
 	prefix string
 }
 
+func (t *table) BlockStoreReader() ethdb.Reader {
+	return t
+}
+
+func (t *table) BlockStoreWriter() ethdb.Writer {
+	return t
+}
+
+func (t *table) BlockStore() ethdb.Database {
+	return t
+}
+
+func (t *table) SetBlockStore(block ethdb.Database) {
+	panic("not implement")
+}
+
+func (t *table) HasSeparateBlockStore() bool {
+	panic("not implement")
+}
+
 // NewTable returns a database object that prefixes all keys with a given string.
 func NewTable(db ethdb.Database, prefix string) ethdb.Database {
 	return &table{
@@ -99,6 +119,16 @@ func (t *table) AncientSize(kind string) (uint64, error) {
 // ModifyAncients runs an ancient write operation on the underlying database.
 func (t *table) ModifyAncients(fn func(ethdb.AncientWriteOp) error) (int64, error) {
 	return t.db.ModifyAncients(fn)
+}
+
+// TruncateTableTail will truncate certain table to new tail
+func (t *table) TruncateTableTail(kind string, tail uint64) (uint64, error) {
+	return t.db.TruncateTableTail(kind, tail)
+}
+
+// ResetTable will reset certain table with new start point
+func (t *table) ResetTable(kind string, startAt uint64, onlyEmpty bool) error {
+	return t.db.ResetTable(kind, startAt, onlyEmpty)
 }
 
 func (t *table) ReadAncients(fn func(reader ethdb.AncientReaderOp) error) (err error) {
@@ -213,6 +243,18 @@ func (t *table) SetDiffStore(diff ethdb.KeyValueStore) {
 	panic("not implement")
 }
 
+func (t *table) StateStore() ethdb.Database {
+	return nil
+}
+
+func (t *table) SetStateStore(state ethdb.Database) {
+	panic("not implement")
+}
+
+func (t *table) StateStoreReader() ethdb.Reader {
+	return nil
+}
+
 // NewBatchWithSize creates a write-only database batch with pre-allocated buffer.
 func (t *table) NewBatchWithSize(size int) ethdb.Batch {
 	return &tableBatch{t.db.NewBatchWithSize(size), t.prefix}
@@ -223,6 +265,10 @@ func (t *table) NewBatchWithSize(size int) ethdb.Batch {
 // happened on the database.
 func (t *table) NewSnapshot() (ethdb.Snapshot, error) {
 	return t.db.NewSnapshot()
+}
+
+func (t *table) SetupFreezerEnv(env *ethdb.FreezerEnv) error {
+	return nil
 }
 
 // tableBatch is a wrapper around a database batch that prefixes each key access
@@ -237,7 +283,7 @@ func (b *tableBatch) Put(key, value []byte) error {
 	return b.batch.Put(append([]byte(b.prefix), key...), value)
 }
 
-// Delete inserts the a key removal into the batch for later committing.
+// Delete inserts a key removal into the batch for later committing.
 func (b *tableBatch) Delete(key []byte) error {
 	return b.batch.Delete(append([]byte(b.prefix), key...))
 }

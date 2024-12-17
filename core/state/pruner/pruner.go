@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/holiman/uint256"
 	"github.com/prometheus/tsdb/fileutil"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -41,6 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/triedb"
 )
 
 const (
@@ -101,7 +103,7 @@ func NewPruner(db ethdb.Database, config Config, triesInMemory uint64) (*Pruner,
 		return nil, errors.New("failed to load head block")
 	}
 	// Offline pruning is only supported in legacy hash based scheme.
-	triedb := trie.NewDatabase(db, trie.HashDefaults)
+	triedb := triedb.NewDatabase(db, triedb.HashDefaults)
 
 	snapconfig := snapshot.Config{
 		CacheSize:  256,
@@ -157,13 +159,19 @@ func (p *Pruner) PruneAll(genesis *core.Genesis) error {
 }
 
 func pruneAll(maindb ethdb.Database, g *core.Genesis) error {
+	var pruneDB ethdb.Database
+	if maindb != nil && maindb.StateStore() != nil {
+		pruneDB = maindb.StateStore()
+	} else {
+		pruneDB = maindb
+	}
 	var (
 		count  int
 		size   common.StorageSize
 		pstart = time.Now()
 		logged = time.Now()
-		batch  = maindb.NewBatch()
-		iter   = maindb.NewIterator(nil, nil)
+		batch  = pruneDB.NewBatch()
+		iter   = pruneDB.NewIterator(nil, nil)
 	)
 	start := time.Now()
 	for iter.Next() {
@@ -193,7 +201,7 @@ func pruneAll(maindb ethdb.Database, g *core.Genesis) error {
 				batch.Reset()
 
 				iter.Release()
-				iter = maindb.NewIterator(nil, key)
+				iter = pruneDB.NewIterator(nil, key)
 			}
 		}
 	}
@@ -217,7 +225,7 @@ func pruneAll(maindb ethdb.Database, g *core.Genesis) error {
 				end = nil
 			}
 			log.Info("Compacting database", "range", fmt.Sprintf("%#x-%#x", start, end), "elapsed", common.PrettyDuration(time.Since(cstart)))
-			if err := maindb.Compact(start, end); err != nil {
+			if err := pruneDB.Compact(start, end); err != nil {
 				log.Error("Database compaction failed", "error", err)
 				return err
 			}
@@ -226,7 +234,7 @@ func pruneAll(maindb ethdb.Database, g *core.Genesis) error {
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(maindb), nil)
 	for addr, account := range g.Alloc {
-		statedb.AddBalance(addr, account.Balance)
+		statedb.AddBalance(addr, uint256.MustFromBig(account.Balance))
 		statedb.SetCode(addr, account.Code)
 		statedb.SetNonce(addr, account.Nonce)
 		for key, value := range account.Storage {
@@ -245,16 +253,22 @@ func prune(snaptree *snapshot.Tree, root common.Hash, maindb ethdb.Database, sta
 	// the trie nodes(and codes) belong to the active state will be filtered
 	// out. A very small part of stale tries will also be filtered because of
 	// the false-positive rate of bloom filter. But the assumption is held here
-	// that the false-positive is low enough(~0.05%). The probablity of the
+	// that the false-positive is low enough(~0.05%). The probability of the
 	// dangling node is the state root is super low. So the dangling nodes in
 	// theory will never ever be visited again.
+	var pruneDB ethdb.Database
+	if maindb != nil && maindb.StateStore() != nil {
+		pruneDB = maindb.StateStore()
+	} else {
+		pruneDB = maindb
+	}
 	var (
-		count  int
-		size   common.StorageSize
-		pstart = time.Now()
-		logged = time.Now()
-		batch  = maindb.NewBatch()
-		iter   = maindb.NewIterator(nil, nil)
+		skipped, count int
+		size           common.StorageSize
+		pstart         = time.Now()
+		logged         = time.Now()
+		batch          = pruneDB.NewBatch()
+		iter           = pruneDB.NewIterator(nil, nil)
 	)
 	for iter.Next() {
 		key := iter.Key()
@@ -273,6 +287,7 @@ func prune(snaptree *snapshot.Tree, root common.Hash, maindb ethdb.Database, sta
 				log.Debug("Forcibly delete the middle state roots", "hash", common.BytesToHash(checkKey))
 			} else {
 				if stateBloom.Contain(checkKey) {
+					skipped += 1
 					continue
 				}
 			}
@@ -289,7 +304,7 @@ func prune(snaptree *snapshot.Tree, root common.Hash, maindb ethdb.Database, sta
 				eta = time.Duration(left/speed) * time.Millisecond
 			}
 			if time.Since(logged) > 8*time.Second {
-				log.Info("Pruning state data", "nodes", count, "size", size,
+				log.Info("Pruning state data", "nodes", count, "skipped", skipped, "size", size,
 					"elapsed", common.PrettyDuration(time.Since(pstart)), "eta", common.PrettyDuration(eta))
 				logged = time.Now()
 			}
@@ -300,7 +315,7 @@ func prune(snaptree *snapshot.Tree, root common.Hash, maindb ethdb.Database, sta
 				batch.Reset()
 
 				iter.Release()
-				iter = maindb.NewIterator(nil, key)
+				iter = pruneDB.NewIterator(nil, key)
 			}
 		}
 	}
@@ -345,7 +360,7 @@ func prune(snaptree *snapshot.Tree, root common.Hash, maindb ethdb.Database, sta
 				end = nil
 			}
 			log.Info("Compacting database", "range", fmt.Sprintf("%#x-%#x", start, end), "elapsed", common.PrettyDuration(time.Since(cstart)))
-			if err := maindb.Compact(start, end); err != nil {
+			if err := pruneDB.Compact(start, end); err != nil {
 				log.Error("Database compaction failed", "error", err)
 				return err
 			}
@@ -367,7 +382,7 @@ func (p *BlockPruner) backUpOldDb(name string, cache, handles int, namespace str
 	log.Info("chainDB opened successfully")
 
 	// Get the number of items in old ancient db.
-	itemsOfAncient, err := chainDb.ItemAmountInAncient()
+	itemsOfAncient, err := chainDb.BlockStore().ItemAmountInAncient()
 	log.Info("the number of items in ancientDB is ", "itemsOfAncient", itemsOfAncient)
 
 	// If we can't access the freezer or it's empty, abort.
@@ -387,7 +402,7 @@ func (p *BlockPruner) backUpOldDb(name string, cache, handles int, namespace str
 
 	var oldOffSet uint64
 	if interrupt {
-		// The interrupt scecario within this function is specific for old and new ancientDB exsisted concurrently,
+		// The interrupt scecario within this function is specific for old and new ancientDB existed concurrently,
 		// should use last version of offset for oldAncientDB, because current offset is
 		// actually of the new ancientDB_Backup, but what we want is the offset of ancientDB being backup.
 		oldOffSet = rawdb.ReadOffSetOfLastAncientFreezer(chainDb)
@@ -438,8 +453,11 @@ func (p *BlockPruner) backUpOldDb(name string, cache, handles int, namespace str
 		if td == nil {
 			return consensus.ErrUnknownAncestor
 		}
+		// if there has blobs, it needs to back up too.
+		blobs := rawdb.ReadBlobSidecars(chainDb, blockHash, blockNumber)
+		block = block.WithSidecars(blobs)
 		// Write into new ancient_back db.
-		if _, err := rawdb.WriteAncientBlocks(frdbBack, []*types.Block{block}, []types.Receipts{receipts}, td); err != nil {
+		if _, err := rawdb.WriteAncientBlocksWithBlobs(frdbBack, []*types.Block{block}, []types.Receipts{receipts}, td); err != nil {
 			log.Error("failed to write new ancient", "error", err)
 			return err
 		}
@@ -583,10 +601,17 @@ func (p *Pruner) Prune(root common.Hash) error {
 		// Use the bottom-most diff layer as the target
 		root = layers[len(layers)-1].Root()
 	}
+	// if the separated state db has been set, use this db to prune data
+	var trienodedb ethdb.Database
+	if p.db != nil && p.db.StateStore() != nil {
+		trienodedb = p.db.StateStore()
+	} else {
+		trienodedb = p.db
+	}
 	// Ensure the root is really present. The weak assumption
 	// is the presence of root can indicate the presence of the
 	// entire trie.
-	if !rawdb.HasLegacyTrieNode(p.db, root) {
+	if !rawdb.HasLegacyTrieNode(trienodedb, root) {
 		// The special case is for clique based networks(goerli
 		// and some other private networks), it's possible that two
 		// consecutive blocks will have same root. In this case snapshot
@@ -600,7 +625,7 @@ func (p *Pruner) Prune(root common.Hash) error {
 		// as the pruning target.
 		var found bool
 		for i := len(layers) - 2; i >= 2; i-- {
-			if rawdb.HasLegacyTrieNode(p.db, layers[i].Root()) {
+			if rawdb.HasLegacyTrieNode(trienodedb, layers[i].Root()) {
 				root = layers[i].Root()
 				found = true
 				log.Info("Selecting middle-layer as the pruning target", "root", root, "depth", i)
@@ -608,7 +633,7 @@ func (p *Pruner) Prune(root common.Hash) error {
 			}
 		}
 		if !found {
-			if blob := rawdb.ReadLegacyTrieNode(p.db, p.snaptree.DiskRoot()); len(blob) != 0 {
+			if blob := rawdb.ReadLegacyTrieNode(trienodedb, p.snaptree.DiskRoot()); len(blob) != 0 {
 				root = p.snaptree.DiskRoot()
 				found = true
 				log.Info("Selecting disk-layer as the pruning target", "root", root)
@@ -691,7 +716,7 @@ func RecoverPruning(datadir string, db ethdb.Database, triesInMemory uint64) err
 		AsyncBuild: false,
 	}
 	// Offline pruning is only supported in legacy hash based scheme.
-	triedb := trie.NewDatabase(db, trie.HashDefaults)
+	triedb := triedb.NewDatabase(db, triedb.HashDefaults)
 	snaptree, err := snapshot.New(snapconfig, db, triedb, headBlock.Root(), int(triesInMemory), false)
 	if err != nil {
 		return err // The relevant snapshot(s) might not exist
@@ -734,7 +759,7 @@ func extractGenesis(db ethdb.Database, stateBloom *stateBloom) error {
 	if genesis == nil {
 		return errors.New("missing genesis block")
 	}
-	t, err := trie.NewStateTrie(trie.StateTrieID(genesis.Root()), trie.NewDatabase(db, trie.HashDefaults))
+	t, err := trie.NewStateTrie(trie.StateTrieID(genesis.Root()), triedb.NewDatabase(db, triedb.HashDefaults))
 	if err != nil {
 		return err
 	}
@@ -758,7 +783,7 @@ func extractGenesis(db ethdb.Database, stateBloom *stateBloom) error {
 			}
 			if acc.Root != types.EmptyRootHash {
 				id := trie.StorageTrieID(genesis.Root(), common.BytesToHash(accIter.LeafKey()), acc.Root)
-				storageTrie, err := trie.NewStateTrie(id, trie.NewDatabase(db, trie.HashDefaults))
+				storageTrie, err := trie.NewStateTrie(id, triedb.NewDatabase(db, triedb.HashDefaults))
 				if err != nil {
 					return err
 				}

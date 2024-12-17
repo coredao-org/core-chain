@@ -283,6 +283,158 @@ func TestFreezerReadonlyValidate(t *testing.T) {
 	}
 }
 
+func TestFreezerConcurrentReadonly(t *testing.T) {
+	t.Parallel()
+
+	tables := map[string]bool{"a": true}
+	dir := t.TempDir()
+
+	f, err := NewFreezer(dir, "", false, 0, 2049, tables)
+	if err != nil {
+		t.Fatal("can't open freezer", err)
+	}
+	var item = make([]byte, 1024)
+	batch := f.tables["a"].newBatch(0)
+	items := uint64(10)
+	for i := uint64(0); i < items; i++ {
+		require.NoError(t, batch.AppendRaw(i, item))
+	}
+	require.NoError(t, batch.commit())
+	if loaded := f.tables["a"].items.Load(); loaded != items {
+		t.Fatalf("unexpected number of items in table, want: %d, have: %d", items, loaded)
+	}
+	require.NoError(t, f.Close())
+
+	var (
+		wg   sync.WaitGroup
+		fs   = make([]*Freezer, 5)
+		errs = make([]error, 5)
+	)
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			f, err := NewFreezer(dir, "", true, 0, 2049, tables)
+			if err == nil {
+				fs[i] = f
+			} else {
+				errs[i] = err
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	for i := range fs {
+		if err := errs[i]; err != nil {
+			t.Fatal("failed to open freezer", err)
+		}
+		require.NoError(t, fs[i].Close())
+	}
+}
+
+func TestFreezer_AdditionTables(t *testing.T) {
+	dir := t.TempDir()
+	// Open non-readonly freezer and fill individual tables
+	// with different amount of data.
+	f, err := NewFreezer(dir, "", false, 0, 2049, map[string]bool{"o1": true, "o2": true})
+	if err != nil {
+		t.Fatal("can't open freezer", err)
+	}
+
+	var item = make([]byte, 1024)
+	_, err = f.ModifyAncients(func(op ethdb.AncientWriteOp) error {
+		if err := op.AppendRaw("o1", 0, item); err != nil {
+			return err
+		}
+		if err := op.AppendRaw("o1", 1, item); err != nil {
+			return err
+		}
+		if err := op.AppendRaw("o2", 0, item); err != nil {
+			return err
+		}
+		if err := op.AppendRaw("o2", 1, item); err != nil {
+			return err
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	// check read only
+	additionTables = []string{"a1"}
+	f, err = NewFreezer(dir, "", true, 0, 2049, map[string]bool{"o1": true, "o2": true, "a1": true})
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	f, err = NewFreezer(dir, "", false, 0, 2049, map[string]bool{"o1": true, "o2": true, "a1": true})
+	require.NoError(t, err)
+	frozen, _ := f.Ancients()
+	require.NoError(t, f.ResetTable("a1", frozen, true))
+	_, err = f.ModifyAncients(func(op ethdb.AncientWriteOp) error {
+		if err := appendSameItem(op, []string{"o1", "o2", "a1"}, 2, item); err != nil {
+			return err
+		}
+		if err := appendSameItem(op, []string{"o1", "o2", "a1"}, 3, item); err != nil {
+			return err
+		}
+		if err := appendSameItem(op, []string{"o1", "o2", "a1"}, 4, item); err != nil {
+			return err
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// check additional table boundary
+	_, err = f.Ancient("a1", 1)
+	require.Error(t, err)
+	actual, err := f.Ancient("a1", 2)
+	require.NoError(t, err)
+	require.Equal(t, item, actual)
+
+	// truncate additional table, and check boundary
+	_, err = f.TruncateTableTail("o1", 3)
+	require.Error(t, err)
+	_, err = f.TruncateTableTail("a1", 3)
+	require.NoError(t, err)
+	_, err = f.Ancient("a1", 2)
+	require.Error(t, err)
+	actual, err = f.Ancient("a1", 3)
+	require.NoError(t, err)
+	require.Equal(t, item, actual)
+
+	// check additional table head
+	ancients, err := f.TableAncients("a1")
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), ancients)
+	require.NoError(t, f.Close())
+
+	// reopen and read
+	f, err = NewFreezer(dir, "", true, 0, 2049, map[string]bool{"o1": true, "o2": true, "a1": true})
+	require.NoError(t, err)
+
+	// recheck additional table boundary
+	_, err = f.Ancient("a1", 2)
+	require.Error(t, err)
+	actual, err = f.Ancient("a1", 3)
+	require.NoError(t, err)
+	require.Equal(t, item, actual)
+	ancients, err = f.TableAncients("a1")
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), ancients)
+	require.NoError(t, f.Close())
+}
+
+func appendSameItem(op ethdb.AncientWriteOp, tables []string, i uint64, item []byte) error {
+	for _, t := range tables {
+		if err := op.AppendRaw(t, i, item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func newFreezerForTesting(t *testing.T, tables map[string]bool) (*Freezer, string) {
 	t.Helper()
 

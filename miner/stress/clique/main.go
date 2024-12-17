@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -46,7 +45,7 @@ import (
 )
 
 func main() {
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	log.SetDefault(log.NewLogger(log.NewTerminalHandlerWithLevel(os.Stderr, log.LevelInfo, true)))
 	fdlimit.Raise(2048)
 
 	// Generate a batch of accounts to seal and fund with
@@ -133,7 +132,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		if err := backend.TxPool().Add([]*txpool.Transaction{{Tx: tx}}, true, false); err != nil {
+		if err := backend.TxPool().Add([]*types.Transaction{tx}, true, false); err != nil {
 			panic(err)
 		}
 		nonces[index]++
@@ -155,9 +154,9 @@ func makeGenesis(faucets []*ecdsa.PrivateKey, sealers []*ecdsa.PrivateKey) *core
 	genesis.Config.ChainID = big.NewInt(18)
 	genesis.Config.Clique.Period = 1
 
-	genesis.Alloc = core.GenesisAlloc{}
+	genesis.Alloc = types.GenesisAlloc{}
 	for _, faucet := range faucets {
-		genesis.Alloc[crypto.PubkeyToAddress(faucet.PublicKey)] = core.GenesisAccount{
+		genesis.Alloc[crypto.PubkeyToAddress(faucet.PublicKey)] = types.Account{
 			Balance: new(big.Int).Exp(big.NewInt(2), big.NewInt(128), nil),
 		}
 	}
@@ -184,7 +183,6 @@ func makeGenesis(faucets []*ecdsa.PrivateKey, sealers []*ecdsa.PrivateKey) *core
 func makeSealer(genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
 	// Define the basic configurations for the Ethereum node
 	datadir, _ := os.MkdirTemp("", "")
-
 	config := &node.Config{
 		Name:    "geth",
 		Version: params.Version,

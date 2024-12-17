@@ -70,14 +70,15 @@ type Backend interface {
 	PendingBlockAndReceipts() (*types.Block, types.Receipts)
 	GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error)
 	GetTd(ctx context.Context, hash common.Hash) *big.Int
-	GetEVM(ctx context.Context, msg *core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config, blockCtx *vm.BlockContext) (*vm.EVM, func() error)
+	GetEVM(ctx context.Context, msg *core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config, blockCtx *vm.BlockContext) *vm.EVM
 	SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
 	SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription
+	GetBlobSidecars(ctx context.Context, hash common.Hash) (types.BlobSidecars, error)
 
 	// Transaction pool API
 	SendTx(ctx context.Context, signedTx *types.Transaction) error
-	GetTransaction(ctx context.Context, txHash common.Hash) (*types.Transaction, common.Hash, uint64, uint64, error)
+	GetTransaction(ctx context.Context, txHash common.Hash) (bool, *types.Transaction, common.Hash, uint64, uint64, error)
 	GetPoolTransactions() (types.Transactions, error)
 	GetPoolTransaction(txHash common.Hash) *types.Transaction
 	GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error)
@@ -101,6 +102,27 @@ type Backend interface {
 	ServiceFilter(ctx context.Context, session *bloombits.MatcherSession)
 	SubscribeFinalizedHeaderEvent(ch chan<- core.FinalizedHeaderEvent) event.Subscription
 	SubscribeNewVoteEvent(chan<- core.NewVoteEvent) event.Subscription
+
+	// MevRunning return true if mev is running
+	MevRunning() bool
+	// MevParams returns the static params of mev
+	MevParams() *types.MevParams
+	// StartMev starts mev
+	StartMev()
+	// StopMev stops mev
+	StopMev()
+	// AddBuilder adds a builder to the bid simulator.
+	AddBuilder(builder common.Address, builderUrl string) error
+	// RemoveBuilder removes a builder from the bid simulator.
+	RemoveBuilder(builder common.Address) error
+	// HasBuilder returns true if the builder is in the builder list.
+	HasBuilder(builder common.Address) bool
+	// SendBid receives bid from the builders.
+	SendBid(ctx context.Context, bid *types.BidArgs) (common.Hash, error)
+	// BestBidGasFee returns the gas fee of the best bid for the given parent hash.
+	BestBidGasFee(parentHash common.Hash) *big.Int
+	// MinerInTurn returns true if the validator is in turn to propose the block.
+	MinerInTurn() bool
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {
@@ -127,6 +149,9 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 		}, {
 			Namespace: "personal",
 			Service:   NewPersonalAccountAPI(apiBackend, nonceLock),
+		}, {
+			Namespace: "mev",
+			Service:   NewMevAPI(apiBackend),
 		},
 	}
 }

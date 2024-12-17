@@ -30,7 +30,7 @@ import (
 // transaction from each account to determine which account to evict from.
 //
 // The heap internally tracks a slice of cheapest transactions from each account
-// and a mapping from addresses to indices for direct removals/udates.
+// and a mapping from addresses to indices for direct removals/updates.
 //
 // The goal of the heap is to decide which account has the worst bottleneck to
 // evict transactions from.
@@ -44,7 +44,7 @@ type evictHeap struct {
 	index map[common.Address]int // Indices into the heap for replacements
 }
 
-// newPriceHeap creates a new heap of cheapets accounts in the blob pool to evict
+// newPriceHeap creates a new heap of cheapest accounts in the blob pool to evict
 // from in case of over saturation.
 func newPriceHeap(basefee *uint256.Int, blobfee *uint256.Int, index *map[common.Address][]*blobTxMeta) *evictHeap {
 	heap := &evictHeap{

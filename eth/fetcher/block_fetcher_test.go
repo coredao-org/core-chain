@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/triedb"
 )
 
 var (
@@ -41,10 +42,10 @@ var (
 	testAddress = crypto.PubkeyToAddress(testKey.PublicKey)
 	gspec       = &core.Genesis{
 		Config:  params.TestChainConfig,
-		Alloc:   core.GenesisAlloc{testAddress: {Balance: big.NewInt(1000000000000000)}},
+		Alloc:   types.GenesisAlloc{testAddress: {Balance: big.NewInt(1000000000000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
 	}
-	genesis      = gspec.MustCommit(testdb, trie.NewDatabase(testdb, trie.HashDefaults))
+	genesis      = gspec.MustCommit(testdb, triedb.NewDatabase(testdb, triedb.HashDefaults))
 	unknownBlock = types.NewBlock(&types.Header{Root: types.EmptyRootHash, GasLimit: params.GenesisGasLimit, BaseFee: big.NewInt(params.InitialBaseFee)}, nil, nil, nil, trie.NewStackTrie(nil))
 )
 
@@ -157,7 +158,7 @@ func (f *fetcherTester) chainFinalizedHeight() uint64 {
 	return f.blocks[f.hashes[len(f.hashes)-3]].NumberU64()
 }
 
-// insertChain injects a new headers into the simulated chain.
+// insertHeaders injects a new headers into the simulated chain.
 func (f *fetcherTester) insertHeaders(headers []*types.Header) (int, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -227,7 +228,7 @@ func (f *fetcherTester) makeHeaderFetcher(peer string, blocks map[common.Hash]*t
 		}
 		res := &eth.Response{
 			Req:  req,
-			Res:  (*eth.BlockHeadersPacket)(&headers),
+			Res:  (*eth.BlockHeadersRequest)(&headers),
 			Time: drift,
 			Done: make(chan error, 1), // Ignore the returned status
 		}
@@ -269,7 +270,7 @@ func (f *fetcherTester) makeBodyFetcher(peer string, blocks map[common.Hash]*typ
 		}
 		res := &eth.Response{
 			Req:  req,
-			Res:  (*eth.BlockBodiesPacket)(&bodies),
+			Res:  (*eth.BlockBodiesResponse)(&bodies),
 			Time: drift,
 			Done: make(chan error, 1), // Ignore the returned status
 		}
@@ -850,7 +851,6 @@ func testInvalidNumberAnnouncement(t *testing.T, light bool) {
 				continue
 			case <-time.After(1 * time.Second):
 				t.Fatal("announce timeout")
-				return
 			}
 		}
 	}

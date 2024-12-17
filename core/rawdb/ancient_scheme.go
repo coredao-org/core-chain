@@ -34,17 +34,23 @@ const (
 
 	// ChainFreezerDifficultyTable indicates the name of the freezer total difficulty table.
 	ChainFreezerDifficultyTable = "diffs"
+
+	// ChainFreezerBlobSidecarTable indicates the name of the freezer total blob table.
+	ChainFreezerBlobSidecarTable = "blobs"
 )
 
 // chainFreezerNoSnappy configures whether compression is disabled for the ancient-tables.
 // Hashes and difficulties don't compress well.
 var chainFreezerNoSnappy = map[string]bool{
-	ChainFreezerHeaderTable:     false,
-	ChainFreezerHashTable:       true,
-	ChainFreezerBodiesTable:     false,
-	ChainFreezerReceiptTable:    false,
-	ChainFreezerDifficultyTable: true,
+	ChainFreezerHeaderTable:      false,
+	ChainFreezerHashTable:        true,
+	ChainFreezerBodiesTable:      false,
+	ChainFreezerReceiptTable:     false,
+	ChainFreezerDifficultyTable:  true,
+	ChainFreezerBlobSidecarTable: false,
 }
+
+var additionTables = []string{ChainFreezerBlobSidecarTable}
 
 const (
 	// stateHistoryTableSize defines the maximum size of freezer data files.
@@ -68,14 +74,14 @@ var stateFreezerNoSnappy = map[string]bool{
 
 // The list of identifiers of ancient stores.
 var (
-	chainFreezerName = "chain" // the folder name of chain segment ancient store.
-	stateFreezerName = "state" // the folder name of reverse diff ancient store.
+	ChainFreezerName = "chain" // the folder name of chain segment ancient store.
+	StateFreezerName = "state" // the folder name of reverse diff ancient store.
 )
 
 // freezers the collections of all builtin freezers.
-var freezers = []string{chainFreezerName, stateFreezerName}
+var freezers = []string{ChainFreezerName, StateFreezerName}
 
 // NewStateFreezer initializes the freezer for state history.
 func NewStateFreezer(ancientDir string, readOnly bool, offset uint64) (*ResettableFreezer, error) {
-	return NewResettableFreezer(filepath.Join(ancientDir, stateFreezerName), "eth/db/state", readOnly, offset, stateHistoryTableSize, stateFreezerNoSnappy)
+	return NewResettableFreezer(filepath.Join(ancientDir, StateFreezerName), "eth/db/state", readOnly, offset, stateHistoryTableSize, stateFreezerNoSnappy)
 }

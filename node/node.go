@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/event"
@@ -73,9 +74,15 @@ const (
 	initializingState = iota
 	runningState
 	closedState
+	blockDbCacheSize        = 256
+	blockDbHandlesMinSize   = 1000
+	blockDbHandlesMaxSize   = 2000
+	chainDbMemoryPercentage = 50
+	chainDbHandlesPercentage
+	diffStoreHandlesPercentage = 20
 )
 
-const chainDataHandlesPercentage = 80
+const StateDBNamespace = "eth/db/statedata/"
 
 // New creates a new P2P node, ready for protocol registration.
 func New(conf *Config) (*Node, error) {
@@ -123,7 +130,7 @@ func New(conf *Config) (*Node, error) {
 				maxBackups = *conf.LogConfig.MaxBackups
 			}
 
-			log.Root().SetHandler(log.NewFileLvlHandler(logFilePath, *conf.LogConfig.MaxBytesSize, maxBackups, *conf.LogConfig.Level, rotateHours))
+			log.SetDefault(log.NewLogger(log.RotatingFileHandler(logFilePath, *conf.LogConfig.MaxBytesSize, maxBackups, *conf.LogConfig.Level, rotateHours)))
 		}
 	}
 	if conf.Logger == nil {
@@ -489,15 +496,20 @@ func (n *Node) startRPC() error {
 		if err := server.setListenAddr(n.config.AuthAddr, port); err != nil {
 			return err
 		}
-		sharedConfig := rpcConfig
-		sharedConfig.jwtSecret = secret
-		if err := server.enableRPC(allAPIs, httpConfig{
+		sharedConfig := rpcEndpointConfig{
+			jwtSecret:              secret,
+			batchItemLimit:         engineAPIBatchItemLimit,
+			batchResponseSizeLimit: engineAPIBatchResponseSizeLimit,
+			httpBodyLimit:          engineAPIBodyLimit,
+		}
+		err := server.enableRPC(allAPIs, httpConfig{
 			CorsAllowedOrigins: DefaultAuthCors,
 			Vhosts:             n.config.AuthVirtualHosts,
 			Modules:            DefaultAuthModules,
 			prefix:             DefaultAuthPrefix,
 			rpcEndpointConfig:  sharedConfig,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
 		servers = append(servers, server)
@@ -761,12 +773,13 @@ func (n *Node) OpenDatabase(name string, cache, handles int, namespace string, r
 		db = rawdb.NewMemoryDatabase()
 	} else {
 		db, err = rawdb.Open(rawdb.OpenOptions{
-			Type:      n.config.DBEngine,
-			Directory: n.ResolvePath(name),
-			Namespace: namespace,
-			Cache:     cache,
-			Handles:   handles,
-			ReadOnly:  readonly,
+			Type:          n.config.DBEngine,
+			Directory:     n.ResolvePath(name),
+			Namespace:     namespace,
+			Cache:         cache,
+			Handles:       handles,
+			ReadOnly:      readonly,
+			MultiDataBase: n.CheckIfMultiDataBase(),
 		})
 	}
 
@@ -776,23 +789,71 @@ func (n *Node) OpenDatabase(name string, cache, handles int, namespace string, r
 	return db, err
 }
 
-func (n *Node) OpenAndMergeDatabase(name string, cache, handles int, freezer, diff, namespace string, readonly, persistDiff, pruneAncientData bool) (ethdb.Database, error) {
-	chainDataHandles := handles
-	if persistDiff {
-		chainDataHandles = handles * chainDataHandlesPercentage / 100
+func (n *Node) OpenAndMergeDatabase(name string, namespace string, readonly bool, config *ethconfig.Config) (ethdb.Database, error) {
+	var (
+		err                  error
+		stateDiskDb          ethdb.Database
+		blockDb              ethdb.Database
+		disableChainDbFreeze = false
+		blockDbHandlesSize   int
+		diffStoreHandles     int
+		chainDataHandles     = config.DatabaseHandles
+		chainDbCache         = config.DatabaseCache
+	)
+
+	if config.PersistDiff {
+		diffStoreHandles = config.DatabaseHandles * diffStoreHandlesPercentage / 100
 	}
-	chainDB, err := n.OpenDatabaseWithFreezer(name, cache, chainDataHandles, freezer, namespace, readonly, false, false, pruneAncientData)
+	isMultiDatabase := n.CheckIfMultiDataBase()
+	// Open the separated state database if the state directory exists
+	if isMultiDatabase {
+		// Resource allocation rules:
+		// 1) Allocate a fixed percentage of memory for chainDb based on chainDbMemoryPercentage & chainDbHandlesPercentage.
+		// 2) Allocate a fixed size for blockDb based on blockDbCacheSize & blockDbHandlesSize.
+		// 3) Allocate the remaining resources to stateDb.
+		chainDbCache = int(float64(config.DatabaseCache) * chainDbMemoryPercentage / 100)
+		chainDataHandles = int(float64(config.DatabaseHandles) * chainDbHandlesPercentage / 100)
+		if config.DatabaseHandles/10 > blockDbHandlesMaxSize {
+			blockDbHandlesSize = blockDbHandlesMaxSize
+		} else {
+			blockDbHandlesSize = blockDbHandlesMinSize
+		}
+		stateDbCache := config.DatabaseCache - chainDbCache - blockDbCacheSize
+		stateDbHandles := config.DatabaseHandles - chainDataHandles - blockDbHandlesSize
+		disableChainDbFreeze = true
+
+		// Allocate half of the  handles and chainDbCache to this separate state data database
+		stateDiskDb, err = n.OpenDatabaseWithFreezer(name+"/state", stateDbCache, stateDbHandles, "", "eth/db/statedata/", readonly, true, false, config.PruneAncientData)
+		if err != nil {
+			return nil, err
+		}
+
+		blockDb, err = n.OpenDatabaseWithFreezer(name+"/block", blockDbCacheSize, blockDbHandlesSize, "", "eth/db/blockdata/", readonly, false, false, config.PruneAncientData)
+		if err != nil {
+			return nil, err
+		}
+		log.Warn("Multi-database is an experimental feature")
+	}
+
+	chainDB, err := n.OpenDatabaseWithFreezer(name, chainDbCache, chainDataHandles, config.DatabaseFreezer, namespace, readonly, disableChainDbFreeze, false, config.PruneAncientData)
 	if err != nil {
 		return nil, err
 	}
-	if persistDiff {
-		diffStore, err := n.OpenDiffDatabase(name, handles-chainDataHandles, diff, namespace, readonly)
+
+	if isMultiDatabase {
+		chainDB.SetStateStore(stateDiskDb)
+		chainDB.SetBlockStore(blockDb)
+	}
+
+	if config.PersistDiff {
+		diffStore, err := n.OpenDiffDatabase(name, diffStoreHandles, config.DatabaseDiff, namespace, readonly)
 		if err != nil {
 			chainDB.Close()
 			return nil, err
 		}
 		chainDB.SetDiffStore(diffStore)
 	}
+
 	return chainDB, nil
 }
 
@@ -830,6 +891,33 @@ func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, ancient,
 		db = n.wrapDatabase(db)
 	}
 	return db, err
+}
+
+// CheckIfMultiDataBase check the state and block subdirectory of db, if subdirectory exists, return true
+func (n *Node) CheckIfMultiDataBase() bool {
+	var (
+		stateExist = true
+		blockExist = true
+	)
+
+	separateStateDir := filepath.Join(n.ResolvePath("chaindata"), "state")
+	fileInfo, stateErr := os.Stat(separateStateDir)
+	if os.IsNotExist(stateErr) || !fileInfo.IsDir() {
+		stateExist = false
+	}
+	separateBlockDir := filepath.Join(n.ResolvePath("chaindata"), "block")
+	blockFileInfo, blockErr := os.Stat(separateBlockDir)
+	if os.IsNotExist(blockErr) || !blockFileInfo.IsDir() {
+		blockExist = false
+	}
+
+	if stateExist && blockExist {
+		return true
+	} else if !stateExist && !blockExist {
+		return false
+	} else {
+		panic("data corruption! missing block or state dir.")
+	}
 }
 
 func (n *Node) OpenDiffDatabase(name string, handles int, diff, namespace string, readonly bool) (*leveldb.Database, error) {

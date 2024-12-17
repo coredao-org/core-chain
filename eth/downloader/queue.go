@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
@@ -70,6 +71,7 @@ type fetchResult struct {
 	Transactions types.Transactions
 	Receipts     types.Receipts
 	Withdrawals  types.Withdrawals
+	Sidecars     types.BlobSidecars
 }
 
 func newFetchResult(header *types.Header, fastSync bool, pid string) *fetchResult {
@@ -775,7 +777,7 @@ func (q *queue) DeliverHeaders(id string, headers []*types.Header, hashes []comm
 // also wakes any threads waiting for data delivery.
 func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, txListHashes []common.Hash,
 	uncleLists [][]*types.Header, uncleListHashes []common.Hash,
-	withdrawalLists [][]*types.Withdrawal, withdrawalListHashes []common.Hash) (int, error) {
+	withdrawalLists [][]*types.Withdrawal, withdrawalListHashes []common.Hash, sidecars []types.BlobSidecars) (int, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
@@ -800,7 +802,7 @@ func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, txListH
 			}
 		}
 		// Blocks must have a number of blobs corresponding to the header gas usage,
-		// and zero before the Cancun hardfork
+		// and zero before the Cancun hardfork.
 		var blobs int
 		for _, tx := range txLists[index] {
 			// Count the number of blobs to validate against the header's blobGasUsed
@@ -812,9 +814,12 @@ func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, txListH
 					return errInvalidBody
 				}
 				for _, hash := range tx.BlobHashes() {
-					if hash[0] != params.BlobTxHashVersion {
+					if !kzg4844.IsValidVersionedHash(hash[:]) {
 						return errInvalidBody
 					}
+				}
+				if tx.BlobTxSidecar() != nil {
+					return errInvalidBody
 				}
 			}
 		}
@@ -822,9 +827,19 @@ func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, txListH
 			if want := *header.BlobGasUsed / params.BlobTxBlobGasPerBlob; uint64(blobs) != want { // div because the header is surely good vs the body might be bloated
 				return errInvalidBody
 			}
+			if blobs > params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob {
+				return errInvalidBody
+			}
 		} else {
 			if blobs != 0 {
 				return errInvalidBody
+			}
+		}
+
+		// do some sanity check for sidecar
+		for _, sidecar := range sidecars[index] {
+			if err := sidecar.SanityCheck(header.Number, header.Hash()); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -834,6 +849,7 @@ func (q *queue) DeliverBodies(id string, txLists [][]*types.Transaction, txListH
 		result.Transactions = txLists[index]
 		result.Uncles = uncleLists[index]
 		result.Withdrawals = withdrawalLists[index]
+		result.Sidecars = sidecars[index]
 		result.SetBodyDone()
 	}
 	return q.deliver(id, q.blockTaskPool, q.blockTaskQueue, q.blockPendPool,

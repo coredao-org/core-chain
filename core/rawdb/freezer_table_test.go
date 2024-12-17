@@ -661,6 +661,13 @@ func TestFreezerOffset(t *testing.T) {
 	}
 }
 
+func assertTableSize(t *testing.T, f *freezerTable, size int) {
+	t.Helper()
+	if got, err := f.size(); got != uint64(size) {
+		t.Fatalf("expected size of %d bytes, got %d, err: %v", size, got, err)
+	}
+}
+
 func TestTruncateTail(t *testing.T) {
 	t.Parallel()
 	rm, wm, sg := metrics.NewMeter(), metrics.NewMeter(), metrics.NewGauge()
@@ -695,6 +702,9 @@ func TestTruncateTail(t *testing.T) {
 		5: getChunk(20, 0xaa),
 		6: getChunk(20, 0x11),
 	})
+	// maxFileSize*fileCount + headBytes + indexFileSize - hiddenBytes
+	expected := 20*7 + 48 - 0
+	assertTableSize(t, f, expected)
 
 	// truncate single element( item 0 ), deletion is only supported at file level
 	f.truncateTail(1)
@@ -710,6 +720,8 @@ func TestTruncateTail(t *testing.T) {
 		5: getChunk(20, 0xaa),
 		6: getChunk(20, 0x11),
 	})
+	expected = 20*7 + 48 - 20
+	assertTableSize(t, f, expected)
 
 	// Reopen the table, the deletion information should be persisted as well
 	f.Close()
@@ -742,6 +754,8 @@ func TestTruncateTail(t *testing.T) {
 		5: getChunk(20, 0xaa),
 		6: getChunk(20, 0x11),
 	})
+	expected = 20*5 + 36 - 0
+	assertTableSize(t, f, expected)
 
 	// Reopen the table, the above testing should still pass
 	f.Close()
@@ -763,6 +777,23 @@ func TestTruncateTail(t *testing.T) {
 		6: getChunk(20, 0x11),
 	})
 
+	// truncate 3 more elements( item 2, 3, 4), the file 1 should be deleted
+	// file 2 should only contain item 5
+	f.truncateTail(5)
+	checkRetrieveError(t, f, map[uint64]error{
+		0: errOutOfBounds,
+		1: errOutOfBounds,
+		2: errOutOfBounds,
+		3: errOutOfBounds,
+		4: errOutOfBounds,
+	})
+	checkRetrieve(t, f, map[uint64][]byte{
+		5: getChunk(20, 0xaa),
+		6: getChunk(20, 0x11),
+	})
+	expected = 20*3 + 24 - 20
+	assertTableSize(t, f, expected)
+
 	// truncate all, the entire freezer should be deleted
 	f.truncateTail(7)
 	checkRetrieveError(t, f, map[uint64]error{
@@ -774,6 +805,8 @@ func TestTruncateTail(t *testing.T) {
 		5: errOutOfBounds,
 		6: errOutOfBounds,
 	})
+	expected = 12
+	assertTableSize(t, f, expected)
 }
 
 func TestTruncateHead(t *testing.T) {
@@ -864,7 +897,7 @@ func getChunk(size int, b int) []byte {
 }
 
 // TODO (?)
-// - test that if we remove several head-files, aswell as data last data-file,
+// - test that if we remove several head-files, as well as data last data-file,
 //   the index is truncated accordingly
 // Right now, the freezer would fail on these conditions:
 // 1. have data files d0, d1, d2, d3
@@ -1336,4 +1369,77 @@ func TestRandom(t *testing.T) {
 		}
 		t.Fatal(err)
 	}
+}
+
+func TestResetItems(t *testing.T) {
+	t.Parallel()
+	rm, wm, sg := metrics.NewMeter(), metrics.NewMeter(), metrics.NewGauge()
+	fname := fmt.Sprintf("truncate-tail-%d", rand.Uint64())
+
+	// Fill table
+	f, err := newTable(os.TempDir(), fname, rm, wm, sg, 40, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Write 7 x 20 bytes, splitting out into four files
+	batch := f.newBatch(0)
+	require.NoError(t, batch.AppendRaw(0, getChunk(20, 0x00)))
+	require.NoError(t, batch.AppendRaw(1, getChunk(20, 0x11)))
+	require.NoError(t, batch.AppendRaw(2, getChunk(20, 0x22)))
+	require.NoError(t, batch.AppendRaw(3, getChunk(20, 0x33)))
+	require.NoError(t, batch.AppendRaw(4, getChunk(20, 0x44)))
+	require.NoError(t, batch.AppendRaw(5, getChunk(20, 0x55)))
+	require.NoError(t, batch.AppendRaw(6, getChunk(20, 0x66)))
+	require.NoError(t, batch.commit())
+
+	// nothing to do, all the items should still be there.
+	f, err = f.resetItems(0)
+	require.NoError(t, err)
+	f, err = f.resetItems(8)
+	require.NoError(t, err)
+	f, err = f.resetItems(7)
+	require.NoError(t, err)
+	fmt.Println(f.dumpIndexString(0, 1000))
+	checkRetrieveError(t, f, map[uint64]error{
+		0: errOutOfBounds,
+		6: errOutOfBounds,
+	})
+
+	// append
+	batch = f.newBatch(0)
+	require.Error(t, batch.AppendRaw(0, getChunk(20, 0xa0)))
+	require.NoError(t, batch.AppendRaw(7, getChunk(20, 0x77)))
+	require.NoError(t, batch.AppendRaw(8, getChunk(20, 0x88)))
+	require.NoError(t, batch.AppendRaw(9, getChunk(20, 0x99)))
+	require.NoError(t, batch.commit())
+	fmt.Println(f.dumpIndexString(0, 1000))
+	checkRetrieve(t, f, map[uint64][]byte{
+		7: getChunk(20, 0x77),
+		9: getChunk(20, 0x99),
+	})
+
+	// Reopen the table, the deletion information should be persisted as well
+	f.Close()
+	f, err = newTable(os.TempDir(), fname, rm, wm, sg, 40, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(f.dumpIndexString(0, 1000))
+	checkRetrieveError(t, f, map[uint64]error{
+		0:  errOutOfBounds,
+		6:  errOutOfBounds,
+		10: errOutOfBounds,
+	})
+	checkRetrieve(t, f, map[uint64][]byte{
+		7: getChunk(20, 0x77),
+		9: getChunk(20, 0x99),
+	})
+
+	// truncate all, the entire freezer should be deleted
+	f.truncateTail(10)
+	checkRetrieveError(t, f, map[uint64]error{
+		0: errOutOfBounds,
+		9: errOutOfBounds,
+	})
 }

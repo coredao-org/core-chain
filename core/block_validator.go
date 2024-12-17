@@ -66,6 +66,31 @@ func NewBlockValidator(config *params.ChainConfig, blockchain *BlockChain, engin
 	return validator
 }
 
+// ValidateListsInBody validates that UncleHash, WithdrawalsHash, and WithdrawalsHash correspond to the lists in the block body, respectively.
+func ValidateListsInBody(block *types.Block) error {
+	header := block.Header()
+	if hash := types.CalcUncleHash(block.Uncles()); hash != header.UncleHash {
+		return fmt.Errorf("uncle root hash mismatch (header value %x, calculated %x)", header.UncleHash, hash)
+	}
+	if hash := types.DeriveSha(block.Transactions(), trie.NewStackTrie(nil)); hash != header.TxHash {
+		return fmt.Errorf("transaction root hash mismatch: have %x, want %x", hash, header.TxHash)
+	}
+	// Withdrawals are present after the Shanghai fork.
+	if header.WithdrawalsHash != nil {
+		// Withdrawals list must be present in body after Shanghai.
+		if block.Withdrawals() == nil {
+			return errors.New("missing withdrawals in block body")
+		}
+		if hash := types.DeriveSha(block.Withdrawals(), trie.NewStackTrie(nil)); hash != *header.WithdrawalsHash {
+			return fmt.Errorf("withdrawals root hash mismatch (header value %x, calculated %x)", *header.WithdrawalsHash, hash)
+		}
+	} else if block.Withdrawals() != nil { // Withdrawals turn into empty from nil when BlockBody has Sidecars
+		// Withdrawals are not allowed prior to shanghai fork
+		return errors.New("withdrawals present in block body")
+	}
+	return nil
+}
+
 // ValidateBody validates the given block's uncles and verifies the block
 // header's transaction and uncle roots. The headers are assumed to be already
 // validated at this point.
@@ -83,39 +108,28 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	if err := v.engine.VerifyUncles(v.bc, block); err != nil {
 		return err
 	}
-	if hash := types.CalcUncleHash(block.Uncles()); hash != header.UncleHash {
-		return fmt.Errorf("uncle root hash mismatch (header value %x, calculated %x)", header.UncleHash, hash)
-	}
 
 	validateFuns := []func() error{
 		func() error {
-			if hash := types.DeriveSha(block.Transactions(), trie.NewStackTrie(nil)); hash != header.TxHash {
-				return fmt.Errorf("transaction root hash mismatch: have %x, want %x", hash, header.TxHash)
-			}
-			return nil
+			return ValidateListsInBody(block)
 		},
 		func() error {
-			// Withdrawals are present after the Shanghai fork.
-			if header.WithdrawalsHash != nil {
-				// Withdrawals list must be present in body after Shanghai.
-				if block.Withdrawals() == nil {
-					return errors.New("missing withdrawals in block body")
-				}
-				if hash := types.DeriveSha(block.Withdrawals(), trie.NewStackTrie(nil)); hash != *header.WithdrawalsHash {
-					return fmt.Errorf("withdrawals root hash mismatch (header value %x, calculated %x)", *header.WithdrawalsHash, hash)
-				}
-			} else if block.Withdrawals() != nil {
-				// Withdrawals are not allowed prior to shanghai fork
-				return errors.New("withdrawals present in block body")
-			}
 			// Blob transactions may be present after the Cancun fork.
 			var blobs int
-			for _, tx := range block.Transactions() {
+			for i, tx := range block.Transactions() {
 				// Count the number of blobs to validate against the header's blobGasUsed
 				blobs += len(tx.BlobHashes())
+
+				// If the tx is a blob tx, it must NOT have a sidecar attached to be valid in a block.
+				if tx.BlobTxSidecar() != nil {
+					return fmt.Errorf("unexpected blob sidecar in transaction at index %d", i)
+				}
+
 				// The individual checks for blob validity (version-check + not empty)
-				// happens in the state_transition check.
+				// happens in StateTransition.
 			}
+
+			// Check blob gas usage.
 			if header.BlobGasUsed != nil {
 				if want := *header.BlobGasUsed / params.BlobTxBlobGasPerBlob; uint64(blobs) != want { // div because the header is surely good vs the body might be bloated
 					return fmt.Errorf("blob gas used mismatch (header %v, calculated %v)", *header.BlobGasUsed, blobs*params.BlobTxBlobGasPerBlob)

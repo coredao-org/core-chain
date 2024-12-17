@@ -16,6 +16,7 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/ethereum/go-ethereum"
@@ -517,7 +518,7 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 		// If we're at the genesis, snapshot the initial state. Alternatively if we have
 		// piled up more headers than allowed to be reorged (chain reinit from a freezer),
 		// consider the checkpoint trusted and snapshot it.
-		if number == 0 || (number%p.config.Epoch == 0 && (len(headers) > params.FullImmutabilityThreshold/10)) {
+		if number == 0 || (number%p.config.Epoch == 0 && (len(headers) > int(params.FullImmutabilityThreshold/10))) {
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				// get checkpoint data
@@ -659,6 +660,16 @@ func (p *Satoshi) verifySeal(chain consensus.ChainHeaderReader, header *types.He
 	return nil
 }
 
+// NextInTurnValidator return the next in-turn validator for header
+func (p *Satoshi) NextInTurnValidator(chain consensus.ChainHeaderReader, header *types.Header) (common.Address, error) {
+	snap, err := p.snapshot(chain, header.Number.Uint64(), header.Hash(), nil)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	return snap.inturnValidator(), nil
+}
+
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
@@ -690,7 +701,7 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	}
 
 	header.Extra = header.Extra[:extraVanity-nextForkHashSize]
-	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, number, header.Time)
+	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, chain.GenesisHeader().Time, number, header.Time)
 	header.Extra = append(header.Extra, nextForkHash[:]...)
 
 	if number%p.config.Epoch == 0 {
@@ -794,7 +805,7 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 	if err != nil {
 		return err
 	}
-	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, number, header.Time)
+	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, chain.GenesisHeader().Time, number, header.Time)
 	if !snap.isMajorityFork(hex.EncodeToString(nextForkHash[:])) {
 		log.Debug("there is a possible fork, and your client is not the majority. Please check...", "nextForkHash", hex.EncodeToString(nextForkHash[:]))
 	}
@@ -1175,7 +1186,7 @@ func (p *Satoshi) getCurrentValidators(blockHash common.Hash) ([]common.Address,
 		Gas:  &gas,
 		To:   &toAddress,
 		Data: &msgData,
-	}, blockNr, nil, nil)
+	}, &blockNr, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1202,10 +1213,10 @@ func (p *Satoshi) distributeIncoming(val common.Address, state *state.StateDB, h
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
-	state.SetBalance(consensus.SystemAddress, big.NewInt(0))
+	state.SetBalance(consensus.SystemAddress, common.U2560)
 	state.AddBalance(coinbase, balance)
 	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
-	return p.distributeToValidator(balance, val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+	return p.distributeToValidator(balance.ToBig(), val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
 // slash spoiled validators
@@ -1584,7 +1595,7 @@ func applyMessage(
 		*msg.To(),
 		msg.Data(),
 		msg.Gas(),
-		msg.Value(),
+		uint256.MustFromBig(msg.Value()),
 	)
 	if err != nil {
 		log.Error("apply message failed", "msg", string(ret), "err", err)

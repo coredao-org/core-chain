@@ -303,8 +303,21 @@ func (c *Clique) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 	if chain.Config().IsShanghai(header.Number, header.Time) {
 		return errors.New("clique does not support shanghai fork")
 	}
+	// Verify the non-existence of withdrawalsHash.
+	if header.WithdrawalsHash != nil {
+		return fmt.Errorf("invalid withdrawalsHash: have %x, expected nil", header.WithdrawalsHash)
+	}
 	if chain.Config().IsCancun(header.Number, header.Time) {
 		return errors.New("clique does not support cancun fork")
+	}
+	// Verify the non-existence of cancun-specific header fields
+	switch {
+	case header.ExcessBlobGas != nil:
+		return fmt.Errorf("invalid excessBlobGas: have %d, expected nil", header.ExcessBlobGas)
+	case header.BlobGasUsed != nil:
+		return fmt.Errorf("invalid blobGasUsed: have %d, expected nil", header.BlobGasUsed)
+	case header.ParentBeaconRoot != nil:
+		return fmt.Errorf("invalid parentBeaconRoot, have %#x, expected nil", header.ParentBeaconRoot)
 	}
 	// All basic checks passed, verify cascading fields
 	return c.verifyCascadingFields(chain, header, parents)
@@ -394,7 +407,7 @@ func (c *Clique) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 		// at a checkpoint block without a parent (light client CHT), or we have piled
 		// up more headers than allowed to be reorged (chain reinit from a freezer),
 		// consider the checkpoint trusted and snapshot it.
-		if number == 0 || (number%c.config.Epoch == 0 && (len(headers) > params.FullImmutabilityThreshold || chain.GetHeaderByNumber(number-1) == nil)) {
+		if number == 0 || (number%c.config.Epoch == 0 && (len(headers) > int(params.FullImmutabilityThreshold) || chain.GetHeaderByNumber(number-1) == nil)) {
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				hash := checkpoint.Hash()
@@ -496,6 +509,11 @@ func (c *Clique) verifySeal(snap *Snapshot, header *types.Header, parents []*typ
 		}
 	}
 	return nil
+}
+
+// NextInTurnValidator return the next in-turn validator for header
+func (c *Clique) NextInTurnValidator(chain consensus.ChainHeaderReader, header *types.Header) (common.Address, error) {
+	return common.Address{}, errors.New("not implemented")
 }
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
@@ -769,6 +787,15 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 	}
 	if header.WithdrawalsHash != nil {
 		panic("unexpected withdrawal hash value in clique")
+	}
+	if header.ExcessBlobGas != nil {
+		panic("unexpected excess blob gas value in clique")
+	}
+	if header.BlobGasUsed != nil {
+		panic("unexpected blob gas used value in clique")
+	}
+	if header.ParentBeaconRoot != nil {
+		panic("unexpected parent beacon root value in clique")
 	}
 	if err := rlp.Encode(w, enc); err != nil {
 		panic("can't encode: " + err.Error())

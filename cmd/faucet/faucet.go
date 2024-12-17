@@ -84,7 +84,7 @@ var websiteTmpl string
 func main() {
 	// Parse the flags and set up the logger to print everything requested
 	flag.Parse()
-	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	log.SetDefault(log.NewLogger(log.NewTerminalHandlerWithLevel(os.Stderr, log.FromLegacyLevel(*logFlag), true)))
 
 	// Construct the payout tiers
 	amounts := make([]string, *tiersFlag)
@@ -458,7 +458,7 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		f.lock.Unlock()
 
-		// Send an error if too frequent funding, othewise a success
+		// Send an error if too frequent funding, otherwise a success
 		if !fund {
 			if err = sendError(wsconn, fmt.Errorf("%s left until next allowance", common.PrettyDuration(time.Until(timeout)))); err != nil { // nolint: gosimple
 				log.Warn("Failed to send funding error to client", "err", err)

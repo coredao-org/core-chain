@@ -16,13 +16,18 @@
 
 package params
 
-import "math/big"
+import (
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
+)
 
 const (
 	GasLimitBoundDivisor uint64 = 256                // The bound divisor of the gas limit, used in update calculations.
 	MinGasLimit          uint64 = 5000               // Minimum the gas limit may ever be.
 	MaxGasLimit          uint64 = 0x7fffffffffffffff // Maximum the gas limit (2^63-1).
 	GenesisGasLimit      uint64 = 4712388            // Gas limit of the Genesis block.
+	PayBidTxGasLimit     uint64 = 25000              // Gas limit of the PayBidTx in the types.BidArgs.
 
 	MaximumExtraDataSize  uint64 = 32     // Maximum size extra data may be after Genesis.
 	ForkIDSize            uint64 = 4      // The length of fork id
@@ -122,9 +127,10 @@ const (
 	// Introduced in Tangerine Whistle (Eip 150)
 	CreateBySelfdestructGas uint64 = 25000
 
-	DefaultBaseFeeChangeDenominator = 8 // Bounds the amount the base fee can change between blocks.
-	DefaultElasticityMultiplier     = 2 // Bounds the maximum gas limit an EIP-1559 block may have.
-	InitialBaseFee                  = 0 // Initial base fee for EIP-1559 blocks.
+	DefaultBaseFeeChangeDenominator = 8          // Bounds the amount the base fee can change between blocks.
+	DefaultElasticityMultiplier     = 2          // Bounds the maximum gas limit an EIP-1559 block may have.
+	InitialBaseFee                  = 1000000000 // Initial base fee for EIP-1559 blocks.
+	InitialBaseFeeForCORE           = 0          // Initial base fee for EIP-1559 blocks on core Mainnet
 
 	MaxCodeSize     = 24576           // Maximum bytecode to permit for a contract
 	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
@@ -135,15 +141,16 @@ const (
 	BitcoinHeaderValidateGas   uint64 = 20000 // Gas for validate bitcoin consensus state
 	IAVLMerkleProofValidateGas uint64 = 100   // Gas for validate merkle proof
 
-	EcrecoverGas                uint64 = 3000 // Elliptic curve sender recovery gas price
-	Sha256BaseGas               uint64 = 60   // Base price for a SHA256 operation
-	Sha256PerWordGas            uint64 = 12   // Per-word price for a SHA256 operation
-	Ripemd160BaseGas            uint64 = 600  // Base price for a RIPEMD160 operation
-	Ripemd160PerWordGas         uint64 = 120  // Per-word price for a RIPEMD160 operation
-	IdentityBaseGas             uint64 = 15   // Base price for a data copy operation
-	IdentityPerWordGas          uint64 = 3    // Per-work price for a data copy operation
-	BlsSignatureVerifyBaseGas   uint64 = 1000 // base price for a BLS signature verify operation
-	BlsSignatureVerifyPerKeyGas uint64 = 3500 // Per-key price for a BLS signature verify operation
+	EcrecoverGas                uint64 = 3000  // Elliptic curve sender recovery gas price
+	Sha256BaseGas               uint64 = 60    // Base price for a SHA256 operation
+	Sha256PerWordGas            uint64 = 12    // Per-word price for a SHA256 operation
+	Ripemd160BaseGas            uint64 = 600   // Base price for a RIPEMD160 operation
+	Ripemd160PerWordGas         uint64 = 120   // Per-word price for a RIPEMD160 operation
+	IdentityBaseGas             uint64 = 15    // Base price for a data copy operation
+	IdentityPerWordGas          uint64 = 3     // Per-work price for a data copy operation
+	BlsSignatureVerifyBaseGas   uint64 = 1000  // base price for a BLS signature verify operation
+	BlsSignatureVerifyPerKeyGas uint64 = 3500  // Per-key price for a BLS signature verify operation
+	DoubleSignEvidenceVerifyGas uint64 = 10000 // Gas for verify double sign evidence
 
 	Bn256AddGasByzantium             uint64 = 500    // Byzantium gas needed for an elliptic curve addition
 	Bn256AddGasIstanbul              uint64 = 150    // Gas needed for an elliptic curve addition
@@ -163,6 +170,8 @@ const (
 	Bls12381MapG1Gas          uint64 = 5500   // Gas price for BLS12-381 mapping field element to G1 operation
 	Bls12381MapG2Gas          uint64 = 110000 // Gas price for BLS12-381 mapping field element to G2 operation
 
+	P256VerifyGas uint64 = 3450 // secp256r1 elliptic curve signature verifier gas price
+
 	// The Refund Quotient is the cap on how much of the used gas can be refunded. Before EIP-3529,
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529
 	RefundQuotient        uint64 = 2
@@ -170,16 +179,19 @@ const (
 
 	BlobTxBytesPerFieldElement         = 32      // Size in bytes of a field element
 	BlobTxFieldElementsPerBlob         = 4096    // Number of field elements stored in a single data blob
-	BlobTxHashVersion                  = 0x01    // Version byte of the commitment hash
-	BlobTxMaxBlobGasPerBlock           = 1 << 19 // Maximum consumable blob gas for data blobs per block
-	BlobTxTargetBlobGasPerBlock        = 1 << 18 // Target consumable blob gas for data blobs per block (for 1559-like pricing)
 	BlobTxBlobGasPerBlob               = 1 << 17 // Gas consumption of a single data blob (== blob byte size)
 	BlobTxMinBlobGasprice              = 1       // Minimum gas price for data blobs
-	BlobTxBlobGaspriceUpdateFraction   = 2225652 // Controls the maximum rate of change for blob gas price
+	BlobTxBlobGaspriceUpdateFraction   = 3338477 // Controls the maximum rate of change for blob gas price
 	BlobTxPointEvaluationPrecompileGas = 50000   // Gas price for the point evaluation precompile.
 
-	// used for test
-	InitialBaseFeeForEthMainnet = int64(1000000000) // Initial base fee for EIP-1559 blocks on Eth hMainnet
+	BlobTxTargetBlobGasPerBlock = 3 * BlobTxBlobGasPerBlob // Target consumable blob gas for data blobs per block (for 1559-like pricing)
+	MaxBlobGasPerBlock          = 6 * BlobTxBlobGasPerBlob // Maximum consumable blob gas for data blobs per block
+)
+
+var (
+	MinBlocksForBlobRequests           uint64 = 524288              // it keeps blob data available for ~18.2 days in local, ref: https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-336.md#51-parameters.
+	DefaultExtraReserveForBlobRequests uint64 = 1 * (24 * 3600) / 3 // it adds more time for expired blobs for some request cases, like expiry blob when remote peer is syncing, default 1 day.
+	BreatheBlockInterval               uint64 = 86400               // Controls the interval for updateValidatorSetV2
 )
 
 // Gas discount table for BLS12-381 G1 and G2 multi exponentiation operations
@@ -190,4 +202,9 @@ var (
 	GenesisDifficulty      = big.NewInt(131072) // Difficulty of the Genesis block.
 	MinimumDifficulty      = big.NewInt(131072) // The minimum that the difficulty may ever be.
 	DurationLimit          = big.NewInt(13)     // The decision boundary on the blocktime duration used to determine whether difficulty should go up or not.
+
+	// BeaconRootsAddress is the address where historical beacon roots are stored as per EIP-4788
+	BeaconRootsAddress = common.HexToAddress("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02")
+	// SystemAddress is where the system-transaction is sent from as per EIP-4788
+	SystemAddress = common.HexToAddress("0xfffffffffffffffffffffffffffffffffffffffe")
 )

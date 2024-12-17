@@ -20,6 +20,7 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -28,10 +29,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prysmaticlabs/prysm/v4/crypto/bls"
-	"github.com/prysmaticlabs/prysm/v4/validator/accounts"
-	"github.com/prysmaticlabs/prysm/v4/validator/accounts/iface"
-	"github.com/prysmaticlabs/prysm/v4/validator/keymanager"
+	"github.com/prysmaticlabs/prysm/v5/crypto/bls"
+	"github.com/prysmaticlabs/prysm/v5/validator/accounts"
+	"github.com/prysmaticlabs/prysm/v5/validator/accounts/iface"
+	"github.com/prysmaticlabs/prysm/v5/validator/keymanager"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -81,13 +82,13 @@ func (b *testBackend) EventMux() *event.TypeMux { return b.eventMux }
 func (p *mockPOSA) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, headers []*types.Header) (uint64, common.Hash, error) {
 	parentHeader := chain.GetHeaderByHash(headers[len(headers)-1].ParentHash)
 	if parentHeader == nil {
-		return 0, common.Hash{}, fmt.Errorf("unexpected error")
+		return 0, common.Hash{}, errors.New("unexpected error")
 	}
 	return parentHeader.Number.Uint64(), parentHeader.Hash(), nil
 }
 
 func (p *mockInvalidPOSA) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, headers []*types.Header) (uint64, common.Hash, error) {
-	return 0, common.Hash{}, fmt.Errorf("not supported")
+	return 0, common.Hash{}, errors.New("not supported")
 }
 
 func (m *mockPOSA) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
@@ -145,7 +146,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	genesis := &core.Genesis{
 		Config: params.TestChainConfig,
-		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
+		Alloc:  types.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 	}
 
 	mux := new(event.TypeMux)

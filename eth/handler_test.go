@@ -17,9 +17,16 @@
 package eth
 
 import (
+	"crypto/ecdsa"
 	"math/big"
 	"sort"
 	"sync"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -34,6 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 var (
@@ -73,32 +81,23 @@ func (p *testTxPool) Has(hash common.Hash) bool {
 
 // Get retrieves the transaction from local txpool with given
 // tx hash.
-func (p *testTxPool) Get(hash common.Hash) *txpool.Transaction {
+func (p *testTxPool) Get(hash common.Hash) *types.Transaction {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-
-	if tx := p.pool[hash]; tx != nil {
-		return &txpool.Transaction{Tx: tx}
-	}
-	return nil
+	return p.pool[hash]
 }
 
 // Add appends a batch of transactions to the pool, and notifies any
 // listeners if the addition channel is non nil
-func (p *testTxPool) Add(txs []*txpool.Transaction, local bool, sync bool) []error {
-	unwrapped := make([]*types.Transaction, len(txs))
-	for i, tx := range txs {
-		unwrapped[i] = tx.Tx
-	}
+func (p *testTxPool) Add(txs []*types.Transaction, local bool, sync bool) []error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	for _, tx := range unwrapped {
+	for _, tx := range txs {
 		p.pool[tx.Hash()] = tx
 	}
-
-	p.txFeed.Send(core.NewTxsEvent{Txs: unwrapped})
-	return make([]error, len(unwrapped))
+	p.txFeed.Send(core.NewTxsEvent{Txs: txs})
+	return make([]error, len(txs))
 }
 
 // ReannouceTransactions announce the transactions to some peers.
@@ -114,7 +113,7 @@ func (p *testTxPool) ReannouceTransactions(txs []*types.Transaction) []error {
 }
 
 // Pending returns all the transactions known to the pool
-func (p *testTxPool) Pending(enforceTips bool) map[common.Address][]*txpool.LazyTransaction {
+func (p *testTxPool) Pending(filter txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
@@ -131,19 +130,21 @@ func (p *testTxPool) Pending(enforceTips bool) map[common.Address][]*txpool.Lazy
 		for _, tx := range batch {
 			pending[addr] = append(pending[addr], &txpool.LazyTransaction{
 				Hash:      tx.Hash(),
-				Tx:        &txpool.Transaction{Tx: tx},
+				Tx:        tx,
 				Time:      tx.Time(),
-				GasFeeCap: tx.GasFeeCap(),
-				GasTipCap: tx.GasTipCap(),
+				GasFeeCap: uint256.MustFromBig(tx.GasFeeCap()),
+				GasTipCap: uint256.MustFromBig(tx.GasTipCap()),
+				Gas:       tx.Gas(),
+				BlobGas:   tx.BlobGas(),
 			})
 		}
 	}
 	return pending
 }
 
-// SubscribeNewTxsEvent should return an event subscription of NewTxsEvent and
+// SubscribeTransactions should return an event subscription of NewTxsEvent and
 // send events to the given channel.
-func (p *testTxPool) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
+func (p *testTxPool) SubscribeTransactions(ch chan<- core.NewTxsEvent, reorgs bool) event.Subscription {
 	return p.txFeed.Subscribe(ch)
 }
 
@@ -176,7 +177,7 @@ func newTestHandlerWithBlocks(blocks int) *testHandler {
 	db := rawdb.NewMemoryDatabase()
 	gspec := &core.Genesis{
 		Config: params.TestChainConfig,
-		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
+		Alloc:  types.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 	}
 	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 
@@ -195,6 +196,108 @@ func newTestHandlerWithBlocks(blocks int) *testHandler {
 		VotePool:   votepool,
 		Network:    1,
 		Sync:       downloader.SnapSync,
+		BloomCache: 1,
+	})
+	handler.Start(1000, 3)
+
+	return &testHandler{
+		db:       db,
+		chain:    chain,
+		txpool:   txpool,
+		votepool: votepool,
+		handler:  handler,
+	}
+}
+
+type mockSatoshi struct {
+	consensus.Engine
+}
+
+func (c *mockSatoshi) Author(header *types.Header) (common.Address, error) {
+	return header.Coinbase, nil
+}
+
+func (c *mockSatoshi) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
+	return nil
+}
+
+func (c *mockSatoshi) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header) error {
+	return nil
+}
+
+func (c *mockSatoshi) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header) (chan<- struct{}, <-chan error) {
+	abort := make(chan<- struct{})
+	results := make(chan error, len(headers))
+	for i := 0; i < len(headers); i++ {
+		results <- nil
+	}
+	return abort, results
+}
+
+func (c *mockSatoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, _ *[]*types.Transaction, uncles []*types.Header, withdrawals []*types.Withdrawal,
+	_ *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64) (err error) {
+	return
+}
+
+func (c *mockSatoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+	uncles []*types.Header, receipts []*types.Receipt, withdrawals []*types.Withdrawal) (*types.Block, []*types.Receipt, error) {
+	// Finalize block
+	c.Finalize(chain, header, state, &txs, uncles, nil, nil, nil, nil)
+
+	// Assign the final state root to header.
+	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+
+	// Header seems complete, assemble into a block and return
+	return types.NewBlock(header, txs, uncles, receipts, trie.NewStackTrie(nil)), receipts, nil
+}
+
+func (c *mockSatoshi) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
+	return big.NewInt(1)
+}
+
+func newTestSatoshiHandlerAfterCancun(t *testing.T, config *params.ChainConfig, mode downloader.SyncMode, preCancunBlks, postCancunBlks uint64) *testHandler {
+	// Have N headers in the freezer
+	frdir := t.TempDir()
+	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false, false, false)
+	if err != nil {
+		t.Fatalf("failed to create database with ancient backend")
+	}
+	gspec := &core.Genesis{
+		Config: config,
+		Alloc:  types.GenesisAlloc{testAddr: {Balance: new(big.Int).SetUint64(10 * params.Ether)}},
+	}
+	engine := &mockSatoshi{}
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
+	signer := types.LatestSigner(config)
+
+	_, bs, _ := core.GenerateChainWithGenesis(gspec, engine, int(preCancunBlks+postCancunBlks), func(i int, gen *core.BlockGen) {
+		if !config.IsCancun(gen.Number(), gen.Timestamp()) {
+			tx, _ := makeMockTx(config, signer, testKey, gen.TxNonce(testAddr), gen.BaseFee().Uint64(), eip4844.CalcBlobFee(gen.ExcessBlobGas()).Uint64(), false)
+			gen.AddTxWithChain(chain, tx)
+			return
+		}
+		tx, sidecar := makeMockTx(config, signer, testKey, gen.TxNonce(testAddr), gen.BaseFee().Uint64(), eip4844.CalcBlobFee(gen.ExcessBlobGas()).Uint64(), true)
+		gen.AddTxWithChain(chain, tx)
+		gen.AddBlobSidecar(&types.BlobSidecar{
+			BlobTxSidecar: *sidecar,
+			TxIndex:       0,
+			TxHash:        tx.Hash(),
+		})
+	})
+	if _, err := chain.InsertChain(bs); err != nil {
+		panic(err)
+	}
+	txpool := newTestTxPool()
+	votepool := newTestVotePool()
+
+	handler, _ := newHandler(&handlerConfig{
+		Database:   db,
+		Chain:      chain,
+		TxPool:     txpool,
+		Merger:     consensus.NewMerger(rawdb.NewMemoryDatabase()),
+		VotePool:   votepool,
+		Network:    1,
+		Sync:       mode,
 		BloomCache: 1,
 	})
 	handler.Start(1000, 3)
@@ -254,4 +357,44 @@ func (t *testVotePool) GetVotes() []*types.VoteEnvelope {
 
 func (t *testVotePool) SubscribeNewVoteEvent(ch chan<- core.NewVoteEvent) event.Subscription {
 	return t.voteFeed.Subscribe(ch)
+}
+
+var (
+	emptyBlob          = kzg4844.Blob{}
+	emptyBlobCommit, _ = kzg4844.BlobToCommitment(emptyBlob)
+	emptyBlobProof, _  = kzg4844.ComputeBlobProof(emptyBlob, emptyBlobCommit)
+)
+
+func makeMockTx(config *params.ChainConfig, signer types.Signer, key *ecdsa.PrivateKey, nonce uint64, baseFee uint64, blobBaseFee uint64, isBlobTx bool) (*types.Transaction, *types.BlobTxSidecar) {
+	if !isBlobTx {
+		raw := &types.DynamicFeeTx{
+			ChainID:   config.ChainID,
+			Nonce:     nonce,
+			GasTipCap: big.NewInt(10),
+			GasFeeCap: new(big.Int).SetUint64(baseFee + 10),
+			Gas:       params.TxGas,
+			To:        &common.Address{0x00},
+			Value:     big.NewInt(0),
+		}
+		tx, _ := types.SignTx(types.NewTx(raw), signer, key)
+		return tx, nil
+	}
+	sidecar := &types.BlobTxSidecar{
+		Blobs:       []kzg4844.Blob{emptyBlob, emptyBlob},
+		Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit},
+		Proofs:      []kzg4844.Proof{emptyBlobProof, emptyBlobProof},
+	}
+	raw := &types.BlobTx{
+		ChainID:    uint256.MustFromBig(config.ChainID),
+		Nonce:      nonce,
+		GasTipCap:  uint256.NewInt(10),
+		GasFeeCap:  uint256.NewInt(baseFee + 10),
+		Gas:        params.TxGas,
+		To:         common.Address{0x00},
+		Value:      uint256.NewInt(0),
+		BlobFeeCap: uint256.NewInt(blobBaseFee),
+		BlobHashes: sidecar.BlobHashes(),
+	}
+	tx, _ := types.SignTx(types.NewTx(raw), signer, key)
+	return tx, sidecar
 }

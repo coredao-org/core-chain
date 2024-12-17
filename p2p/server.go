@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -180,6 +181,8 @@ type Config struct {
 	// Logger is a custom logger to use with the p2p.Server.
 	Logger log.Logger `toml:",omitempty"`
 
+	PeerFilterPatterns []string
+
 	clock mclock.Clock
 }
 
@@ -210,7 +213,8 @@ type Server struct {
 	discmix   *enode.FairMix
 	dialsched *dialScheduler
 
-	forkFilter forkid.Filter
+	forkFilter     forkid.Filter
+	peerNameFilter []*regexp.Regexp
 
 	// This is read by the NAT port mapping loop.
 	portMappingRegister chan *portMapping
@@ -540,6 +544,15 @@ func (srv *Server) Start() (err error) {
 	}
 	srv.setupDialScheduler()
 
+	if srv.PeerFilterPatterns != nil {
+		pat, err := compilePeerFilterPatterns(srv.PeerFilterPatterns)
+		if err != nil {
+			log.Error("Failed to compile peer filter patterns", "err", err)
+			pat = nil
+		}
+		srv.peerNameFilter = pat
+	}
+
 	srv.loopWG.Add(1)
 	go srv.run()
 	return nil
@@ -840,8 +853,10 @@ running:
 				if p.Inbound() {
 					inboundCount++
 					serveSuccessMeter.Mark(1)
+					activeInboundPeerGauge.Inc(1)
 				} else {
 					dialSuccessMeter.Mark(1)
+					activeOutboundPeerGauge.Inc(1)
 				}
 				activePeerGauge.Inc(1)
 			}
@@ -858,6 +873,9 @@ running:
 			srv.dialsched.peerRemoved(pd.rw)
 			if pd.Inbound() {
 				inboundCount--
+				activeInboundPeerGauge.Dec(1)
+			} else {
+				activeOutboundPeerGauge.Dec(1)
 			}
 			activePeerGauge.Dec(1)
 		}
@@ -909,6 +927,14 @@ func (srv *Server) addPeerChecks(peers map[enode.ID]*Peer, inboundCount int, c *
 
 	if _, ok := srv.disconnectEnodeSet[c.node.ID()]; ok {
 		return errors.New("explicitly disconnected peer previously")
+	}
+
+	if srv.peerNameFilter != nil {
+		for _, re := range srv.peerNameFilter {
+			if re.MatchString(c.name) {
+				return errors.New("peer name matches filter")
+			}
+		}
 	}
 
 	// Repeat the post-handshake checks because the
@@ -992,13 +1018,13 @@ func (srv *Server) checkInboundConn(remoteIP net.IP) error {
 
 	// Reject connections that do not match NetRestrict.
 	if srv.NetRestrict != nil && !srv.NetRestrict.Contains(remoteIP) {
-		return fmt.Errorf("not in netrestrict list")
+		return errors.New("not in netrestrict list")
 	}
 	// Reject Internet peers that try too often.
 	now := srv.clock.Now()
 	srv.inboundHistory.expire(now, nil)
 	if !netutil.IsLAN(remoteIP) && srv.inboundHistory.contains(remoteIP.String()) {
-		return fmt.Errorf("too many attempts")
+		return errors.New("too many attempts")
 	}
 	srv.inboundHistory.add(remoteIP.String(), now.Add(inboundThrottleTime))
 	return nil
@@ -1220,4 +1246,16 @@ func (srv *Server) PeersInfo() []*PeerInfo {
 		}
 	}
 	return infos
+}
+
+func compilePeerFilterPatterns(pat []string) ([]*regexp.Regexp, error) {
+	var filters []*regexp.Regexp
+	for _, filter := range pat {
+		r, err := regexp.Compile(filter)
+		if err != nil {
+			return nil, err
+		}
+		filters = append(filters, r)
+	}
+	return filters, nil
 }

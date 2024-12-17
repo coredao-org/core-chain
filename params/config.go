@@ -21,6 +21,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 // Genesis hashes to enforce below configs on.
@@ -57,47 +58,57 @@ var (
 		TerminalTotalDifficulty:       MainnetTerminalTotalDifficulty, // 58_750_000_000_000_000_000_000
 		TerminalTotalDifficultyPassed: true,
 		ShanghaiTime:                  newUint64(1681338455),
+		CancunTime:                    newUint64(1710338135),
 		Ethash:                        new(EthashConfig),
 	}
-
-	// just for prysm compile pass
 	// SepoliaChainConfig contains the chain parameters to run a node on the Sepolia test network.
 	SepoliaChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(11155111),
-		HomesteadBlock:      big.NewInt(0),
-		DAOForkBlock:        nil,
-		DAOForkSupport:      true,
-		EIP150Block:         big.NewInt(0),
-		EIP155Block:         big.NewInt(0),
-		EIP158Block:         big.NewInt(0),
-		ByzantiumBlock:      big.NewInt(0),
-		ConstantinopleBlock: big.NewInt(0),
-		PetersburgBlock:     big.NewInt(0),
-		IstanbulBlock:       big.NewInt(0),
-		MuirGlacierBlock:    big.NewInt(0),
-		BerlinBlock:         big.NewInt(0),
-		LondonBlock:         big.NewInt(0),
-		Ethash:              new(EthashConfig),
+		ChainID:                       big.NewInt(11155111),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                true,
+		EIP150Block:                   big.NewInt(0),
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		MuirGlacierBlock:              big.NewInt(0),
+		BerlinBlock:                   big.NewInt(0),
+		LondonBlock:                   big.NewInt(0),
+		ArrowGlacierBlock:             nil,
+		GrayGlacierBlock:              nil,
+		TerminalTotalDifficulty:       big.NewInt(17_000_000_000_000_000),
+		TerminalTotalDifficultyPassed: true,
+		MergeNetsplitBlock:            big.NewInt(1735371),
+		ShanghaiTime:                  newUint64(1677557088),
+		CancunTime:                    newUint64(1706655072),
+		Ethash:                        new(EthashConfig),
 	}
 
 	// just for prysm compile pass
 	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
 	GoerliChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(5),
-		HomesteadBlock:      big.NewInt(0),
-		DAOForkBlock:        nil,
-		DAOForkSupport:      true,
-		EIP150Block:         big.NewInt(0),
-		EIP155Block:         big.NewInt(0),
-		EIP158Block:         big.NewInt(0),
-		ByzantiumBlock:      big.NewInt(0),
-		ConstantinopleBlock: big.NewInt(0),
-		PetersburgBlock:     big.NewInt(0),
-		IstanbulBlock:       big.NewInt(1_561_651),
-		MuirGlacierBlock:    nil,
-		BerlinBlock:         big.NewInt(4_460_644),
-		LondonBlock:         big.NewInt(5_062_605),
-		ArrowGlacierBlock:   nil,
+		ChainID:                       big.NewInt(5),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                true,
+		EIP150Block:                   big.NewInt(0),
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(1_561_651),
+		MuirGlacierBlock:              nil,
+		BerlinBlock:                   big.NewInt(4_460_644),
+		LondonBlock:                   big.NewInt(5_062_605),
+		ArrowGlacierBlock:             nil,
+		TerminalTotalDifficulty:       big.NewInt(10_790_000),
+		TerminalTotalDifficultyPassed: true,
+		ShanghaiTime:                  newUint64(1678832736),
+		CancunTime:                    newUint64(1705473120),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -178,6 +189,9 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		HertzBlock:          big.NewInt(0),
+		ShanghaiTime:        newUint64(0),
+		KeplerTime:          newUint64(0),
+		DemeterTime:         newUint64(0),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -231,9 +245,9 @@ var (
 		ArrowGlacierBlock:             big.NewInt(0),
 		GrayGlacierBlock:              big.NewInt(0),
 		ShanghaiTime:                  newUint64(0),
+		CancunTime:                    newUint64(0),
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
-		IsDevMode:                     true,
 	}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
@@ -267,7 +281,7 @@ var (
 	}
 
 	// TestChainConfig contains every protocol change (EIPs) introduced
-	// and accepted by the Ethereum core developers for testing proposes.
+	// and accepted by the Ethereum core developers for testing purposes.
 	TestChainConfig = &ChainConfig{
 		ChainID:                       big.NewInt(1),
 		HomesteadBlock:                big.NewInt(0),
@@ -292,6 +306,36 @@ var (
 		VerkleTime:                    nil,
 		TerminalTotalDifficulty:       nil,
 		TerminalTotalDifficultyPassed: false,
+		Ethash:                        new(EthashConfig),
+		Clique:                        nil,
+	}
+
+	// MergedTestChainConfig contains every protocol change (EIPs) introduced
+	// and accepted by the Ethereum core developers for testing purposes.
+	MergedTestChainConfig = &ChainConfig{
+		ChainID:                       big.NewInt(1),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                false,
+		EIP150Block:                   big.NewInt(0),
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		MuirGlacierBlock:              big.NewInt(0),
+		BerlinBlock:                   big.NewInt(0),
+		LondonBlock:                   big.NewInt(0),
+		ArrowGlacierBlock:             big.NewInt(0),
+		GrayGlacierBlock:              big.NewInt(0),
+		MergeNetsplitBlock:            big.NewInt(0),
+		ShanghaiTime:                  newUint64(0),
+		CancunTime:                    newUint64(0),
+		PragueTime:                    nil,
+		VerkleTime:                    nil,
+		TerminalTotalDifficulty:       big.NewInt(0),
+		TerminalTotalDifficultyPassed: true,
 		Ethash:                        new(EthashConfig),
 		Clique:                        nil,
 	}
@@ -383,6 +427,7 @@ type ChainConfig struct {
 	KeplerTime   *uint64 `json:"keplerTime,omitempty"`    // Kepler switch time (nil = no fork, 0 = already activated)
 	DemeterTime  *uint64 `json:"demeterTime,omitempty" `  // Demeter switch time (nil = no fork, 0 = already on demeter)
 	CancunTime   *uint64 `json:"cancunTime,omitempty" `   // Cancun switch time (nil = no fork, 0 = already on cancun)
+	HaberTime    *uint64 `json:"haberTime,omitempty"`     // Haber switch time (nil = no fork, 0 = already on haber)
 	PragueTime   *uint64 `json:"pragueTime,omitempty" `   // Prague switch time (nil = no fork, 0 = already on prague)
 	VerkleTime   *uint64 `json:"verkleTime,omitempty" `   // Verkle switch time (nil = no fork, 0 = already on verkle)
 
@@ -403,10 +448,9 @@ type ChainConfig struct {
 	PlatoBlock     *big.Int `json:"platoBlock,omitempty" toml:",omitempty"` // platoBlock switch block (nil = no fork, 0 = already activated)
 	HertzBlock     *big.Int `json:"hertzBlock,omitempty" toml:",omitempty"` // hertzBlock switch block (nil = no fork, 0 = already activated)
 	// Various consensus engines
-	Ethash    *EthashConfig  `json:"ethash,omitempty" toml:",omitempty"`
-	Clique    *CliqueConfig  `json:"clique,omitempty" toml:",omitempty"`
-	Satoshi   *SatoshiConfig `json:"satoshi,omitempty" toml:",omitempty"`
-	IsDevMode bool           `json:"isDev,omitempty"`
+	Ethash  *EthashConfig  `json:"ethash,omitempty" toml:",omitempty"`
+	Clique  *CliqueConfig  `json:"clique,omitempty" toml:",omitempty"`
+	Satoshi *SatoshiConfig `json:"satoshi,omitempty" toml:",omitempty"`
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -474,7 +518,17 @@ func (c *ChainConfig) String() string {
 		DemeterTime = big.NewInt(0).SetUint64(*c.DemeterTime)
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, Engine: %v}",
+	var CancunTime *big.Int
+	if c.CancunTime != nil {
+		CancunTime = big.NewInt(0).SetUint64(*c.CancunTime)
+	}
+
+	var HaberTime *big.Int
+	if c.HaberTime != nil {
+		HaberTime = big.NewInt(0).SetUint64(*c.HaberTime)
+	}
+
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, CancunTime: %v, HaberTime: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -500,6 +554,8 @@ func (c *ChainConfig) String() string {
 		ShanghaiTime,
 		KeplerTime,
 		DemeterTime,
+		CancunTime,
+		HaberTime,
 		engine,
 	)
 }
@@ -693,6 +749,11 @@ func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
 }
 
+// IsHaber returns whether time is either equal to the Haber fork time or greater.
+func (c *ChainConfig) IsHaber(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.HaberTime, time)
+}
+
 // IsPrague returns whether num is either equal to the Prague fork time or greater.
 func (c *ChainConfig) IsPrague(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.PragueTime, time)
@@ -750,7 +811,8 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "hertzBlock", block: c.HertzBlock},
 		{name: "keplerTime", timestamp: c.KeplerTime},
 		{name: "demeterTime", timestamp: c.DemeterTime},
-		{name: "cancunTime", timestamp: c.CancunTime, optional: true},
+		{name: "cancunTime", timestamp: c.CancunTime},
+		{name: "haberTime", timestamp: c.HaberTime},
 		{name: "pragueTime", timestamp: c.PragueTime, optional: true},
 		{name: "verkleTime", timestamp: c.VerkleTime, optional: true},
 	} {
@@ -763,7 +825,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 						lastFork.name, cur.name, cur.block)
 				} else {
 					return fmt.Errorf("unsupported fork ordering: %v not enabled, but %v enabled at timestamp %v",
-						lastFork.name, cur.name, cur.timestamp)
+						lastFork.name, cur.name, *cur.timestamp)
 				}
 
 			// Fork (whether defined by block or timestamp) must follow the fork definition sequence
@@ -773,7 +835,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 						lastFork.name, lastFork.block, cur.name, cur.block)
 				} else if lastFork.timestamp != nil && *lastFork.timestamp > *cur.timestamp {
 					return fmt.Errorf("unsupported fork ordering: %v enabled at timestamp %v, but %v enabled at timestamp %v",
-						lastFork.name, lastFork.timestamp, cur.name, cur.timestamp)
+						lastFork.name, *lastFork.timestamp, cur.name, *cur.timestamp)
 				}
 
 				// Timestamp based forks can follow block based ones, but not the other way around
@@ -896,6 +958,24 @@ func (c *ChainConfig) ElasticityMultiplier() uint64 {
 	return DefaultElasticityMultiplier
 }
 
+// LatestFork returns the latest time-based fork that would be active for the given time.
+// only include forks from ethereum
+func (c *ChainConfig) LatestFork(time uint64) forks.Fork {
+	// Assume last non-time-based fork has passed.
+	london := c.LondonBlock
+
+	switch {
+	case c.IsPrague(london, time):
+		return forks.Prague
+	case c.IsCancun(london, time):
+		return forks.Cancun
+	case c.IsShanghai(london, time):
+		return forks.Shanghai
+	default:
+		return forks.Paris
+	}
+}
+
 // isForkBlockIncompatible returns true if a fork scheduled at block s1 cannot be
 // rescheduled to block s2 because head is already past the fork.
 func isForkBlockIncompatible(s1, s2, head *big.Int) bool {
@@ -1004,7 +1084,7 @@ func newTimestampCompatError(what string, storedtime, newtime *uint64) *ConfigCo
 		NewTime:      newtime,
 		RewindToTime: 0,
 	}
-	if rew != nil {
+	if rew != nil && *rew != 0 {
 		err.RewindToTime = *rew - 1
 	}
 	return err
@@ -1014,7 +1094,13 @@ func (err *ConfigCompatError) Error() string {
 	if err.StoredBlock != nil {
 		return fmt.Sprintf("mismatching %s in database (have block %d, want block %d, rewindto block %d)", err.What, err.StoredBlock, err.NewBlock, err.RewindToBlock)
 	}
-	return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp %d, rewindto timestamp %d)", err.What, err.StoredTime, err.NewTime, err.RewindToTime)
+
+	if err.StoredTime == nil {
+		return fmt.Sprintf("mismatching %s in database (have timestamp nil, want timestamp %d, rewindto timestamp %d)", err.What, *err.NewTime, err.RewindToTime)
+	} else if err.NewTime == nil {
+		return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp nil, rewindto timestamp %d)", err.What, *err.StoredTime, err.RewindToTime)
+	}
+	return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp %d, rewindto timestamp %d)", err.What, *err.StoredTime, *err.NewTime, err.RewindToTime)
 }
 
 // Rules wraps ChainConfig and is merely syntactic sugar or can be used for functions
@@ -1029,8 +1115,8 @@ type Rules struct {
 	IsBerlin, IsLondon                                      bool
 	IsMerge                                                 bool
 	IsHashPower                                             bool
-	IsShanghai, IsKepler, IsCancun, IsPrague                bool
-	IsVerkle                                                bool
+	IsShanghai, IsKepler, IsCancun, IsHaber                 bool
+	IsPrague, IsVerkle                                      bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1039,6 +1125,8 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 	if chainID == nil {
 		chainID = new(big.Int)
 	}
+	// disallow setting Merge out of order
+	isMerge = isMerge && c.IsLondon(num)
 	return Rules{
 		ChainID:          new(big.Int).Set(chainID),
 		IsHomestead:      c.IsHomestead(num),
@@ -1056,6 +1144,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsShanghai:       c.IsShanghai(num, timestamp),
 		IsKepler:         c.IsKepler(num, timestamp),
 		IsCancun:         c.IsCancun(num, timestamp),
+		IsHaber:          c.IsHaber(num, timestamp),
 		IsPrague:         c.IsPrague(num, timestamp),
 		IsVerkle:         c.IsVerkle(num, timestamp),
 	}
