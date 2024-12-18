@@ -262,7 +262,7 @@ func satoshiHeaderHashAndRlp(header *types.Header, chainId *big.Int) (hash, rlp 
 		return
 	}
 	rlp = satoshi.SatoshiRLP(header, chainId)
-	hash = satoshi.SealHash(header, chainId).Bytes()
+	hash = types.SealHash(header, chainId).Bytes()
 	return hash, rlp, err
 }
 

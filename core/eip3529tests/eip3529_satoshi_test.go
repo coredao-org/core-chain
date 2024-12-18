@@ -13,6 +13,7 @@ func postHertzPreShanghaiConfig() *params.ChainConfig {
 	config := *params.SatoshiTestChainConfig
 	config.ShanghaiTime = nil
 	config.KeplerTime = nil
+	config.DemeterTime = nil
 	config.CancunTime = nil
 	return &config
 }
@@ -24,6 +25,7 @@ func preHertzConfig() *params.ChainConfig {
 	config.HertzBlock = nil
 	config.ShanghaiTime = nil
 	config.KeplerTime = nil
+	config.DemeterTime = nil
 	config.CancunTime = nil
 	return &config
 }

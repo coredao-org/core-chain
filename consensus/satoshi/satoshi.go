@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"math/big"
 	"math/rand"
@@ -38,15 +37,16 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
 const (
-	inMemorySnapshots  = 256  // Number of recent snapshots to keep in memory
-	inMemorySignatures = 4096 // Number of recent block signatures to keep in memory
+	inMemorySnapshots  = 256   // Number of recent snapshots to keep in memory
+	inMemorySignatures = 4096  // Number of recent block signatures to keep in memory
+	inMemoryHeaders    = 86400 // Number of recent headers to keep in memory for double sign detection,
 
 	checkpointInterval   = 1024        // Number of blocks after which to save the snapshot to the database
 	defaultEpochLength   = uint64(100) // Default number of blocks of checkpoint to update validatorSet from contract
@@ -67,6 +67,8 @@ var (
 	uncleHash       = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 	diffInTurn      = big.NewInt(2)            // Block difficulty for in-turn signatures
 	diffNoTurn      = big.NewInt(1)            // Block difficulty for out-of-turn signatures
+
+	doubleSignCounter = metrics.NewRegisteredCounter("satoshi/doublesign", nil)
 
 	systemContracts = map[common.Address]bool{
 		common.HexToAddress(systemcontracts.ValidatorContract):       true,
@@ -175,7 +177,7 @@ func ecrecover(header *types.Header, sigCache *lru.ARCCache, chainId *big.Int) (
 	signature := header.Extra[len(header.Extra)-extraSeal:]
 
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header, chainId).Bytes(), signature)
+	pubkey, err := crypto.Ecrecover(types.SealHash(header, chainId).Bytes(), signature)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -195,7 +197,7 @@ func ecrecover(header *types.Header, sigCache *lru.ARCCache, chainId *big.Int) (
 // or not), which could be abused to produce different hashes for the same header.
 func SatoshiRLP(header *types.Header, chainId *big.Int) []byte {
 	b := new(bytes.Buffer)
-	encodeSigHeader(b, header, chainId)
+	types.EncodeSigHeader(b, header, chainId)
 	return b.Bytes()
 }
 
@@ -206,8 +208,11 @@ type Satoshi struct {
 	genesisHash common.Hash
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
-	recentSnaps *lru.ARCCache // Snapshots for recent block to speed up
-	signatures  *lru.ARCCache // Signatures of recent blocks to speed up mining
+	recentSnaps   *lru.ARCCache // Snapshots for recent block to speed up
+	signatures    *lru.ARCCache // Signatures of recent blocks to speed up mining
+	recentHeaders *lru.ARCCache //
+	// Recent headers to check for double signing: key includes block number and miner. value is the block header
+	// If same key's value already exists for different block header roots then double sign is detected
 
 	signer types.Signer
 
@@ -256,6 +261,10 @@ func New(
 	if err != nil {
 		panic(err)
 	}
+	recentHeaders, err := lru.NewARC(inMemoryHeaders)
+	if err != nil {
+		panic(err)
+	}
 	vABI, err := abi.JSON(strings.NewReader(validatorSetABI))
 	if err != nil {
 		panic(err)
@@ -275,6 +284,7 @@ func New(
 		db:              db,
 		ethAPI:          ethAPI,
 		recentSnaps:     recentSnaps,
+		recentHeaders:   recentHeaders,
 		signatures:      signatures,
 		validatorSetABI: vABI,
 		slashABI:        sABI,
@@ -418,19 +428,26 @@ func (p *Satoshi) verifyHeader(chain consensus.ChainHeaderReader, header *types.
 		// Verify the header's EIP-1559 attributes.
 		return err
 	}
-	// Verify existence / non-existence of withdrawalsHash.
-	if header.WithdrawalsHash != nil {
-		return fmt.Errorf("invalid withdrawalsHash: have %x, expected nil", header.WithdrawalsHash)
-	}
-	// Verify the existence / non-existence of excessBlobGas
+
 	cancun := chain.Config().IsCancun(header.Number, header.Time)
-	if !cancun && header.ExcessBlobGas != nil {
-		return fmt.Errorf("invalid excessBlobGas: have %d, expected nil", header.ExcessBlobGas)
-	}
-	if !cancun && header.BlobGasUsed != nil {
-		return fmt.Errorf("invalid blobGasUsed: have %d, expected nil", header.BlobGasUsed)
-	}
-	if cancun {
+	if !cancun {
+		switch {
+		case header.ExcessBlobGas != nil:
+			return fmt.Errorf("invalid excessBlobGas: have %d, expected nil", header.ExcessBlobGas)
+		case header.BlobGasUsed != nil:
+			return fmt.Errorf("invalid blobGasUsed: have %d, expected nil", header.BlobGasUsed)
+		case header.ParentBeaconRoot != nil:
+			return fmt.Errorf("invalid parentBeaconRoot, have %#x, expected nil", header.ParentBeaconRoot)
+		case header.WithdrawalsHash != nil:
+			return fmt.Errorf("invalid WithdrawalsHash, have %#x, expected nil", header.WithdrawalsHash)
+		}
+	} else {
+		switch {
+		case header.ParentBeaconRoot != nil:
+			return fmt.Errorf("invalid parentBeaconRoot, have %#x, expected nil", header.ParentBeaconRoot)
+		case !header.EmptyWithdrawalsHash():
+			return errors.New("header has wrong WithdrawalsHash")
+		}
 		if err := eip4844.VerifyEIP4844Header(parent, header); err != nil {
 			return err
 		}
@@ -515,10 +532,8 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 			}
 		}
 
-		// If we're at the genesis, snapshot the initial state. Alternatively if we have
-		// piled up more headers than allowed to be reorged (chain reinit from a freezer),
-		// consider the checkpoint trusted and snapshot it.
-		if number == 0 || (number%p.config.Epoch == 0 && (len(headers) > int(params.FullImmutabilityThreshold/10))) {
+		// If we're at the genesis, snapshot the initial state.
+		if number == 0 {
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				// get checkpoint data
@@ -536,12 +551,10 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 
 				// new snap shot
 				snap = newSnapshot(p.config, p.signatures, number, hash, validators, p.ethAPI)
-				if snap.Number%checkpointInterval == 0 { // snapshot will only be loaded when snap.Number%checkpointInterval == 0
-					if err := snap.store(p.db); err != nil {
-						return nil, err
-					}
-					log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
+				if err := snap.store(p.db); err != nil {
+					return nil, err
 				}
+				log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
 				break
 			}
 		}
@@ -631,6 +644,17 @@ func (p *Satoshi) verifySeal(chain consensus.ChainHeaderReader, header *types.He
 
 	if signer != header.Coinbase {
 		return errCoinBaseMisMatch
+	}
+
+	// check for double sign & add to cache
+	key := proposalKey(*header)
+	preHash, ok := p.recentHeaders.Get(key)
+	if ok && preHash != header.Hash() {
+		doubleSignCounter.Inc(1)
+		log.Warn("DoubleSign detected", " block", header.Number, " miner", header.Coinbase,
+			"hash1", preHash.(common.Hash), "hash2", header.Hash())
+	} else {
+		p.recentHeaders.Add(key, header.Hash())
 	}
 
 	if _, ok := snap.Validators[signer]; !ok {
@@ -1044,7 +1068,7 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 		select {
 		case results <- block.WithSeal(header):
 		default:
-			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header, p.chainConfig.ChainID))
+			log.Warn("Sealing result is not read by miner", "sealhash", types.SealHash(header, p.chainConfig.ChainID))
 		}
 	}()
 
@@ -1125,8 +1149,11 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
-func (p *Satoshi) SealHash(header *types.Header) common.Hash {
-	return SealHash(header, p.chainConfig.ChainID)
+func (p *Satoshi) SealHash(header *types.Header) (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+	types.EncodeSigHeaderWithoutVoteAttestation(hasher, header, p.chainConfig.ChainID)
+	hasher.Sum(hash[:0])
+	return hash
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC API to query snapshot.
@@ -1423,38 +1450,6 @@ func (p *Satoshi) isRoundEnd(chain consensus.ChainHeaderReader, header *types.He
 }
 
 // ===========================     utility function        ==========================
-// SealHash returns the hash of a block prior to it being sealed.
-func SealHash(header *types.Header, chainId *big.Int) (hash common.Hash) {
-	hasher := sha3.NewLegacyKeccak256()
-	encodeSigHeader(hasher, header, chainId)
-	hasher.Sum(hash[:0])
-	return hash
-}
-
-func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
-	err := rlp.Encode(w, []interface{}{
-		chainId,
-		header.ParentHash,
-		header.UncleHash,
-		header.Coinbase,
-		header.Root,
-		header.TxHash,
-		header.ReceiptHash,
-		header.Bloom,
-		header.Difficulty,
-		header.Number,
-		header.GasLimit,
-		header.GasUsed,
-		header.Time,
-		header.Extra[:len(header.Extra)-65], // this will panic if extra is too short, should check before calling encodeSigHeader
-		header.MixDigest,
-		header.Nonce,
-	})
-	if err != nil {
-		panic("can't encode: " + err.Error())
-	}
-}
-
 func (s *Satoshi) backOffTime(snap *Snapshot, header *types.Header, val common.Address) uint64 {
 	if snap.inturn(val) {
 		return 0
@@ -1601,4 +1596,9 @@ func applyMessage(
 		log.Error("apply message failed", "msg", string(ret), "err", err)
 	}
 	return msg.Gas() - returnGas, err
+}
+
+// proposalKey build a key which is a combination of the block number and the proposer address.
+func proposalKey(header types.Header) string {
+	return header.ParentHash.String() + header.Coinbase.String()
 }

@@ -192,6 +192,7 @@ var (
 		ShanghaiTime:        newUint64(0),
 		KeplerTime:          newUint64(0),
 		DemeterTime:         newUint64(0),
+		CancunTime:          newUint64(0),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
