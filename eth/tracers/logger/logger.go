@@ -133,10 +133,11 @@ func NewStructLogger(cfg *Config) *StructLogger {
 
 func (l *StructLogger) Hooks() *tracing.Hooks {
 	return &tracing.Hooks{
-		OnTxStart: l.OnTxStart,
-		OnTxEnd:   l.OnTxEnd,
-		OnExit:    l.OnExit,
-		OnOpcode:  l.OnOpcode,
+		OnTxStart:                 l.OnTxStart,
+		OnTxEnd:                   l.OnTxEnd,
+		OnExit:                    l.OnExit,
+		OnOpcode:                  l.OnOpcode,
+		OnSystemTxFixIntrinsicGas: l.OnSystemTxFixIntrinsicGas,
 	}
 }
 
@@ -270,7 +271,7 @@ func (l *StructLogger) OnTxEnd(receipt *types.Receipt, err error) {
 	l.usedGas = receipt.GasUsed
 }
 
-func (l *StructLogger) CaptureSystemTxEnd(intrinsicGas uint64) {
+func (l *StructLogger) OnSystemTxFixIntrinsicGas(intrinsicGas uint64) {
 	l.usedGas -= intrinsicGas
 }
 

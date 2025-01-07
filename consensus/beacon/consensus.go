@@ -358,10 +358,10 @@ func (p *Beacon) BeforePackTx(chain consensus.ChainHeaderReader, header *types.H
 }
 
 // Finalize implements consensus.Engine, setting the final state on the header
-func (beacon *Beacon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction, uncles []*types.Header, withdrawals []*types.Withdrawal, _ *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64) error {
+func (beacon *Beacon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction, uncles []*types.Header, withdrawals []*types.Withdrawal, _ *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64, tracer *tracing.Hooks) error {
 	// Finalize is different with Prepare, it can be used in both block verification.
 	if !beacon.IsPoSHeader(header) {
-		beacon.ethone.Finalize(chain, header, state, txs, uncles, nil, nil, nil, nil)
+		beacon.ethone.Finalize(chain, header, state, txs, uncles, nil, nil, nil, nil, tracer)
 		return nil
 	}
 	// Withdrawals processing.
@@ -377,7 +377,7 @@ func (beacon *Beacon) Finalize(chain consensus.ChainHeaderReader, header *types.
 
 // FinalizeAndAssemble implements consensus.Engine, setting the final state and
 // assembling the block.
-func (beacon *Beacon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, withdrawals []*types.Withdrawal) (*types.Block, []*types.Receipt, error) {
+func (beacon *Beacon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, withdrawals []*types.Withdrawal, tracer *tracing.Hooks) (*types.Block, []*types.Receipt, error) {
 	// FinalizeAndAssemble is different with Prepare, it can be used in both block generation.
 	if !beacon.IsPoSHeader(header) {
 		return beacon.ethone.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts, nil)
@@ -394,7 +394,7 @@ func (beacon *Beacon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, hea
 		}
 	}
 	// Finalize and assemble the block.
-	beacon.Finalize(chain, header, state, &txs, uncles, withdrawals, nil, nil, nil)
+	beacon.Finalize(chain, header, state, &txs, uncles, withdrawals, nil, nil, nil, tracer)
 
 	// Assign the final state root to header.
 	header.Root = state.IntermediateRoot(true)

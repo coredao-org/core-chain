@@ -975,7 +975,7 @@ func (w *worker) generateWork(params *generateParams) (*types.Block, *big.Int, e
 		}
 	}
 	fees := work.state.GetBalance(consensus.SystemAddress)
-	block, _, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, params.withdrawals)
+	block, _, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, params.withdrawals, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1182,7 +1182,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 
 		// Withdrawals are set to nil here, because this is only called in PoW.
 		finalizeStart := time.Now()
-		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, types.CopyHeader(env.header), env.state, env.txs, nil, env.receipts, nil)
+		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, types.CopyHeader(env.header), env.state, env.txs, nil, env.receipts, nil, nil)
 		if err != nil {
 			return err
 		}
