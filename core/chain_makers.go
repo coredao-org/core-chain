@@ -370,7 +370,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			gen(i, b)
 		}
 		if b.engine != nil {
-			block, _, err := b.engine.FinalizeAndAssemble(cm, b.header, statedb, b.txs, b.uncles, b.receipts, b.withdrawals)
+			block, _, err := b.engine.FinalizeAndAssemble(cm, b.header, statedb, b.txs, b.uncles, b.receipts, b.withdrawals, nil)
 			if err != nil {
 				panic(err)
 			}

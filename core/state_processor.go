@@ -151,7 +151,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	err = p.engine.Finalize(p.bc, header, tracingStateDB, &commonTxs, block.Uncles(), withdrawals, &receipts, &systemTxs, usedGas)
+	err = p.engine.Finalize(p.bc, header, tracingStateDB, &commonTxs, block.Uncles(), withdrawals, &receipts, &systemTxs, usedGas, cfg.Tracer)
 	if err != nil {
 		return statedb, receipts, allLogs, *usedGas, err
 	}
