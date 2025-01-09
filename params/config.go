@@ -125,6 +125,7 @@ var (
 		ShanghaiTime:        newUint64(1731999600), // 2024-11-19 7:00:00 AM UTC
 		KeplerTime:          newUint64(1731999600),
 		DemeterTime:         newUint64(1731999600),
+		AthenaTime:          nil,
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -153,6 +154,7 @@ var (
 		ShanghaiTime:        newUint64(1729132200), // 2024-10-17 2:30:00 AM UTC
 		KeplerTime:          newUint64(1729132200),
 		DemeterTime:         newUint64(1729132200),
+		AthenaTime:          nil,
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -382,6 +384,7 @@ type ChainConfig struct {
 	ShanghaiTime *uint64 `json:"shanghaiTime,omitempty" ` // Shanghai switch time (nil = no fork, 0 = already on shanghai)
 	KeplerTime   *uint64 `json:"keplerTime,omitempty"`    // Kepler switch time (nil = no fork, 0 = already activated)
 	DemeterTime  *uint64 `json:"demeterTime,omitempty" `  // Demeter switch time (nil = no fork, 0 = already on demeter)
+	AthenaTime   *uint64 `json:"athenaTime,omitempty"`    // Athena switch time (nil = no fork, 0 = already on athena)
 	CancunTime   *uint64 `json:"cancunTime,omitempty" `   // Cancun switch time (nil = no fork, 0 = already on cancun)
 	PragueTime   *uint64 `json:"pragueTime,omitempty" `   // Prague switch time (nil = no fork, 0 = already on prague)
 	VerkleTime   *uint64 `json:"verkleTime,omitempty" `   // Verkle switch time (nil = no fork, 0 = already on verkle)
@@ -474,7 +477,12 @@ func (c *ChainConfig) String() string {
 		DemeterTime = big.NewInt(0).SetUint64(*c.DemeterTime)
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, Engine: %v}",
+	var AthenaTime *big.Int
+	if c.AthenaTime != nil {
+		AthenaTime = big.NewInt(0).SetUint64(*c.AthenaTime)
+	}
+
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, AthenaTime: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -500,6 +508,7 @@ func (c *ChainConfig) String() string {
 		ShanghaiTime,
 		KeplerTime,
 		DemeterTime,
+		AthenaTime,
 		engine,
 	)
 }
@@ -688,6 +697,20 @@ func (c *ChainConfig) IsOnDemeter(currentBlockNumber *big.Int, lastBlockTime uin
 	return !c.IsDemeter(lastBlockNumber, lastBlockTime) && c.IsDemeter(currentBlockNumber, currentBlockTime)
 }
 
+// IsAthena returns whether time is either equal to the athena fork time or greater.
+func (c *ChainConfig) IsAthena(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.AthenaTime, time)
+}
+
+// IsOnAthena returns whether currentBlockTime is either equal to the athena fork time or greater firstly.
+func (c *ChainConfig) IsOnAthena(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsAthena(lastBlockNumber, lastBlockTime) && c.IsAthena(currentBlockNumber, currentBlockTime)
+}
+
 // IsCancun returns whether num is either equal to the Cancun fork time or greater.
 func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
@@ -750,6 +773,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "hertzBlock", block: c.HertzBlock},
 		{name: "keplerTime", timestamp: c.KeplerTime},
 		{name: "demeterTime", timestamp: c.DemeterTime},
+		{name: "athenaTime", timestamp: c.AthenaTime},
 		{name: "cancunTime", timestamp: c.CancunTime, optional: true},
 		{name: "pragueTime", timestamp: c.PragueTime, optional: true},
 		{name: "verkleTime", timestamp: c.VerkleTime, optional: true},
@@ -873,6 +897,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.DemeterTime, newcfg.DemeterTime, headTimestamp) {
 		return newTimestampCompatError("Demeter fork timestamp", c.DemeterTime, newcfg.DemeterTime)
+	}
+	if isForkTimestampIncompatible(c.AthenaTime, newcfg.AthenaTime, headTimestamp){
+		return newTimestampCompatError("Athena fork timestamp", c.AthenaTime, newcfg.AthenaTime)
 	}
 	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {
 		return newTimestampCompatError("Cancun fork timestamp", c.CancunTime, newcfg.CancunTime)
