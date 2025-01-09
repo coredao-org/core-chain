@@ -751,7 +751,6 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 
 func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64, tracer *tracing.Hooks) (err error) {
-	vmConfig := vm.Config{Tracer: tracer}
 	cx := chainContext{Chain: chain, satoshi: p}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
@@ -766,7 +765,7 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 			systemcontracts.BTCLSTTokenContract,
 		}
 
-		err := p.initContractWithContracts(state, header, cx, txs, receipts, systemTxs, usedGas, false, contracts, vmConfig)
+		err := p.initContractWithContracts(state, header, cx, txs, receipts, systemTxs, usedGas, false, contracts, tracer)
 		if err != nil {
 			log.Error("init contract failed on demeter fork")
 		}
@@ -776,7 +775,7 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
 		log.Trace("turn round", "block hash", header.Hash())
-		err = p.turnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false, vmConfig)
+		err = p.turnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
 		if err != nil {
 			// it is possible that turn round failed.
 			log.Error("turn round failed", "block hash", header.Hash())
@@ -788,7 +787,6 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt, tracer *tracing.Hooks) (err error) {
 	cx := chainContext{Chain: chain, satoshi: p}
-	vmConfig := vm.Config{Tracer: tracer}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
 	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
@@ -802,7 +800,7 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 			systemcontracts.BTCLSTTokenContract,
 		}
 
-		err := p.initContractWithContracts(state, header, cx, txs, receipts, nil, &header.GasUsed, true, contracts, vmConfig)
+		err := p.initContractWithContracts(state, header, cx, txs, receipts, nil, &header.GasUsed, true, contracts, tracer)
 		if err != nil {
 			log.Error("init contract failed on demeter fork")
 		}
@@ -812,7 +810,7 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
 		log.Trace("turn round", "block hash", header.Hash())
-		err = p.turnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true, vmConfig)
+		err = p.turnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true, tracer)
 		if err != nil {
 			// it is possible that turn round failed.
 			log.Error("turn round failed", "block hash", header.Hash())
@@ -859,7 +857,7 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	cx := chainContext{Chain: chain, satoshi: p}
 	if header.Number.Cmp(common.Big1) == 0 {
-		err := p.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false, vmConfig)
+		err := p.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
 		if err != nil {
 			log.Error("init contract failed")
 		}
@@ -875,7 +873,7 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 		}
 		if !signedRecently {
 			log.Trace("slash validator", "block hash", header.Hash(), "address", spoiledVal)
-			err = p.slash(spoiledVal, state, header, cx, txs, receipts, systemTxs, usedGas, false, vmConfig)
+			err = p.slash(spoiledVal, state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "err", err.Error())
@@ -883,7 +881,7 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 		}
 	}
 	val := header.Coinbase
-	err = p.distributeIncoming(val, state, header, cx, txs, receipts, systemTxs, usedGas, false, vmConfig)
+	err = p.distributeIncoming(val, state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
 	if err != nil {
 		return err
 	}
@@ -899,7 +897,7 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, _ []*types.Withdrawal, tracer *tracing.Hooks) (*types.Block, []*types.Receipt, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	cx := chainContext{Chain: chain, satoshi: p}
-	vmConfig := vm.Config{Tracer: tracer}
+
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
 	}
@@ -907,7 +905,7 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 		receipts = make([]*types.Receipt, 0)
 	}
 	if header.Number.Cmp(common.Big1) == 0 {
-		err := p.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, vmConfig)
+		err := p.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, tracer)
 		if err != nil {
 			log.Error("init contract failed")
 		}
@@ -927,14 +925,14 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 			}
 		}
 		if !signedRecently {
-			err = p.slash(spoiledVal, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, vmConfig)
+			err = p.slash(spoiledVal, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, tracer)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "err", err.Error())
 			}
 		}
 	}
-	err := p.distributeIncoming(p.val, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, vmConfig)
+	err := p.distributeIncoming(p.val, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, tracer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1242,18 +1240,18 @@ func (p *Satoshi) getCurrentValidators(blockHash common.Hash) ([]common.Address,
 
 // distributeIncoming collect transaction fees and distribute to validator contract
 func (p *Satoshi) distributeIncoming(val common.Address, state vm.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
 	state.SetBalance(consensus.SystemAddress, common.U2560, tracing.BalanceDecreaseCoreDistributeReward)
 	state.AddBalance(coinbase, balance, tracing.BalanceIncreaseCoreDistributeReward)
 	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
-	return p.distributeToValidator(balance.ToBig(), val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, vmConfig)
+	return p.distributeToValidator(balance.ToBig(), val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
 
 // slash spoiled validators
 func (p *Satoshi) slash(spoiledVal common.Address, state vm.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	// method
 	method := "slash"
 	// get packed data
@@ -1267,12 +1265,12 @@ func (p *Satoshi) slash(spoiledVal common.Address, state vm.StateDB, header *typ
 	// get system message
 	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), params.SystemTxsGas, data, common.Big0)
 	// apply message
-	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, vmConfig)
+	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
 
 // turnRound call candidate contract to execute turn round
 func (p *Satoshi) turnRound(state vm.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	// method
 	method := "turnRound"
 
@@ -1285,12 +1283,12 @@ func (p *Satoshi) turnRound(state vm.StateDB, header *types.Header, chain core.C
 	// get system message
 	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), header.GasLimit-params.SystemTxsGas, data, common.Big0)
 	// apply message
-	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, vmConfig)
+	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
 
 // init contract
 func (p *Satoshi) initContract(state vm.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	contracts := []string{
 		systemcontracts.ValidatorContract,
 		systemcontracts.SlashContract,
@@ -1313,11 +1311,11 @@ func (p *Satoshi) initContract(state vm.StateDB, header *types.Header, chain cor
 		contracts = append(contracts, systemcontracts.BTCLSTTokenContract)
 	}
 
-	return p.initContractWithContracts(state, header, chain, txs, receipts, receivedTxs, usedGas, mining, contracts, vmConfig)
+	return p.initContractWithContracts(state, header, chain, txs, receipts, receivedTxs, usedGas, mining, contracts, tracer)
 }
 
 func (p *Satoshi) initContractWithContracts(state vm.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, contracts []string, vmConfig vm.Config) error {
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, contracts []string, tracer *tracing.Hooks) error {
 	// method
 	method := "init"
 
@@ -1331,7 +1329,7 @@ func (p *Satoshi) initContractWithContracts(state vm.StateDB, header *types.Head
 		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), header.GasLimit, data, common.Big0)
 		// apply message
 		log.Trace("init contract", "block hash", header.Hash(), "contract", c)
-		err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, vmConfig)
+		err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 		if err != nil {
 			return err
 		}
@@ -1342,7 +1340,7 @@ func (p *Satoshi) initContractWithContracts(state vm.StateDB, header *types.Head
 // distributeToValidator call validator contract to distribute reward
 func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Address,
 	state vm.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	// method
 	method := "deposit"
 
@@ -1357,7 +1355,7 @@ func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Addres
 	// get system message
 	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), params.SystemTxsGas, data, amount)
 	// apply message
-	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, vmConfig)
+	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
 
 // get system message
@@ -1379,7 +1377,7 @@ func (p *Satoshi) applyTransaction(
 	chainContext core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt,
 	receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool,
-	vmConfig vm.Config,
+	tracer *tracing.Hooks,
 ) (applyErr error) {
 	nonce := state.GetNonce(msg.From)
 	expectedTx := types.NewTransaction(nonce, *msg.To, msg.Value, msg.GasLimit, msg.GasPrice, msg.Data)
@@ -1416,14 +1414,14 @@ func (p *Satoshi) applyTransaction(
 	context := core.NewEVMBlockContext(header, chainContext, nil)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
-	evm := vm.NewEVM(context, state, p.chainConfig, vmConfig)
+	evm := vm.NewEVM(context, state, p.chainConfig, vm.Config{Tracer: tracer})
 	evm.SetTxContext(core.NewEVMTxContext(msg))
 
 	// Tracing receipt will be set if there is no error and will be used to trace the transaction
 	var tracingReceipt *types.Receipt
-	if tracer := vmConfig.Tracer; tracer != nil {
-		if vmConfig.Tracer.OnSystemTxStart != nil {
-			vmConfig.Tracer.OnSystemTxStart()
+	if tracer != nil {
+		if tracer.OnSystemTxStart != nil {
+			tracer.OnSystemTxStart()
 		}
 		if tracer.OnTxStart != nil {
 			tracer.OnTxStart(evm.GetVMContext(), expectedTx, msg.From)
@@ -1431,9 +1429,9 @@ func (p *Satoshi) applyTransaction(
 
 		// Defers are last in first out, so OnTxEnd will run before OnSystemTxEnd in this transaction,
 		// which is what we want.
-		if vmConfig.Tracer.OnSystemTxEnd != nil {
+		if tracer.OnSystemTxEnd != nil {
 			defer func() {
-				vmConfig.Tracer.OnSystemTxEnd()
+				tracer.OnSystemTxEnd()
 			}()
 		}
 		if tracer.OnTxEnd != nil {
