@@ -29,6 +29,7 @@ var (
 
 	CoreGenesisHash    = common.HexToHash("0xf7fc87f11e61508a5828cd1508060ed1714c8d32a92744ae10acb43c953357ad")
 	BuffaloGenesisHash = common.HexToHash("0xd90508c51efd64e75363cdf51114d9f2a90a79e6cd0f78f3c3038b47695c034a")
+	PigeonGenesisHash  = common.HexToHash("0xdfe68477f9fbc0d3e362940fcf87fa54add5bc97c4afd7d3dee31919df40212c")
 )
 
 func newUint64(val uint64) *uint64 { return &val }
@@ -154,6 +155,34 @@ var (
 		ShanghaiTime:        newUint64(1729132200), // 2024-10-17 2:30:00 AM UTC
 		KeplerTime:          newUint64(1729132200),
 		DemeterTime:         newUint64(1729132200),
+		Satoshi: &SatoshiConfig{
+			Period: 3,
+			Epoch:  200,
+			Round:  86400,
+		},
+	}
+
+	PigeonChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(1114),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		HashPowerBlock:      big.NewInt(0),
+		ZeusBlock:           big.NewInt(0),
+		HeraBlock:           big.NewInt(0),
+		PoseidonBlock:       big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		HertzBlock:          big.NewInt(0),
+		ShanghaiTime:        newUint64(0),
+		KeplerTime:          newUint64(0),
+		DemeterTime:         newUint64(0),
 		AthenaTime:          nil,
 		Satoshi: &SatoshiConfig{
 			Period: 3,
@@ -338,6 +367,8 @@ func GetBuiltInChainConfig(ghash common.Hash) *ChainConfig {
 		return CoreChainConfig
 	case BuffaloGenesisHash:
 		return BuffaloChainConfig
+	case PigeonGenesisHash:
+		return PigeonChainConfig
 	default:
 		return nil
 	}
@@ -898,7 +929,7 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	if isForkTimestampIncompatible(c.DemeterTime, newcfg.DemeterTime, headTimestamp) {
 		return newTimestampCompatError("Demeter fork timestamp", c.DemeterTime, newcfg.DemeterTime)
 	}
-	if isForkTimestampIncompatible(c.AthenaTime, newcfg.AthenaTime, headTimestamp){
+	if isForkTimestampIncompatible(c.AthenaTime, newcfg.AthenaTime, headTimestamp) {
 		return newTimestampCompatError("Athena fork timestamp", c.AthenaTime, newcfg.AthenaTime)
 	}
 	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {

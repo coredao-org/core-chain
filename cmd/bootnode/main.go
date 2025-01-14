@@ -46,7 +46,7 @@ func main() {
 		runv5         = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
 		verbosity     = flag.Int("verbosity", int(log.LvlInfo), "log verbosity (0-5)")
 		vmodule       = flag.String("vmodule", "", "log verbosity pattern")
-		networkFilter = flag.String("network", "", "<core/buffalo> filters nodes by eth ENR entry")
+		networkFilter = flag.String("network", "", "<core/buffalo/pigeon> filters nodes by eth ENR entry")
 
 		nodeKey        *ecdsa.PrivateKey
 		filterFunction discover.NodeFilterFunc

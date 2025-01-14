@@ -29,6 +29,7 @@ type upgradeHook func(blockNumber *big.Int, contractAddr common.Address, statedb
 const (
 	mainNet    = "Mainnet"
 	buffaloNet = "Buffalo"
+	pigeonNet  = "Pigeon"
 	defaultNet = "Default"
 )
 
@@ -437,6 +438,8 @@ func UpgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 		network = mainNet
 	case params.BuffaloGenesisHash:
 		network = buffaloNet
+	case params.PigeonGenesisHash:
+		network = pigeonNet
 	default:
 		network = defaultNet
 	}
