@@ -183,7 +183,7 @@ var (
 		ShanghaiTime:        newUint64(0),
 		KeplerTime:          newUint64(0),
 		DemeterTime:         newUint64(0),
-		AthenaTime:          nil,
+		AthenaTime:          newUint64(1737079200),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
