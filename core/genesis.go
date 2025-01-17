@@ -382,8 +382,8 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *trie.Database, gen
 	// chain config as that would be AllProtocolChanges (applying any new fork
 	// on top of an existing private network genesis block). In that case, only
 	// apply the overrides.
-	if genesis == nil && stored != params.MainnetGenesisHash &&
-		stored != params.BuffaloGenesisHash && stored != params.CoreGenesisHash {
+	if genesis == nil && stored != params.MainnetGenesisHash && stored != params.BuffaloGenesisHash &&
+		stored != params.PigeonGenesisHash && stored != params.CoreGenesisHash {
 		newcfg = storedcfg
 		applyOverrides(newcfg)
 	}
@@ -591,6 +591,22 @@ func DefaultBuffaloGenesisBlock() *Genesis {
 		Mixhash:    common.Hash(hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000000")),
 		Coinbase:   common.HexToAddress("0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE"),
 		Timestamp:  0x61936E60,
+		Alloc:      alloc,
+	}
+}
+
+// DefaultPigeonGenesisBlock returns the CORE testnet genesis block.
+func DefaultPigeonGenesisBlock() *Genesis {
+	alloc := decodePrealloc(corePigeonAllocData)
+	return &Genesis{
+		Config:     params.PigeonChainConfig,
+		Nonce:      0,
+		ExtraData:  hexutil.MustDecode("0x000000000000000000000000000000000000000000000000000000000000000001bca3615d24d3c638836691517b2b9b49b054b1a458499604a85e90225a14946f36368ae24df16d5e00c0d5c4c10d4c805aba878d51129a89d513e01cd652bc64af3f09b490daae27f46e53726ce230da37ccecbb2d7c83ae27ee2bebfe8ebce162c6000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   0x2625a00,
+		Difficulty: big.NewInt(1),
+		Mixhash:    common.Hash(hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000000")),
+		Coinbase:   common.HexToAddress("0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE"),
+		Timestamp:  0x61936e60,
 		Alloc:      alloc,
 	}
 }

@@ -21,6 +21,7 @@ while read line; do
 done < ${change_log_file}
 MAINNET_ZIP_SUM="$(checksum ./mainnet.zip)"
 TESTNET_ZIP_SUM="$(checksum ./testnet.zip)"
+TESTNET2_ZIP_SUM="$(checksum ./testnet2.zip)"
 LINUX_BIN_SUM="$(checksum ./linux/geth)"
 MAC_BIN_SUM="$(checksum ./macos/geth)"
 WINDOWS_BIN_SUM="$(checksum ./windows/geth.exe)"
@@ -33,6 +34,7 @@ ${CHANGE_LOG}\n
 | :-----------: |------------|
 | mainnet.zip | ${MAINNET_ZIP_SUM} |
 | testnet.zip | ${TESTNET_ZIP_SUM} |
+| testnet2.zip | ${TESTNET2_ZIP_SUM} |
 | geth_linux | ${LINUX_BIN_SUM} |
 | geth_mac  | ${MAC_BIN_SUM} |
 | geth_windows  | ${WINDOWS_BIN_SUM} |
