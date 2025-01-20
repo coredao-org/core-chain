@@ -84,7 +84,7 @@ func TestUpgrade(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/master/genesis.json", demeterUpgrade[mainNet])
+	err = checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/master/genesis.json", athenaUpgrade[mainNet])
 	if err != nil {
 		t.Error(err)
 	}
