@@ -126,7 +126,7 @@ var (
 		ShanghaiTime:        newUint64(1731999600), // 2024-11-19 7:00:00 AM UTC
 		KeplerTime:          newUint64(1731999600),
 		DemeterTime:         newUint64(1731999600),
-		AthenaTime:          nil,
+		AthenaTime:          newUint64(1738544400), // 2025-02-03 1:00:00 AM UTC
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
