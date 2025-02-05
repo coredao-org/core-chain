@@ -446,6 +446,10 @@ func opBlockhash(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) (
 		lower = upper - 256
 	}
 	if num64 >= lower && num64 < upper {
+		res := interpreter.evm.Context.GetHash(num64)
+		if tracer := interpreter.evm.Config.Tracer; tracer != nil && tracer.OnBlockHashRead != nil {
+			tracer.OnBlockHashRead(num64, res)
+		}
 		num.SetBytes(interpreter.evm.Context.GetHash(num64).Bytes())
 	} else {
 		num.Clear()
