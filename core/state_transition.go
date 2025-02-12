@@ -21,20 +21,20 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-    "strings"
+	"strings"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
-
 
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
@@ -43,7 +43,6 @@ type ExecutionResult struct {
 	Err        error  // Any error encountered during the execution(listed in core/vm/errors.go)
 	ReturnData []byte // Returned data from evm(function result or data supplied with revert opcode)
 }
-
 
 // Define the DiscountConfigProvider interface
 type DiscountConfigProvider interface {
@@ -351,35 +350,31 @@ func (st *StateTransition) preCheck() error {
 	return st.buyGas()
 }
 
-
 type Reward struct {
-	RewardAddress   common.Address `json:"rewardAddress"`
+	RewardAddress    common.Address `json:"rewardAddress"`
 	RewardPercentage *big.Int       `json:"rewardPercentage"`
 }
 
 type DiscountConfig struct {
-	Rewards          []Reward      `json:"rewards"`
-	DiscountRate     *big.Int       `json:"discountRate"`
-	UserDiscountRate *big.Int       `json:"userDiscountRate"`
-	IsActive         bool           `json:"isActive"`
-	Timestamp        *big.Int       `json:"timestamp"`
+	Rewards          []Reward `json:"rewards"`
+	DiscountRate     *big.Int `json:"discountRate"`
+	UserDiscountRate *big.Int `json:"userDiscountRate"`
+	IsActive         bool     `json:"isActive"`
+	Timestamp        *big.Int `json:"timestamp"`
 }
-
 
 // GetAllAvailableDiscountConfigs retrieves the discount configuration using EVM call.
 func (st *StateTransition) CalculateDiscount() (DiscountConfig, error) {
 	const LFMDiscountABI = `[{"inputs":[{"internalType":"address","name":"addr","type":"address"}],"name":"AddressAlreadyExists","type":"error"},{"inputs":[{"internalType":"address","name":"addr","type":"address"}],"name":"AddressNotFound","type":"error"},{"inputs":[{"internalType":"uint256","name":"rate","type":"uint256"}],"name":"InvalidDiscountRate","type":"error"},{"inputs":[{"internalType":"address","name":"issuer","type":"address"}],"name":"InvalidIssuer","type":"error"},{"inputs":[{"internalType":"uint256","name":"percentage","type":"uint256"}],"name":"InvalidRewardPercentage","type":"error"},{"inputs":[{"internalType":"address","name":"issuer","type":"address"}],"name":"IssuerAlreadyExists","type":"error"},{"inputs":[{"internalType":"address","name":"issuer","type":"address"}],"name":"IssuerNotFound","type":"error"},{"inputs":[{"internalType":"string","name":"name","type":"string"}],"name":"MismatchParamLength","type":"error"},{"inputs":[],"name":"NoIssuersProvided","type":"error"},{"inputs":[{"internalType":"string","name":"name","type":"string"},{"internalType":"uint256","name":"given","type":"uint256"},{"internalType":"uint256","name":"lowerBound","type":"uint256"},{"internalType":"uint256","name":"upperBound","type":"uint256"}],"name":"OutOfBounds","type":"error"},{"inputs":[],"name":"TooManyIssuers","type":"error"},{"inputs":[{"internalType":"string","name":"key","type":"string"}],"name":"UnsupportedGovParam","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"contractAddress","type":"address"},{"components":[{"internalType":"address","name":"rewardAddress","type":"address"},{"internalType":"uint256","name":"rewardPercentage","type":"uint256"}],"indexed":false,"internalType":"struct Configuration.Reward[]","name":"rewards","type":"tuple[]"},{"indexed":false,"internalType":"uint256","name":"discountRate","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"userDiscountRate","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"timestamp","type":"uint256"}],"name":"DiscountAdded","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"contractAddress","type":"address"}],"name":"DiscountRemoved","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"contractAddress","type":"address"},{"indexed":false,"internalType":"bool","name":"isActive","type":"bool"}],"name":"DiscountStatusChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"contractAddress","type":"address"},{"indexed":false,"internalType":"uint256","name":"oldRate","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"newRate","type":"uint256"}],"name":"DiscountUpdated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"contractAddress","type":"address"},{"indexed":true,"internalType":"address","name":"issuer","type":"address"}],"name":"IssuerRemoved","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"string","name":"key","type":"string"},{"indexed":false,"internalType":"bytes","name":"value","type":"bytes"}],"name":"paramChange","type":"event"},{"inputs":[],"name":"BTCLST_STAKE_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"BTCLST_TOKEN_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"BTC_AGENT_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"BTC_STAKE_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"BURN_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"CANDIDATE_HUB_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"CORE_AGENT_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"DENOMINATOR","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"FOUNDATION_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"GOV_HUB_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"HASH_AGENT_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"LFMDISCOUNT_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"LIGHT_CLIENT_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"PLEDGE_AGENT_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"RELAYER_HUB_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"SLASH_CONTRACT_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"STAKE_HUB_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"SYSTEM_REWARD_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"VALIDATOR_CONTRACT_ADDR","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"contractAddr","type":"address"},{"internalType":"uint256","name":"discountRate","type":"uint256"},{"internalType":"uint256","name":"userDiscountRate","type":"uint256"},{"components":[{"internalType":"address","name":"rewardAddress","type":"address"},{"internalType":"uint256","name":"rewardPercentage","type":"uint256"}],"internalType":"struct Configuration.Reward[]","name":"rewards","type":"tuple[]"}],"name":"addDiscount","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"alreadyInit","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"daoAddress","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"discountConfigs","outputs":[{"internalType":"uint256","name":"discountRate","type":"uint256"},{"internalType":"uint256","name":"userDiscountRate","type":"uint256"},{"internalType":"bool","name":"isActive","type":"bool"},{"internalType":"uint256","name":"timestamp","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getAllActiveDiscounts","outputs":[{"internalType":"address[]","name":"activeAddresses","type":"address[]"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getAllAvailableDiscountConfigs","outputs":[{"components":[{"components":[{"internalType":"address","name":"rewardAddress","type":"address"},{"internalType":"uint256","name":"rewardPercentage","type":"uint256"}],"internalType":"struct Configuration.Reward[]","name":"rewards","type":"tuple[]"},{"internalType":"uint256","name":"discountRate","type":"uint256"},{"internalType":"uint256","name":"userDiscountRate","type":"uint256"},{"internalType":"bool","name":"isActive","type":"bool"},{"internalType":"uint256","name":"timestamp","type":"uint256"}],"internalType":"struct Configuration.DiscountConfig[]","name":"configs","type":"tuple[]"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getAllDiscountAddresses","outputs":[{"internalType":"address[]","name":"","type":"address[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"contractAddr","type":"address"}],"name":"getDiscountConfig","outputs":[{"internalType":"uint256","name":"discountRate","type":"uint256"},{"internalType":"uint256","name":"userDiscountRate","type":"uint256"},{"internalType":"bool","name":"isActive","type":"bool"},{"internalType":"uint256","name":"timestamp","type":"uint256"},{"components":[{"internalType":"address","name":"rewardAddress","type":"address"},{"internalType":"uint256","name":"rewardPercentage","type":"uint256"}],"internalType":"struct Configuration.Reward[]","name":"rewards","type":"tuple[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"issuer","type":"address"}],"name":"getIssuerDiscounts","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"init","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"contractAddr","type":"address"},{"internalType":"address","name":"issuer","type":"address"}],"name":"isIssuerForDiscount","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"issuerDiscountCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"contractAddr","type":"address"}],"name":"removeDiscount","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"contractAddr","type":"address"},{"internalType":"uint256","name":"newRate","type":"uint256"},{"internalType":"uint256","name":"newUserDiscountRate","type":"uint256"},{"components":[{"internalType":"address","name":"rewardAddress","type":"address"},{"internalType":"uint256","name":"rewardPercentage","type":"uint256"}],"internalType":"struct Configuration.Reward[]","name":"newRewards","type":"tuple[]"}],"name":"updateDiscount","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"key","type":"string"},{"internalType":"bytes","name":"value","type":"bytes"}],"name":"updateParam","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
 
-
 	// Parse the ABI
 	parsedABI, err := abi.JSON(strings.NewReader(LFMDiscountABI))
 	if err != nil {
-			log.Error("Failed to parse LFMDiscountABI", "error", err)
-			return DiscountConfig{}, err
+		log.Error("Failed to parse LFMDiscountABI", "error", err)
+		return DiscountConfig{}, err
 	}
 
-
-    method := "getDiscountConfig"
+	method := "getDiscountConfig"
 	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000001020") // Replace with actual contract address
 	// Use st.to() as the contract address
 	destination := *st.msg.To
@@ -387,69 +382,66 @@ func (st *StateTransition) CalculateDiscount() (DiscountConfig, error) {
 	// Print the destination address
 	log.Info("Destination address", "address", destination)
 
-    // Pack the function call
-    data, err := parsedABI.Pack(method, destination)
-    if err != nil {
-        log.Error("Unable to pack tx for getAllAvailableDiscountConfigs", "error", err)
-        return DiscountConfig{}, err
-    }
+	// Pack the function call
+	data, err := parsedABI.Pack(method, destination)
+	if err != nil {
+		log.Error("Unable to pack tx for getAllAvailableDiscountConfigs", "error", err)
+		return DiscountConfig{}, err
+	}
 	gas := uint64(1_000_000) // Example gas limit
-    log.Info("Packed ABI data", "data", hexutil.Encode(data))
+	log.Info("Packed ABI data", "data", hexutil.Encode(data))
 
-    log.Info("Remaining gas", "gasRemaining", st.gasRemaining)
-    // Call the contract using EVM
-    ret, _, err := st.evm.Call(
-        vm.AccountRef(st.msg.From), // Sender
-        contractAddr,               // Contract address
-        data,                       // Packed ABI data
-        gas,            // Gas
-        big.NewInt(0), 
-    )
-    // Log the returned data for debugging
-    log.Info("Contract call result", "ret", hexutil.Encode(ret))
+	log.Info("Remaining gas", "gasRemaining", st.gasRemaining)
+	// Call the contract using EVM
+	ret, _, err := st.evm.Call(
+		vm.AccountRef(st.msg.From), // Sender
+		contractAddr,               // Contract address
+		data,                       // Packed ABI data
+		gas,                        // Gas
+		big.NewInt(0),
+	)
+	// Log the returned data for debugging
+	log.Info("Contract call result", "ret", hexutil.Encode(ret))
 
-    log.Info("Remaining gas v2", "gasRemaining", st.gasRemaining)
-    // Unpack the result
-    var (
-        discountRate    *big.Int
-        userDiscountRate *big.Int
-        isActive        bool
-        timestamp       *big.Int
-        rewards         []Reward
-    )
-    err = parsedABI.UnpackIntoInterface(&[]interface{}{
-        &discountRate,
-        &userDiscountRate,
-        &isActive,
-        &timestamp,
-        &rewards,
-    }, method, ret)
-    if err != nil {
-        log.Error("Failed to unpack contract result", "error", err)
-        return DiscountConfig{}, err
-    }
+	log.Info("Remaining gas v2", "gasRemaining", st.gasRemaining)
+	// Unpack the result
+	var (
+		discountRate     *big.Int
+		userDiscountRate *big.Int
+		isActive         bool
+		timestamp        *big.Int
+		rewards          []Reward
+	)
+	err = parsedABI.UnpackIntoInterface(&[]interface{}{
+		&discountRate,
+		&userDiscountRate,
+		&isActive,
+		&timestamp,
+		&rewards,
+	}, method, ret)
+	if err != nil {
+		log.Error("Failed to unpack contract result", "error", err)
+		return DiscountConfig{}, err
+	}
 
-    // Print the returned values for debugging
-    log.Info("DiscountConfig result",
-        "discountRate", discountRate,
-        "userDiscountRate", userDiscountRate,
-        "isActive", isActive,
-        "timestamp", timestamp,
-        "rewards", rewards,
-    )
-	
+	// Print the returned values for debugging
+	log.Info("DiscountConfig result",
+		"discountRate", discountRate,
+		"userDiscountRate", userDiscountRate,
+		"isActive", isActive,
+		"timestamp", timestamp,
+		"rewards", rewards,
+	)
 
-    // Return the DiscountConfig
-    return DiscountConfig{
-        DiscountRate:     discountRate,
-        UserDiscountRate: userDiscountRate,
-        IsActive:         isActive,
-        Timestamp:        timestamp,
-        Rewards:          rewards,
-    }, nil
+	// Return the DiscountConfig
+	return DiscountConfig{
+		DiscountRate:     discountRate,
+		UserDiscountRate: userDiscountRate,
+		IsActive:         isActive,
+		Timestamp:        timestamp,
+		Rewards:          rewards,
+	}, nil
 }
-
-
 
 // TransitionDb will transition the state by applying the current message and
 // returning the evm execution result with following fields.
@@ -544,92 +536,92 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if st.evm.ChainConfig().Satoshi != nil {
 		systemReward := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip)
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
-		config, _ := st.CalculateDiscount()
-		log.Info("Initial system reward calculated v2 ", 
-        "systemReward", systemReward,
-        "gasUsed", st.gasUsed(),
-        "effectiveTip", effectiveTip)
-		// Access config values
-		discountRate := config.DiscountRate
-		userDiscountRate := config.UserDiscountRate
-		isActive := config.IsActive
-		timestamp := config.Timestamp
-		rewards := config.Rewards
+			config, _ := st.CalculateDiscount()
+			log.Info("Initial system reward calculated v2 ",
+				"systemReward", systemReward,
+				"gasUsed", st.gasUsed(),
+				"effectiveTip", effectiveTip)
+			// Access config values
+			discountRate := config.DiscountRate
+			userDiscountRate := config.UserDiscountRate
+			isActive := config.IsActive
+			timestamp := config.Timestamp
+			rewards := config.Rewards
 
-		log.Info("Discount config loaded",
-        "discountRate", discountRate,
-        "userDiscountRate", userDiscountRate,
-        "isActive", isActive,
-        "timestamp", timestamp,
-        "rewardsCount", len(rewards))
-		// Example usage
-		if isActive {
-			if userDiscountRate != nil {
-				userDiscountAmount := new(big.Int).Mul(systemReward, userDiscountRate)
-				userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, big.NewInt(10000)) // Assuming percentage
-				log.Info("Processing user discount",
-                "userDiscountAmount", userDiscountAmount,
-                "userAddress", st.msg.From.Hex())	
-				// Refund to user
-				st.state.AddBalance(st.msg.From, userDiscountAmount)
-				
-				// Subtract from system reward
-				systemReward = systemReward.Sub(systemReward, userDiscountAmount)
-				log.Info("User discount applied",
-                "newSystemReward", systemReward)
-			}
+			log.Info("Discount config loaded",
+				"discountRate", discountRate,
+				"userDiscountRate", userDiscountRate,
+				"isActive", isActive,
+				"timestamp", timestamp,
+				"rewardsCount", len(rewards))
+			// Example usage
+			if isActive {
+				if userDiscountRate != nil {
+					userDiscountAmount := new(big.Int).Mul(systemReward, userDiscountRate)
+					userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, big.NewInt(10000)) // Assuming percentage
+					log.Info("Processing user discount",
+						"userDiscountAmount", userDiscountAmount,
+						"userAddress", st.msg.From.Hex())
+					// Refund to user
+					st.state.AddBalance(st.msg.From, userDiscountAmount)
 
-        // Process rewards
-        for _, reward := range rewards {
-            if reward.RewardPercentage != nil {
-                // Calculate reward amount
-                rewardAmount := new(big.Int).Mul(systemReward, reward.RewardPercentage)
-                rewardAmount = rewardAmount.Div(rewardAmount, big.NewInt(10000))
-                
-                // Add reward to reward address
-                st.state.AddBalance(reward.RewardAddress, rewardAmount)
-                
-                // Subtract from system reward
-                systemReward = systemReward.Sub(systemReward, rewardAmount)
-				log.Info("Reward applied",
-				"rewardAddress", rewardAmount)
-            }
+					// Subtract from system reward
+					systemReward = systemReward.Sub(systemReward, userDiscountAmount)
+					log.Info("User discount applied",
+						"newSystemReward", systemReward)
+				}
+
+				// Process rewards
+				for _, reward := range rewards {
+					if reward.RewardPercentage != nil {
+						// Calculate reward amount
+						rewardAmount := new(big.Int).Mul(systemReward, reward.RewardPercentage)
+						rewardAmount = rewardAmount.Div(rewardAmount, big.NewInt(10000))
+
+						// Add reward to reward address
+						st.state.AddBalance(reward.RewardAddress, rewardAmount)
+
+						// Subtract from system reward
+						systemReward = systemReward.Sub(systemReward, rewardAmount)
+						log.Info("Reward applied",
+							"rewardAddress", rewardAmount)
+					}
+				}
 			}
-		}
-		log.Info("Final system reward to be added",
-        "systemReward", systemReward,
-        "systemAddress", consensus.SystemAddress.Hex())
+			log.Info("Final system reward to be added",
+				"systemReward", systemReward,
+				"systemAddress", consensus.SystemAddress.Hex())
 		} else {
-        // Check if both To and From are EOA and msg.value > 0
-        fromIsEOA := st.state.GetCodeHash(st.msg.From) == (common.Hash{}) || 
-                    st.state.GetCodeHash(st.msg.From) == types.EmptyCodeHash
-        toIsEOA := st.msg.To != nil && 
-                  (st.state.GetCodeHash(*st.msg.To) == (common.Hash{}) || 
-                   st.state.GetCodeHash(*st.msg.To) == types.EmptyCodeHash)
+			// Check if both To and From are EOA and msg.value > 0
+			fromIsEOA := st.state.GetCodeHash(st.msg.From) == (common.Hash{}) ||
+				st.state.GetCodeHash(st.msg.From) == types.EmptyCodeHash
+			toIsEOA := st.msg.To != nil &&
+				(st.state.GetCodeHash(*st.msg.To) == (common.Hash{}) ||
+					st.state.GetCodeHash(*st.msg.To) == types.EmptyCodeHash)
 
-        if fromIsEOA && toIsEOA && st.msg.Value.Sign() > 0 {
-            log.Info("Both From and To are EOA and msg.value > 0, applying 10% discount",
-                "from", st.msg.From.Hex(),
-                "to", st.msg.To.Hex(),
-                "msg.value", st.msg.Value)
+			if fromIsEOA && toIsEOA && st.msg.Value.Sign() > 0 {
+				log.Info("Both From and To are EOA and msg.value > 0, applying 10% discount",
+					"from", st.msg.From.Hex(),
+					"to", st.msg.To.Hex(),
+					"msg.value", st.msg.Value)
 
-            // Calculate 10% discount
-            discountAmount := new(big.Int).Mul(systemReward, big.NewInt(10))
-            discountAmount = discountAmount.Div(discountAmount, big.NewInt(100))
-			st.state.AddBalance(st.msg.From, discountAmount)
-    
-            // Apply discount to system reward
-            systemReward = systemReward.Sub(systemReward, discountAmount)
-            
-            log.Info("10% EOA discount applied",
-                "discountAmount", discountAmount,
-                "newSystemReward", systemReward)
+				// Calculate 10% discount
+				discountAmount := new(big.Int).Mul(systemReward, big.NewInt(10))
+				discountAmount = discountAmount.Div(discountAmount, big.NewInt(100))
+				st.state.AddBalance(st.msg.From, discountAmount)
+
+				// Apply discount to system reward
+				systemReward = systemReward.Sub(systemReward, discountAmount)
+
+				log.Info("10% EOA discount applied",
+					"discountAmount", discountAmount,
+					"newSystemReward", systemReward)
 			}
 		}
-	
+
 		st.state.AddBalance(consensus.SystemAddress, systemReward)
-		
-		} else {
+
+	} else {
 		st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
 	}
 
