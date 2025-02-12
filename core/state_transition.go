@@ -532,13 +532,19 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
 	}
 
-	// consensus engine is satoshi
+	DISCOUNT_PERCENTAGE_DENOMINATOR := big.NewInt(10000)
+
+	// Consensus engine is satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
-		systemReward := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip)
+		// Calculate full system reward
+		totalSystemReward := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip)
+		remainingSystemReward := new(big.Int).Set(totalSystemReward)
+
+		// Check if is a contract call
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
 			config, _ := st.CalculateDiscount()
 			log.Info("Initial system reward calculated v2 ",
-				"systemReward", systemReward,
+				"systemReward", totalSystemReward,
 				"gasUsed", st.gasUsed(),
 				"effectiveTip", effectiveTip)
 			// Access config values
@@ -557,8 +563,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			// Example usage
 			if isActive {
 				if userDiscountRate != nil {
-					userDiscountAmount := new(big.Int).Mul(systemReward, userDiscountRate)
-					userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, big.NewInt(10000)) // Assuming percentage
+					userDiscountAmount := new(big.Int).Mul(totalSystemReward, userDiscountRate)
+					userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, DISCOUNT_PERCENTAGE_DENOMINATOR) // Assuming percentage
 					log.Info("Processing user discount",
 						"userDiscountAmount", userDiscountAmount,
 						"userAddress", st.msg.From.Hex())
@@ -566,30 +572,31 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					st.state.AddBalance(st.msg.From, userDiscountAmount)
 
 					// Subtract from system reward
-					systemReward = systemReward.Sub(systemReward, userDiscountAmount)
+					remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, userDiscountAmount)
 					log.Info("User discount applied",
-						"newSystemReward", systemReward)
+						"remainingSystemReward", remainingSystemReward, "from systemReward", totalSystemReward)
 				}
 
 				// Process rewards
 				for _, reward := range rewards {
 					if reward.RewardPercentage != nil {
 						// Calculate reward amount
-						rewardAmount := new(big.Int).Mul(systemReward, reward.RewardPercentage)
-						rewardAmount = rewardAmount.Div(rewardAmount, big.NewInt(10000))
+						rewardAmount := new(big.Int).Mul(totalSystemReward, reward.RewardPercentage)
+						rewardAmount = rewardAmount.Div(rewardAmount, DISCOUNT_PERCENTAGE_DENOMINATOR)
 
 						// Add reward to reward address
 						st.state.AddBalance(reward.RewardAddress, rewardAmount)
 
 						// Subtract from system reward
-						systemReward = systemReward.Sub(systemReward, rewardAmount)
+						remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, rewardAmount)
 						log.Info("Reward applied",
-							"rewardAddress", rewardAmount)
+							"remainingSystemReward", remainingSystemReward, "from systemReward", totalSystemReward)
 					}
 				}
 			}
 			log.Info("Final system reward to be added",
-				"systemReward", systemReward,
+				"remainingSystemReward", remainingSystemReward,
+				"from systemReward", totalSystemReward,
 				"systemAddress", consensus.SystemAddress.Hex())
 		} else {
 			// Check if both To and From are EOA and msg.value > 0
@@ -606,20 +613,21 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					"msg.value", st.msg.Value)
 
 				// Calculate 10% discount
-				discountAmount := new(big.Int).Mul(systemReward, big.NewInt(10))
+				discountAmount := new(big.Int).Mul(totalSystemReward, big.NewInt(10))
 				discountAmount = discountAmount.Div(discountAmount, big.NewInt(100))
 				st.state.AddBalance(st.msg.From, discountAmount)
 
 				// Apply discount to system reward
-				systemReward = systemReward.Sub(systemReward, discountAmount)
+				remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, discountAmount)
 
 				log.Info("10% EOA discount applied",
 					"discountAmount", discountAmount,
-					"newSystemReward", systemReward)
+					"remainingSystemReward", remainingSystemReward,
+					"from systemReward", totalSystemReward)
 			}
 		}
 
-		st.state.AddBalance(consensus.SystemAddress, systemReward)
+		st.state.AddBalance(consensus.SystemAddress, remainingSystemReward)
 
 	} else {
 		st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
