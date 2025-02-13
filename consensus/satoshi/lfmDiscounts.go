@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,10 +30,14 @@ type LFMDiscountConfigProvider struct {
 
 	eoaToEoaDiscount *big.Int
 	discountConfigs  map[common.Address]types.LFMDiscountConfig
+	// TODO: do we need to add LRUCache here?
+	// discountConfigs *lru.Cache[common.Address, LFMDiscountConfig]
 
 	configsBlockNumber uint64 // Block number of the last discount configs reload
 
 	lock sync.RWMutex // Protects the config fields
+
+	// TODO: do we want to reload at various intervals as well?
 }
 
 // NewLFMDiscountConfigProvider creates a new LFM discount config provider,
@@ -75,13 +80,17 @@ func (p *LFMDiscountConfigProvider) ReloadOnNextBlock() {
 
 // loadDiscountConfigs loads the discount configs from the system contract
 func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) error {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	// Skip loading configs for genesis block
+	if blockNumber == 0 {
+		return nil
+	}
 
 	rpcBlockNumber := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber))
+	// method := "discountConfigs"
 	method := "getAllAvailableDiscountConfigs"
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Add timeout of 5 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Get packed data
@@ -101,61 +110,76 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 		Data: &msgData,
 	}, rpcBlockNumber, nil, nil)
 	if err != nil {
+		log.Error("Failed to fetch discount contract configs", "error", err)
 		return err
 	}
 
 	// TODO: use LFMDiscountConfig
 	var configs []struct {
-		Rewards          []types.LFMDiscountReward
-		DiscountRate     *big.Int
-		UserDiscountRate *big.Int
-		IsActive         bool
-		Timestamp        *big.Int
-		DiscountAddress  common.Address
+		Rewards               []types.LFMDiscountReward
+		DiscountRate          *big.Int
+		UserDiscountRate      *big.Int
+		IsActive              bool
+		Timestamp             *big.Int
+		DiscountAddress       common.Address
+		MinimumValidatorShare *big.Int
+		IsEOADiscount         bool
 	}
 
 	err = p.abi.UnpackIntoInterface(&configs, method, result)
 	if err != nil {
-		log.Error("Failed to unpack contract result", "error", err)
+		log.Error("Failed to unpack discount contract configs", "error", err)
 		return err
 	}
 
 	newDiscountConfigs := make(map[common.Address]types.LFMDiscountConfig)
+	eoaToEoaDiscount := big.NewInt(0)
 
 	for _, config := range configs {
-		conf := types.LFMDiscountConfig{
-			Rewards:          config.Rewards,
-			DiscountRate:     config.DiscountRate,
-			UserDiscountRate: config.UserDiscountRate,
-			IsActive:         config.IsActive,
-			Timestamp:        config.Timestamp,
-			DiscountAddress:  config.DiscountAddress,
-		}
-
-		if !isValidConfig(conf) {
-			log.Debug("Invalid LFM discount config", "address", conf.DiscountAddress, "config", conf)
+		if config.IsEOADiscount {
+			eoaToEoaDiscount = config.DiscountRate
 			continue
 		}
 
-		newDiscountConfigs[conf.DiscountAddress] = conf
+		discountConfig := types.LFMDiscountConfig{
+			Rewards:               config.Rewards,
+			DiscountRate:          config.DiscountRate,
+			UserDiscountRate:      config.UserDiscountRate,
+			IsActive:              config.IsActive,
+			Timestamp:             config.Timestamp,
+			DiscountAddress:       config.DiscountAddress,
+			MinimumValidatorShare: config.MinimumValidatorShare,
+		}
+
+		if !isValidConfig(discountConfig) {
+			log.Debug("Invalid LFM discount config", "address", discountConfig.DiscountAddress, "config", discountConfig)
+			continue
+		}
+
+		newDiscountConfigs[discountConfig.DiscountAddress] = discountConfig
 	}
 
 	// Update the configs
+	p.lock.Lock()
 	p.discountConfigs = newDiscountConfigs
+	p.eoaToEoaDiscount = eoaToEoaDiscount
 	p.configsBlockNumber = blockNumber
+	p.lock.Unlock()
 
 	return nil
 }
 
 func (p *LFMDiscountConfigProvider) GetEOAToEOADiscount() *big.Int {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
 	return p.eoaToEoaDiscount
 }
 
 func (p *LFMDiscountConfigProvider) GetDiscountConfigByAddress(address common.Address) (config types.LFMDiscountConfig, ok bool) {
 	p.lock.RLock()
-	defer p.lock.RUnlock()
-
 	config, ok = p.discountConfigs[address]
+	p.lock.RUnlock()
 	return config, ok
 }
 
@@ -184,7 +208,7 @@ func isValidConfig(config types.LFMDiscountConfig) bool {
 			return false
 		}
 
-		if reward.RewardPercentage.Cmp(big.NewInt(0)) <= 0 {
+		if reward.RewardPercentage.Cmp(big.NewInt(0)) <= 0 || reward.RewardPercentage.Cmp(big.NewInt(10000)) > 0 {
 			return false
 		}
 
@@ -196,6 +220,12 @@ func isValidConfig(config types.LFMDiscountConfig) bool {
 	if discountPercentage.Cmp(config.DiscountRate) != 0 {
 		return false
 	}
+
+	// TODO: add this check
+	// totalDiscount := big.NewInt(0).Add(config.DiscountRate, config.MinimumValidatorShare)
+	// if config.MinimumValidatorShare.Cmp(big.NewInt(0)) <= 0 || totalDiscount.Cmp(big.NewInt(10000)) > 0 {
+	// 	return false
+	// }
 
 	return true
 }
