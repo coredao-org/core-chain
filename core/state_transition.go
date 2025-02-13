@@ -350,18 +350,6 @@ func (st *StateTransition) preCheck() error {
 	return st.buyGas()
 }
 
-type Reward struct {
-	RewardAddress    common.Address `json:"rewardAddress"`
-	RewardPercentage *big.Int       `json:"rewardPercentage"`
-}
-
-type DiscountConfig struct {
-	Rewards          []Reward `json:"rewards"`
-	DiscountRate     *big.Int `json:"discountRate"`
-	UserDiscountRate *big.Int `json:"userDiscountRate"`
-	IsActive         bool     `json:"isActive"`
-	Timestamp        *big.Int `json:"timestamp"`
-}
 
 // GetAllAvailableDiscountConfigs retrieves the discount configuration using EVM call.
 func (st *StateTransition) CalculateDiscount() (DiscountConfig, error) {
