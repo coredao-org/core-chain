@@ -86,6 +86,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		signer  = types.MakeSigner(p.config, header.Number, header.Time)
 		txNum   = len(block.Transactions())
 	)
+
+	// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+	if systemContractAccessor, isValid := p.engine.(vm.SystemContractsAccessor); isValid {
+		vmenv.SystemContractAccessor = systemContractAccessor
+	}
+
 	// Iterate over and process the individual transactions
 	posa, isPoSA := p.engine.(consensus.PoSA)
 	commonTxs := make([]*types.Transaction, 0, txNum)
@@ -216,5 +222,11 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		vm.EVMInterpreterPool.Put(ite)
 		vm.EvmPool.Put(vmenv)
 	}()
+
+	// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+	if systemContractAccessor, isValid := bc.Engine().(vm.SystemContractsAccessor); isValid {
+		vmenv.SystemContractAccessor = systemContractAccessor
+	}
+
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, receiptProcessors...)
 }

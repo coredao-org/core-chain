@@ -548,6 +548,10 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 				}
 			}
 		}
+		// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+		if systemContractAccessor, isValid := api.backend.Engine().(vm.SystemContractsAccessor); isValid {
+			vmenv.SystemContractAccessor = systemContractAccessor
+		}
 
 		statedb.SetTxContext(tx.Hash(), i)
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit)); err != nil {
@@ -708,6 +712,10 @@ txloop:
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
+		// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+		if systemContractAccessor, isValid := api.backend.Engine().(vm.SystemContractsAccessor); isValid {
+			vmenv.SystemContractAccessor = systemContractAccessor
+		}
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit)); err != nil {
 			failed = err
 			break txloop
@@ -822,6 +830,10 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 					statedb.AddBalance(vmctx.Coinbase, balance)
 				}
 			}
+		}
+		// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+		if systemContractAccessor, isValid := api.backend.Engine().(vm.SystemContractsAccessor); isValid {
+			vmenv.SystemContractAccessor = systemContractAccessor
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 		_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
@@ -978,6 +990,11 @@ func (api *API) traceTx(ctx context.Context, message *core.Message, txctx *Conte
 	}
 	vmenv := vm.NewEVM(vmctx, txContext, statedb, api.backend.ChainConfig(), vm.Config{Tracer: tracer, NoBaseFee: true})
 
+	// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+	if systemContractAccessor, isValid := api.backend.Engine().(vm.SystemContractsAccessor); isValid {
+		vmenv.SystemContractAccessor = systemContractAccessor
+	}
+
 	// Define a meaningful timeout of a single transaction trace
 	if config.Timeout != nil {
 		if timeout, err = time.ParseDuration(*config.Timeout); err != nil {
@@ -1005,6 +1022,10 @@ func (api *API) traceTx(ctx context.Context, message *core.Message, txctx *Conte
 			statedb.AddBalance(vmctx.Coinbase, balance)
 		}
 		intrinsicGas, _ = core.IntrinsicGas(message.Data, message.AccessList, false, true, true, false)
+	}
+	// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+	if systemContractAccessor, isValid := api.backend.Engine().(vm.SystemContractsAccessor); isValid {
+		vmenv.SystemContractAccessor = systemContractAccessor
 	}
 
 	// Call Prepare to clear out the statedb access list

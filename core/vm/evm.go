@@ -120,6 +120,8 @@ type EVM struct {
 	// virtual machine configuration options used to initialise the
 	// evm.
 	Config Config
+	// SystemContractAccessor provides access to system contracts
+	SystemContractAccessor SystemContractsAccessor
 	// global (to this context) ethereum virtual machine
 	// used throughout the execution of the tx.
 	interpreter *EVMInterpreter

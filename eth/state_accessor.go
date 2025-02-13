@@ -262,6 +262,12 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 				statedb.AddBalance(context.Coinbase, balance)
 			}
 		}
+
+		// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+		if systemContractAccessor, isValid := eth.Engine().(vm.SystemContractsAccessor); isValid {
+			vmenv.SystemContractAccessor = systemContractAccessor
+		}
+
 		statedb.SetTxContext(tx.Hash(), idx)
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
 			return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
