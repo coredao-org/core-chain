@@ -1253,6 +1253,26 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
+// VerifyLFMDiscountConfigCacheInvalidation verifies if LFM discount config cache needs
+// to be reloaded on next block, by checking if a transaction receiver is the LFMDiscountContract system contract.
+func (p *Satoshi) VerifyLFMDiscountConfigCacheInvalidation(address common.Address) {
+	if address != common.HexToAddress(systemcontracts.LFMDiscountContract) {
+		return
+	}
+
+	p.lfmDiscountConfig.ReloadOnNextBlock()
+}
+
+// GetLFMDiscountForEOAToEOA gets the LFM discount for simple EOA to EOA value transfers
+func (p *Satoshi) GetLFMDiscountForEOAToEOA() *big.Int {
+	return p.lfmDiscountConfig.GetEOAToEOADiscount()
+}
+
+// GetLFMDiscountConfigByAddress gets the LFM discount config for the given address
+func (p *Satoshi) GetLFMDiscountConfigByAddress(address common.Address) (config types.LFMDiscountConfig, ok bool) {
+	return p.lfmDiscountConfig.GetDiscountConfigByAddress(address)
+}
+
 // init contract
 func (p *Satoshi) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {

@@ -92,3 +92,14 @@ type CallContext interface {
 	// Create creates a new contract
 	Create(env *EVM, me ContractRef, data []byte, gas, value *big.Int) ([]byte, common.Address, error)
 }
+
+// SystemContractsAccessor provides access to system contracts
+type SystemContractsAccessor interface {
+	// VerifyLFMDiscountConfigCacheInvalidation verifies if LFM discount config cache needs
+	// to be reloaded on next block, by checking if a transaction receiver is the LFMDiscountContract system contract
+	VerifyLFMDiscountConfigCacheInvalidation(address common.Address)
+	// GetLFMDiscountForEOAToEOA gets the LFM discount for simple EOA to EOA value transfers
+	GetLFMDiscountForEOAToEOA() *big.Int
+	// GetLFMDiscountConfigByAddress gets the LFM discount config for the given address
+	GetLFMDiscountConfigByAddress(address common.Address) (config types.LFMDiscountConfig, ok bool)
+}
