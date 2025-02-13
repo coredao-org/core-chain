@@ -21,11 +21,8 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -350,86 +347,6 @@ func (st *StateTransition) preCheck() error {
 	return st.buyGas()
 }
 
-
-// GetAllAvailableDiscountConfigs retrieves the discount configuration using EVM call.
-func (st *StateTransition) CalculateDiscount() (DiscountConfig, error) {
-
-	// Parse the ABI
-	parsedABI, err := abi.JSON(strings.NewReader(LFMDiscountABI))
-	if err != nil {
-		log.Error("Failed to parse LFMDiscountABI", "error", err)
-		return DiscountConfig{}, err
-	}
-
-	method := "getDiscountConfig"
-	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000001020") // Replace with actual contract address
-	// Use st.to() as the contract address
-	destination := *st.msg.To
-
-	// Print the destination address
-	log.Info("Destination address", "address", destination)
-
-	// Pack the function call
-	data, err := parsedABI.Pack(method, destination)
-	if err != nil {
-		log.Error("Unable to pack tx for getAllAvailableDiscountConfigs", "error", err)
-		return DiscountConfig{}, err
-	}
-	gas := uint64(1_000_000) // Example gas limit
-	log.Info("Packed ABI data", "data", hexutil.Encode(data))
-
-	log.Info("Remaining gas", "gasRemaining", st.gasRemaining)
-	// Call the contract using EVM
-	ret, _, err := st.evm.Call(
-		vm.AccountRef(st.msg.From), // Sender
-		contractAddr,               // Contract address
-		data,                       // Packed ABI data
-		gas,                        // Gas
-		big.NewInt(0),
-	)
-	// Log the returned data for debugging
-	log.Info("Contract call result", "ret", hexutil.Encode(ret))
-
-	log.Info("Remaining gas v2", "gasRemaining", st.gasRemaining)
-	// Unpack the result
-	var (
-		discountRate     *big.Int
-		userDiscountRate *big.Int
-		isActive         bool
-		timestamp        *big.Int
-		rewards          []Reward
-	)
-	err = parsedABI.UnpackIntoInterface(&[]interface{}{
-		&discountRate,
-		&userDiscountRate,
-		&isActive,
-		&timestamp,
-		&rewards,
-	}, method, ret)
-	if err != nil {
-		log.Error("Failed to unpack contract result", "error", err)
-		return DiscountConfig{}, err
-	}
-
-	// Print the returned values for debugging
-	log.Info("DiscountConfig result",
-		"discountRate", discountRate,
-		"userDiscountRate", userDiscountRate,
-		"isActive", isActive,
-		"timestamp", timestamp,
-		"rewards", rewards,
-	)
-
-	// Return the DiscountConfig
-	return DiscountConfig{
-		DiscountRate:     discountRate,
-		UserDiscountRate: userDiscountRate,
-		IsActive:         isActive,
-		Timestamp:        timestamp,
-		Rewards:          rewards,
-	}, nil
-}
-
 // TransitionDb will transition the state by applying the current message and
 // returning the evm execution result with following fields.
 //
@@ -529,7 +446,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 		// Check if is a contract call
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
-			config, _ := st.CalculateDiscount()
+			config := types.LFMDiscountConfig{}
 			log.Info("Initial system reward calculated v2 ",
 				"systemReward", totalSystemReward,
 				"gasUsed", st.gasUsed(),

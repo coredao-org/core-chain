@@ -200,10 +200,11 @@ func SatoshiRLP(header *types.Header, chainId *big.Int) []byte {
 
 // Satoshi is the consensus engine of Core Chain
 type Satoshi struct {
-	chainConfig *params.ChainConfig   // Chain config
-	config      *params.SatoshiConfig // Consensus engine configuration parameters for satoshi consensus
-	genesisHash common.Hash
-	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
+	chainConfig       *params.ChainConfig   // Chain config
+	config            *params.SatoshiConfig // Consensus engine configuration parameters for satoshi consensus
+	genesisHash       common.Hash
+	db                ethdb.Database // Database to store and retrieve snapshot checkpoints
+	lfmDiscountConfig *LFMDiscountConfigProvider
 
 	recentSnaps *lru.ARCCache // Snapshots for recent block to speed up
 	signatures  *lru.ARCCache // Signatures of recent blocks to speed up mining
@@ -246,6 +247,12 @@ func New(
 		}
 	}
 
+	// Create the LFM discount config provider
+	lmfDiscountConfig, err := NewLFMDiscountConfigProvider(ethAPI)
+	if err != nil {
+		panic(err)
+	}
+
 	// Allocate the snapshot caches and create the engine
 	recentSnaps, err := lru.NewARC(inMemorySnapshots)
 	if err != nil {
@@ -268,17 +275,18 @@ func New(
 		panic(err)
 	}
 	c := &Satoshi{
-		chainConfig:     chainConfig,
-		config:          satoshiConfig,
-		genesisHash:     genesisHash,
-		db:              db,
-		ethAPI:          ethAPI,
-		recentSnaps:     recentSnaps,
-		signatures:      signatures,
-		validatorSetABI: vABI,
-		slashABI:        sABI,
-		candidateHubABI: cABI,
-		signer:          types.LatestSigner(chainConfig),
+		chainConfig:       chainConfig,
+		config:            satoshiConfig,
+		genesisHash:       genesisHash,
+		db:                db,
+		lfmDiscountConfig: lmfDiscountConfig,
+		ethAPI:            ethAPI,
+		recentSnaps:       recentSnaps,
+		signatures:        signatures,
+		validatorSetABI:   vABI,
+		slashABI:          sABI,
+		candidateHubABI:   cABI,
+		signer:            types.LatestSigner(chainConfig),
 	}
 
 	return c
