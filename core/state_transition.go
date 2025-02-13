@@ -533,9 +533,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			}
 		}
 
-		log.Info("Final system reward to be added",
-			"systemReward", remainingSystemReward,
-			"systemAddress", consensus.SystemAddress.Hex())
 		st.state.AddBalance(consensus.SystemAddress, remainingSystemReward)
 
 	} else {

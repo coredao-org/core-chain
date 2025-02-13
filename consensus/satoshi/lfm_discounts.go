@@ -71,11 +71,9 @@ func NewLFMDiscountConfigProvider(
 
 // OnBlockStart is called when a new block is started
 func (p *LFMDiscountConfigProvider) OnBlockStart(blockNumber uint64) {
-	fmt.Println("lmf.OnBlockStart discountConfigsReloadOnNextBlock", p.discountConfigsReloadOnNextBlock.Load())
 	if !p.discountConfigsReloadOnNextBlock.Load() {
 		return
 	}
-	fmt.Println("lmf.OnBlockStart discountConfigsReloadOnNextBlock1", blockNumber, "configsBlockNumber", p.configsBlockNumber)
 	p.discountConfigsReloadOnNextBlock.Store(false)
 
 	p.loadDiscountConfigs(blockNumber)
@@ -94,9 +92,7 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 		return nil
 	}
 
-	fmt.Println("loadDiscountConfigs.rpcBlockNumber", blockNumber, rpc.BlockNumber(blockNumber))
 	rpcBlockNumber := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber))
-	fmt.Println("loadDiscountConfigs.rpcBlockNumber1", rpcBlockNumber)
 
 	// method := "discountConfigs"
 	method := "getAllAvailableDiscountConfigs"
@@ -112,8 +108,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 		return err
 	}
 
-	fmt.Println("start fetch")
-
 	// Call the system contract
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.LFMDiscountContract)
@@ -124,7 +118,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 		Data: &msgData,
 	}, rpcBlockNumber, nil, nil)
 
-	fmt.Println("end fetch")
 	if err != nil {
 		log.Error("Failed to fetch discount contract configs", "error", err)
 		return err
@@ -154,7 +147,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	for _, config := range configs {
 		if config.IsEOADiscount {
 			eoaToEoaDiscount = config.DiscountRate
-			fmt.Println("eoaToEoaDiscount", config)
 			continue
 		}
 
@@ -168,7 +160,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 			MinimumValidatorShare: config.MinimumValidatorShare,
 		}
 
-		fmt.Println("incoming Discount", config)
 		if !isValidConfig(discountConfig) {
 			log.Debug("Invalid LFM discount config", "address", discountConfig.DiscountAddress, "config", discountConfig)
 			continue
@@ -185,7 +176,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	p.lock.Unlock()
 
 	// TODO: remove this
-	log.Info("Loaded LFM discount configs", "count", len(newDiscountConfigs), newDiscountConfigs)
 	for addr, config := range p.discountConfigs {
 		log.Info("LFM discount config", "address", addr, "config", config)
 	}
@@ -201,27 +191,9 @@ func (p *LFMDiscountConfigProvider) GetEOAToEOADiscount() *big.Int {
 }
 
 func (p *LFMDiscountConfigProvider) GetDiscountConfigByAddress(address common.Address) (config types.LFMDiscountConfig, ok bool) {
-	// // TODO: REMOVE THIS AS IT IS TEMP USED TO ALWAYS RELOAD THE CONFIGS
-	// if err := p.loadDiscountConfigs(); err != nil {
-	// 	log.Debug("Failed to reload discount configs", "error", err)
-	// 	return types.LFMDiscountConfig{}, false
-	// }
-
-	// if len(p.discountConfigs) == 0 {
-	// 	if err := p.loadDiscountConfigs(); err != nil {
-	// 		log.Debug("Failed to reload discount configs", "error", err)
-	// 		return types.LFMDiscountConfig{}, false
-	// 	}
-	// }
-
-	fmt.Println("lmf.GetDiscountConfigByAddress discountConfigsReloadOnNextBlock", p.discountConfigsReloadOnNextBlock.Load())
-
-	fmt.Println("lmf.GetDiscountConfigByAddress", address)
 	p.lock.RLock()
-	fmt.Println("lmf.GetDiscountConfigByAddress1", p.discountConfigs)
 	config, ok = p.discountConfigs[address]
 	p.lock.RUnlock()
-	fmt.Println("lmf.GetDiscountConfigByAddres2", config, ok)
 	return config, ok
 }
 
