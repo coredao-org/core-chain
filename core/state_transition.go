@@ -33,6 +33,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+var LFM_DISCOUNT_PERCENTAGE_DENOMINATOR = big.NewInt(10000)
+
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
 type ExecutionResult struct {
@@ -436,101 +438,104 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
 	}
 
-	DISCOUNT_PERCENTAGE_DENOMINATOR := big.NewInt(10000)
-
 	// Consensus engine is satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
+		hasSystemContractAccessor := st.evm.SystemContractAccessor != nil
+
 		// Calculate full system reward
 		totalSystemReward := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip)
 		remainingSystemReward := new(big.Int).Set(totalSystemReward)
 
-		// Check if is a contract call
-		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
-			config := types.LFMDiscountConfig{}
-			log.Info("Initial system reward calculated v2 ",
-				"systemReward", totalSystemReward,
-				"gasUsed", st.gasUsed(),
-				"effectiveTip", effectiveTip)
-			// Access config values
-			discountRate := config.DiscountRate
-			userDiscountRate := config.UserDiscountRate
-			isActive := config.IsActive
-			timestamp := config.Timestamp
-			rewards := config.Rewards
+		if hasSystemContractAccessor {
+			// Check if is a contract call
+			if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
+				// Verify if the discount config cache needs to be invalidated on next block.
+				// It's not important to happen first, but it has to be done on contract call.
+				st.evm.SystemContractAccessor.VerifyLFMDiscountConfigCacheInvalidation(*st.msg.To)
 
-			log.Info("Discount config loaded",
-				"discountRate", discountRate,
-				"userDiscountRate", userDiscountRate,
-				"isActive", isActive,
-				"timestamp", timestamp,
-				"rewardsCount", len(rewards))
-			// Example usage
-			if isActive {
-				if userDiscountRate != nil {
-					userDiscountAmount := new(big.Int).Mul(totalSystemReward, userDiscountRate)
-					userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, DISCOUNT_PERCENTAGE_DENOMINATOR) // Assuming percentage
-					log.Info("Processing user discount",
-						"userDiscountAmount", userDiscountAmount,
-						"userAddress", st.msg.From.Hex())
-					// Refund to user
-					st.state.AddBalance(st.msg.From, userDiscountAmount)
+				discountConfig, _ := st.evm.SystemContractAccessor.GetLFMDiscountConfigByAddress(*st.msg.To)
 
-					// Subtract from system reward
-					remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, userDiscountAmount)
-					log.Info("User discount applied",
-						"remainingSystemReward", remainingSystemReward, "from systemReward", totalSystemReward)
-				}
+				log.Info("System reward discounts",
+					"msg.to", st.msg.To,
+					"systemReward", totalSystemReward,
+					"discountRate", discountConfig.DiscountRate,
+					"userDiscountRate", discountConfig.UserDiscountRate,
+					"isActive", discountConfig.IsActive,
+					"timestamp", discountConfig.Timestamp,
+					"rewardsCount", len(discountConfig.Rewards))
 
-				// Process rewards
-				for _, reward := range rewards {
-					if reward.RewardPercentage != nil {
-						// Calculate reward amount
-						rewardAmount := new(big.Int).Mul(totalSystemReward, reward.RewardPercentage)
-						rewardAmount = rewardAmount.Div(rewardAmount, DISCOUNT_PERCENTAGE_DENOMINATOR)
+				// Check if the discount config is active and has a timestamp
+				if discountConfig.IsActive {
+					if discountConfig.UserDiscountRate != nil {
+						userDiscountAmount := new(big.Int).Mul(totalSystemReward, discountConfig.UserDiscountRate)
+						userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
 
-						// Add reward to reward address
-						st.state.AddBalance(reward.RewardAddress, rewardAmount)
+						// Refund to user
+						st.state.AddBalance(st.msg.From, userDiscountAmount)
 
 						// Subtract from system reward
-						remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, rewardAmount)
-						log.Info("Reward applied",
-							"remainingSystemReward", remainingSystemReward, "from systemReward", totalSystemReward)
+						remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, userDiscountAmount)
+
+						log.Info("User discount reward applied",
+							"userDiscountAmount", userDiscountAmount,
+							"userAddress", st.msg.From.Hex())
+					}
+
+					// Process rewards
+					for _, reward := range discountConfig.Rewards {
+						if reward.RewardPercentage != nil {
+							// Calculate reward amount
+							rewardAmount := new(big.Int).Mul(totalSystemReward, reward.RewardPercentage)
+							rewardAmount = rewardAmount.Div(rewardAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
+
+							// gasCost := big.NewInt(2500)
+							// rewardAmount = rewardAmount.Sub(rewardAmount, gasCost)
+
+							// or simply add more gas for the TX
+
+							// Add reward to reward address
+							st.state.AddBalance(reward.RewardAddress, rewardAmount)
+							st.state.AddBalance(reward.RewardAddress, rewardAmount)
+
+							// Subtract from system reward
+							remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, rewardAmount)
+							log.Info("Issuer discount reward applied",
+								"rewardAmount", rewardAmount,
+								"rewardAddress", reward.RewardAddress)
+						}
 					}
 				}
-			}
-			log.Info("Final system reward to be added",
-				"remainingSystemReward", remainingSystemReward,
-				"from systemReward", totalSystemReward,
-				"systemAddress", consensus.SystemAddress.Hex())
-		} else {
-			// Check if both To and From are EOA and msg.value > 0
-			fromIsEOA := st.state.GetCodeHash(st.msg.From) == (common.Hash{}) ||
-				st.state.GetCodeHash(st.msg.From) == types.EmptyCodeHash
-			toIsEOA := st.msg.To != nil &&
-				(st.state.GetCodeHash(*st.msg.To) == (common.Hash{}) ||
-					st.state.GetCodeHash(*st.msg.To) == types.EmptyCodeHash)
+			} else {
+				// Check if both To and From are EOA and msg.value > 0
+				fromIsEOA := st.state.GetCodeHash(st.msg.From) == (common.Hash{}) ||
+					st.state.GetCodeHash(st.msg.From) == types.EmptyCodeHash
+				toIsEOA := st.msg.To != nil &&
+					(st.state.GetCodeHash(*st.msg.To) == (common.Hash{}) ||
+						st.state.GetCodeHash(*st.msg.To) == types.EmptyCodeHash)
 
-			if fromIsEOA && toIsEOA && st.msg.Value.Sign() > 0 {
-				log.Info("Both From and To are EOA and msg.value > 0, applying 10% discount",
-					"from", st.msg.From.Hex(),
-					"to", st.msg.To.Hex(),
-					"msg.value", st.msg.Value)
+				if fromIsEOA && toIsEOA && st.msg.Value.Sign() > 0 {
+					eoaDiscountRate := st.evm.SystemContractAccessor.GetLFMDiscountForEOAToEOA()
 
-				// Calculate 10% discount
-				discountAmount := new(big.Int).Mul(totalSystemReward, big.NewInt(10))
-				discountAmount = discountAmount.Div(discountAmount, big.NewInt(100))
-				st.state.AddBalance(st.msg.From, discountAmount)
+					discountAmount := new(big.Int).Mul(totalSystemReward, eoaDiscountRate)
+					discountAmount = discountAmount.Div(discountAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
 
-				// Apply discount to system reward
-				remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, discountAmount)
+					// Refund to caller
+					st.state.AddBalance(st.msg.From, discountAmount)
 
-				log.Info("10% EOA discount applied",
-					"discountAmount", discountAmount,
-					"remainingSystemReward", remainingSystemReward,
-					"from systemReward", totalSystemReward)
+					// Subtract from system reward
+					remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, discountAmount)
+
+					log.Info("EOA-to-EOA discount reward applied",
+						"discountAmount", discountAmount,
+						"from", st.msg.From.Hex(),
+						"to", st.msg.To.Hex())
+				}
 			}
 		}
 
+		log.Info("Final system reward to be added",
+			"systemReward", remainingSystemReward,
+			"systemAddress", consensus.SystemAddress.Hex())
 		st.state.AddBalance(consensus.SystemAddress, remainingSystemReward)
 
 	} else {
