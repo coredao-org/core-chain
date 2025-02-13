@@ -14,10 +14,11 @@ type LFMDiscountReward struct {
 
 // LFMDiscountConfig is the config for an LFM discount
 type LFMDiscountConfig struct {
-	Rewards          []LFMDiscountReward `json:"rewards"`
-	DiscountRate     *big.Int            `json:"discountRate"`
-	UserDiscountRate *big.Int            `json:"userDiscountRate"`
-	IsActive         bool                `json:"isActive"`
-	Timestamp        *big.Int            `json:"timestamp"`
-	DiscountAddress  common.Address      `json:"discountAddress"`
+	Rewards               []LFMDiscountReward `json:"rewards"`
+	DiscountRate          *big.Int            `json:"discountRate"`
+	UserDiscountRate      *big.Int            `json:"userDiscountRate"`
+	IsActive              bool                `json:"isActive"`
+	Timestamp             *big.Int            `json:"timestamp"`
+	DiscountAddress       common.Address      `json:"discountAddress"`
+	MinimumValidatorShare *big.Int            `json:"minimumValidatorShare"`
 }
