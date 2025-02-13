@@ -485,22 +485,21 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					for _, reward := range discountConfig.Rewards {
 						if reward.RewardPercentage != nil {
 							// Calculate reward amount
-							rewardAmount := new(big.Int).Mul(totalSystemReward, reward.RewardPercentage)
-							rewardAmount = rewardAmount.Div(rewardAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
+							issuerRewardAmount := new(big.Int).Mul(totalSystemReward, reward.RewardPercentage)
+							issuerRewardAmount = issuerRewardAmount.Div(issuerRewardAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
 
 							// gasCost := big.NewInt(2500)
-							// rewardAmount = rewardAmount.Sub(rewardAmount, gasCost)
+							// issuerRewardAmount = issuerRewardAmount.Sub(issuerRewardAmount, gasCost)
 
 							// or simply add more gas for the TX
 
 							// Add reward to reward address
-							st.state.AddBalance(reward.RewardAddress, rewardAmount)
-							st.state.AddBalance(reward.RewardAddress, rewardAmount)
+							st.state.AddBalance(reward.RewardAddress, issuerRewardAmount)
 
 							// Subtract from system reward
-							remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, rewardAmount)
+							remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, issuerRewardAmount)
 							log.Info("Issuer discount reward applied",
-								"rewardAmount", rewardAmount,
+								"issuerRewardAmount", issuerRewardAmount,
 								"rewardAddress", reward.RewardAddress)
 						}
 					}
@@ -533,6 +532,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			}
 		}
 
+		// log.Info("System reward remaining", "remainingSystemReward", remainingSystemReward, "totalSystemReward", totalSystemReward)
 		st.state.AddBalance(consensus.SystemAddress, remainingSystemReward)
 
 	} else {
