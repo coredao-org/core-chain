@@ -224,7 +224,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	}()
 
 	// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
-	if config.Satoshi != nil {
+	if bc != nil && config.Satoshi != nil {
 		if systemContractAccessor, isValid := bc.Engine().(vm.SystemContractsAccessor); isValid {
 			vmenv.SystemContractAccessor = systemContractAccessor
 		}
