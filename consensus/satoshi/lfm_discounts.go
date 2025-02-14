@@ -60,12 +60,6 @@ func NewLFMDiscountConfigProvider(
 	// Force load on next block
 	provider.discountConfigsReloadOnNextBlock.Store(true)
 
-	// Load the discount configs to warm up the in memory cache
-	// err = provider.loadDiscountConfigs()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to load the discount configs: %w", err)
-	// }
-
 	return provider, nil
 }
 
