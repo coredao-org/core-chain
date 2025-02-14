@@ -30,14 +30,13 @@ type LFMDiscountConfigProvider struct {
 
 	eoaToEoaDiscount *big.Int
 	discountConfigs  map[common.Address]types.LFMDiscountConfig
-	// TODO: do we need to add LRUCache here?
-	// discountConfigs *lru.Cache[common.Address, LFMDiscountConfig]
+	
 
 	configsBlockNumber uint64 // Block number of the last discount configs reload
 
 	lock sync.RWMutex // Protects the config fields
 
-	// TODO: do we want to reload at various intervals as well?
+	
 }
 
 // NewLFMDiscountConfigProvider creates a new LFM discount config provider,
@@ -123,7 +122,7 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 		return err
 	}
 
-	// TODO: use LFMDiscountConfig
+	
 	var configs []struct {
 		Rewards               []types.LFMDiscountReward
 		DiscountRate          *big.Int
@@ -176,9 +175,9 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	p.lock.Unlock()
 
 	// TODO: remove this
-	for addr, config := range p.discountConfigs {
+	/*for addr, config := range p.discountConfigs {
 		log.Info("LFM discount config", "address", addr, "config", config)
-	}
+	}*/
 
 	return nil
 }
@@ -207,7 +206,7 @@ func isValidConfig(config types.LFMDiscountConfig) bool {
 		return false
 	}
 
-	// TODO: check if bigger than max discount rate constant from the contract
+	
 	if config.DiscountRate.Cmp(big.NewInt(0)) <= 0 || config.DiscountRate.Cmp(big.NewInt(10000)) > 0 {
 		return false
 	}
@@ -235,7 +234,7 @@ func isValidConfig(config types.LFMDiscountConfig) bool {
 		return false
 	}
 
-	// TODO: add this check
+	// 
 	// totalDiscount := big.NewInt(0).Add(config.DiscountRate, config.MinimumValidatorShare)
 	// if config.MinimumValidatorShare.Cmp(big.NewInt(0)) <= 0 || totalDiscount.Cmp(big.NewInt(10000)) > 0 {
 	// 	return false
