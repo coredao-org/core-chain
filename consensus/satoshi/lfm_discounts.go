@@ -71,7 +71,6 @@ func (p *LFMDiscountConfigProvider) OnBlockStart(blockNumber uint64) {
 	p.discountConfigsReloadOnNextBlock.Store(false)
 
 	p.loadDiscountConfigs(blockNumber)
-
 }
 
 // ReloadOnNextBlock marks the discount configs reload on next block

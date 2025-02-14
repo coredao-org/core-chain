@@ -535,7 +535,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 		// log.Info("System reward remaining", "remainingSystemReward", remainingSystemReward, "totalSystemReward", totalSystemReward)
 		st.state.AddBalance(consensus.SystemAddress, remainingSystemReward)
-
 	} else {
 		st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
 	}
