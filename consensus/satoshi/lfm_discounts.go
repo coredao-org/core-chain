@@ -221,10 +221,6 @@ func (p *LFMDiscountConfigProvider) isValidConfig(config types.LFMDiscountConfig
 		return false
 	}
 
-	if !p.IsValidDiscountRate(config.UserDiscountRate, config.MinimumValidatorShare) {
-		return false
-	}
-
 	totalRewardPercentage := big.NewInt(0)
 	for _, reward := range config.Rewards {
 		if reward.RewardAddress == (common.Address{}) {
