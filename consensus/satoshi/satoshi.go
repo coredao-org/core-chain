@@ -1277,14 +1277,24 @@ func (p *Satoshi) ForceLFMDiscountConfigReloadOnNextBlock() {
 	p.lfmDiscountConfig.ReloadOnNextBlock()
 }
 
+// GetDiscountPercentageDenominator gets the denominator for the LFM discount percentage
+func (p *Satoshi) GetDiscountPercentageDenominator() *big.Int {
+	return p.lfmDiscountConfig.GetDiscountPercentageDenominator()
+}
+
 // GetLFMDiscountForEOAToEOA gets the LFM discount for simple EOA to EOA value transfers
-func (p *Satoshi) GetLFMDiscountForEOAToEOA() *big.Int {
+func (p *Satoshi) GetLFMDiscountForEOAToEOA() (eoaToEoaDiscount *big.Int, eoaMinimumValidatorShare *big.Int) {
 	return p.lfmDiscountConfig.GetEOAToEOADiscount()
 }
 
 // GetLFMDiscountConfigByAddress gets the LFM discount config for the given address
 func (p *Satoshi) GetLFMDiscountConfigByAddress(address common.Address) (config types.LFMDiscountConfig, ok bool) {
 	return p.lfmDiscountConfig.GetDiscountConfigByAddress(address)
+}
+
+// IsValidLFMDiscountRate checks if the given rate is valid according to the minimum validator share constraints.
+func (p *Satoshi) IsValidLFMDiscountRate(rate *big.Int, minimumValidatorShare *big.Int) bool {
+	return p.lfmDiscountConfig.IsValidDiscountRate(rate, minimumValidatorShare)
 }
 
 // init contract

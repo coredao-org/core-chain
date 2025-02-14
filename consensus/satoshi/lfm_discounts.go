@@ -20,7 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var LFM_DISCOUNT_PERCENTAGE_DENOMINATOR = big.NewInt(10000)
+var LFM_DISCOUNT_PERCENTAGE_DENOMINATOR = uint64(10000)
 
 // LFMDiscountConfigProvider is a provider for the loading LFM discount configs
 // from the system contract
@@ -30,8 +30,10 @@ type LFMDiscountConfigProvider struct {
 
 	discountConfigsReloadOnNextBlock atomic.Bool // Flag to indicate if the discount configs need to be reloaded on next block
 
-	eoaToEoaDiscount *big.Int
-	discountConfigs  map[common.Address]types.LFMDiscountConfig
+	eoaToEoaDiscount         *big.Int
+	eoaMinimumValidatorShare *big.Int
+
+	discountConfigs map[common.Address]types.LFMDiscountConfig
 
 	configsBlockNumber uint64 // Block number of the last discount configs reload
 
@@ -140,6 +142,7 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 
 	newDiscountConfigs := make(map[common.Address]types.LFMDiscountConfig)
 	eoaToEoaDiscount := big.NewInt(0)
+	eoaMinimumValidatorShare := big.NewInt(0)
 
 	for _, config := range configs {
 		discountConfig := types.LFMDiscountConfig{
@@ -152,13 +155,14 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 			MinimumValidatorShare: config.MinimumValidatorShare,
 		}
 
-		if !isValidConfig(discountConfig, config.IsEOADiscount) {
+		if !p.isValidConfig(discountConfig, config.IsEOADiscount) {
 			log.Info("Invalid LFM discount config", "address", discountConfig.DiscountAddress, "config", discountConfig)
 			continue
 		}
 
 		if config.IsEOADiscount {
 			eoaToEoaDiscount = config.DiscountRate
+			eoaMinimumValidatorShare = config.MinimumValidatorShare
 			continue
 		}
 
@@ -169,6 +173,7 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	p.lock.Lock()
 	p.discountConfigs = newDiscountConfigs
 	p.eoaToEoaDiscount = eoaToEoaDiscount
+	p.eoaMinimumValidatorShare = eoaMinimumValidatorShare
 	p.configsBlockNumber = blockNumber
 	p.lock.Unlock()
 
@@ -180,11 +185,11 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	return nil
 }
 
-func (p *LFMDiscountConfigProvider) GetEOAToEOADiscount() *big.Int {
+func (p *LFMDiscountConfigProvider) GetEOAToEOADiscount() (eoaToEoaDiscount *big.Int, eoaMinimumValidatorShare *big.Int) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
-	return p.eoaToEoaDiscount
+	return p.eoaToEoaDiscount, p.eoaMinimumValidatorShare
 }
 
 func (p *LFMDiscountConfigProvider) GetDiscountConfigByAddress(address common.Address) (config types.LFMDiscountConfig, ok bool) {
@@ -195,17 +200,19 @@ func (p *LFMDiscountConfigProvider) GetDiscountConfigByAddress(address common.Ad
 }
 
 func (p *LFMDiscountConfigProvider) GetDiscountPercentageDenominator() *big.Int {
-	return LFM_DISCOUNT_PERCENTAGE_DENOMINATOR
+	return new(big.Int).SetUint64(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
 }
 
-func verifyValidRate(rate *big.Int, minimumValidatorShare *big.Int) bool {
-	hasValidMinimumValidatorShare := minimumValidatorShare != nil && minimumValidatorShare.Sign() > 0 && minimumValidatorShare.Cmp(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR) <= 0
+// IsValidDiscountRate checks if the given rate is valid according to the minimum validator share constraints.
+// The rate must be positive and not exceed the maximum allowed percentage (10000 - minimumValidatorShare).
+func (p *LFMDiscountConfigProvider) IsValidDiscountRate(rate *big.Int, minimumValidatorShare *big.Int) bool {
+	hasValidMinimumValidatorShare := minimumValidatorShare != nil && minimumValidatorShare.Sign() > 0 && minimumValidatorShare.Cmp(new(big.Int).SetUint64(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)) <= 0
 
-	return hasValidMinimumValidatorShare && rate != nil && rate.Sign() > 0 && rate.Cmp(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR.Sub(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR, minimumValidatorShare)) <= 0
+	return hasValidMinimumValidatorShare && rate != nil && rate.Sign() > 0 && rate.Cmp(big.NewInt(0).Sub(new(big.Int).SetUint64(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR), minimumValidatorShare)) <= 0
 }
 
 // isValidConfig checks if a given LFM discount config is valid
-func isValidConfig(config types.LFMDiscountConfig, isEOA bool) bool {
+func (p *LFMDiscountConfigProvider) isValidConfig(config types.LFMDiscountConfig, isEOA bool) bool {
 	if !config.IsActive {
 		return false
 	}
@@ -214,11 +221,11 @@ func isValidConfig(config types.LFMDiscountConfig, isEOA bool) bool {
 		return false
 	}
 
-	if !verifyValidRate(config.DiscountRate, config.MinimumValidatorShare) {
+	if !p.IsValidDiscountRate(config.DiscountRate, config.MinimumValidatorShare) {
 		return false
 	}
 
-	if !verifyValidRate(config.UserDiscountRate, config.MinimumValidatorShare) {
+	if !p.IsValidDiscountRate(config.UserDiscountRate, config.MinimumValidatorShare) {
 		return false
 	}
 
@@ -228,7 +235,7 @@ func isValidConfig(config types.LFMDiscountConfig, isEOA bool) bool {
 			return false
 		}
 
-		if !verifyValidRate(reward.RewardPercentage, config.MinimumValidatorShare) {
+		if !p.IsValidDiscountRate(reward.RewardPercentage, config.MinimumValidatorShare) {
 			return false
 		}
 

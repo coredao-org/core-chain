@@ -95,6 +95,8 @@ type CallContext interface {
 
 // SystemContractsAccessor provides access to system contracts
 type SystemContractsAccessor interface {
+	// LFMDiscountConfigProvider system contract interface
+	// ---
 	// TriggerLFMDiscountOnBlockStart triggers the LFM discount on block start
 	TriggerLFMDiscountOnBlockStart(blockNumber uint64)
 	// ForceLFMDiscountConfigReloadOnNextBlock forces the LFM discount config cache to be reloaded on next block
@@ -102,8 +104,12 @@ type SystemContractsAccessor interface {
 	// VerifyLFMDiscountConfigCacheInvalidation verifies if LFM discount config cache needs
 	// to be reloaded on next block, by checking if a transaction receiver is the LFMDiscountContract system contract
 	VerifyLFMDiscountConfigCacheInvalidation(address common.Address)
+	// GetDiscountPercentageDenominator gets the denominator for the LFM discount percentage
+	GetDiscountPercentageDenominator() *big.Int
 	// GetLFMDiscountForEOAToEOA gets the LFM discount for simple EOA to EOA value transfers
-	GetLFMDiscountForEOAToEOA() *big.Int
+	GetLFMDiscountForEOAToEOA() (eoaToEoaDiscount *big.Int, eoaMinimumValidatorShare *big.Int)
 	// GetLFMDiscountConfigByAddress gets the LFM discount config for the given address
 	GetLFMDiscountConfigByAddress(address common.Address) (config types.LFMDiscountConfig, ok bool)
+	// IsValidLFMDiscountRate checks if the given rate is valid according to the minimum validator share constraints.
+	IsValidLFMDiscountRate(rate *big.Int, minimumValidatorShare *big.Int) bool
 }

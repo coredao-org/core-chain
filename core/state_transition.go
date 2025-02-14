@@ -33,8 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var LFM_DISCOUNT_PERCENTAGE_DENOMINATOR = big.NewInt(10000)
-
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
 type ExecutionResult struct {
@@ -447,9 +445,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		remainingSystemReward := new(big.Int).Set(totalSystemReward)
 
 		if hasSystemContractAccessor {
-			verifyValidRate := func(rate *big.Int) bool {
-				return rate != nil && rate.Sign() > 0 && rate.Cmp(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR) <= 0
-			}
+			discountPercentageDenominator := st.evm.SystemContractAccessor.GetDiscountPercentageDenominator()
 
 			// Check if is a contract call
 			if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
@@ -469,10 +465,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					"rewardsCount", len(discountConfig.Rewards))
 
 				// Check if the discount config is active
-				if discountConfig.IsActive && verifyValidRate(discountConfig.DiscountRate) {
-					if verifyValidRate(discountConfig.DiscountRate) {
+				if discountConfig.IsActive && st.evm.SystemContractAccessor.IsValidLFMDiscountRate(discountConfig.DiscountRate, discountConfig.MinimumValidatorShare) {
+					if st.evm.SystemContractAccessor.IsValidLFMDiscountRate(discountConfig.UserDiscountRate, discountConfig.MinimumValidatorShare) {
 						userDiscountAmount := new(big.Int).Mul(totalSystemReward, discountConfig.UserDiscountRate)
-						userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
+						userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, discountPercentageDenominator)
 
 						// Refund to user
 						st.state.AddBalance(st.msg.From, userDiscountAmount)
@@ -487,10 +483,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 					// Process rewards
 					for _, reward := range discountConfig.Rewards {
-						if verifyValidRate(reward.RewardPercentage) {
+						if st.evm.SystemContractAccessor.IsValidLFMDiscountRate(reward.RewardPercentage, discountConfig.MinimumValidatorShare) {
 							// Calculate reward amount
 							issuerRewardAmount := new(big.Int).Mul(totalSystemReward, reward.RewardPercentage)
-							issuerRewardAmount = issuerRewardAmount.Div(issuerRewardAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
+							issuerRewardAmount = issuerRewardAmount.Div(issuerRewardAmount, discountPercentageDenominator)
 
 							// gasCost := big.NewInt(2500)
 							// issuerRewardAmount = issuerRewardAmount.Sub(issuerRewardAmount, gasCost)
@@ -516,14 +512,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					(st.state.GetCodeHash(*st.msg.To) == (common.Hash{}) ||
 						st.state.GetCodeHash(*st.msg.To) == types.EmptyCodeHash)
 
-				if fromIsEOA && toIsEOA && verifyValidRate(st.msg.Value) {
-					eoaDiscountRate := st.evm.SystemContractAccessor.GetLFMDiscountForEOAToEOA()
-
-					// TODO: check against the max discount rate
-					if eoaDiscountRate.Sign() > 0 && eoaDiscountRate.Cmp(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR) <= 0 {
-
+				eoaDiscountRate, eoaMinimumValidatorShare := st.evm.SystemContractAccessor.GetLFMDiscountForEOAToEOA()
+				if fromIsEOA && toIsEOA && st.msg.Value.Sign() > 0 {
+					if st.evm.SystemContractAccessor.IsValidLFMDiscountRate(eoaDiscountRate, eoaMinimumValidatorShare) {
 						discountAmount := new(big.Int).Mul(totalSystemReward, eoaDiscountRate)
-						discountAmount = discountAmount.Div(discountAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
+						discountAmount = discountAmount.Div(discountAmount, discountPercentageDenominator)
 
 						// Refund to caller
 						st.state.AddBalance(st.msg.From, discountAmount)
