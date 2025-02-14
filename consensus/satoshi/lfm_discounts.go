@@ -177,10 +177,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	p.configsBlockNumber = blockNumber
 	p.lock.Unlock()
 
-	// TODO: remove this
-	/*for addr, config := range p.discountConfigs {
-		log.Info("LFM discount config", "address", addr, "config", config)
-	}*/
 
 	return nil
 }
