@@ -447,6 +447,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		remainingSystemReward := new(big.Int).Set(totalSystemReward)
 
 		if hasSystemContractAccessor {
+			verifyValidRate := func(rate *big.Int) bool {
+				return rate != nil && rate.Sign() > 0 && rate.Cmp(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR) <= 0
+			}
+
 			// Check if is a contract call
 			if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
 				// Verify if the discount config cache needs to be invalidated on next block.
@@ -455,7 +459,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 				discountConfig, _ := st.evm.SystemContractAccessor.GetLFMDiscountConfigByAddress(*st.msg.To)
 
-				log.Info("System reward discounts",
+				log.Info("-> System reward discounts",
 					"msg.to", st.msg.To,
 					"systemReward", totalSystemReward,
 					"discountRate", discountConfig.DiscountRate,
@@ -464,9 +468,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					"timestamp", discountConfig.Timestamp,
 					"rewardsCount", len(discountConfig.Rewards))
 
-				// Check if the discount config is active and has a timestamp
-				if discountConfig.IsActive && discountConfig.DiscountRate != nil && discountConfig.DiscountRate.Sign() > 0 {
-					if discountConfig.UserDiscountRate != nil {
+				// Check if the discount config is active
+				if discountConfig.IsActive && verifyValidRate(discountConfig.DiscountRate) {
+					if verifyValidRate(discountConfig.DiscountRate) {
 						userDiscountAmount := new(big.Int).Mul(totalSystemReward, discountConfig.UserDiscountRate)
 						userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
 
@@ -483,7 +487,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 					// Process rewards
 					for _, reward := range discountConfig.Rewards {
-						if reward.RewardPercentage != nil {
+						if verifyValidRate(reward.RewardPercentage) {
 							// Calculate reward amount
 							issuerRewardAmount := new(big.Int).Mul(totalSystemReward, reward.RewardPercentage)
 							issuerRewardAmount = issuerRewardAmount.Div(issuerRewardAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
@@ -512,22 +516,26 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					(st.state.GetCodeHash(*st.msg.To) == (common.Hash{}) ||
 						st.state.GetCodeHash(*st.msg.To) == types.EmptyCodeHash)
 
-				if fromIsEOA && toIsEOA && st.msg.Value.Sign() > 0 {
+				if fromIsEOA && toIsEOA && verifyValidRate(st.msg.Value) {
 					eoaDiscountRate := st.evm.SystemContractAccessor.GetLFMDiscountForEOAToEOA()
 
-					discountAmount := new(big.Int).Mul(totalSystemReward, eoaDiscountRate)
-					discountAmount = discountAmount.Div(discountAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
+					// TODO: check against the max discount rate
+					if eoaDiscountRate.Sign() > 0 && eoaDiscountRate.Cmp(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR) <= 0 {
 
-					// Refund to caller
-					st.state.AddBalance(st.msg.From, discountAmount)
+						discountAmount := new(big.Int).Mul(totalSystemReward, eoaDiscountRate)
+						discountAmount = discountAmount.Div(discountAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
 
-					// Subtract from system reward
-					remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, discountAmount)
+						// Refund to caller
+						st.state.AddBalance(st.msg.From, discountAmount)
 
-					log.Info("EOA-to-EOA discount reward applied",
-						"discountAmount", discountAmount,
-						"from", st.msg.From.Hex(),
-						"to", st.msg.To.Hex())
+						// Subtract from system reward
+						remainingSystemReward = remainingSystemReward.Sub(remainingSystemReward, discountAmount)
+
+						log.Info("EOA-to-EOA discount reward applied",
+							"discountAmount", discountAmount,
+							"from", st.msg.From.Hex(),
+							"to", st.msg.To.Hex())
+					}
 				}
 			}
 		}
