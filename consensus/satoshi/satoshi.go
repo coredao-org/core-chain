@@ -713,8 +713,6 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 		}
 	}
 
-	// On new block start, reload the discount configs from previous block
-	// TODO: maybe we want to leave it always load the latest block internally
 	p.lfmDiscountConfig.OnBlockStart(number - 1)
 
 	// add extra seal space
