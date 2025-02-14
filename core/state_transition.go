@@ -465,7 +465,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					"rewardsCount", len(discountConfig.Rewards))
 
 				// Check if the discount config is active and has a timestamp
-				if discountConfig.IsActive {
+				if discountConfig.IsActive && discountConfig.DiscountRate != nil && discountConfig.DiscountRate.Sign() > 0 {
 					if discountConfig.UserDiscountRate != nil {
 						userDiscountAmount := new(big.Int).Mul(totalSystemReward, discountConfig.UserDiscountRate)
 						userDiscountAmount = userDiscountAmount.Div(userDiscountAmount, LFM_DISCOUNT_PERCENTAGE_DENOMINATOR)
