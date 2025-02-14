@@ -20,6 +20,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+var LFM_DISCOUNT_PERCENTAGE_DENOMINATOR = big.NewInt(10000)
+
 // LFMDiscountConfigProvider is a provider for the loading LFM discount configs
 // from the system contract
 type LFMDiscountConfigProvider struct {
@@ -30,13 +32,10 @@ type LFMDiscountConfigProvider struct {
 
 	eoaToEoaDiscount *big.Int
 	discountConfigs  map[common.Address]types.LFMDiscountConfig
-	
 
 	configsBlockNumber uint64 // Block number of the last discount configs reload
 
 	lock sync.RWMutex // Protects the config fields
-
-	
 }
 
 // NewLFMDiscountConfigProvider creates a new LFM discount config provider,
@@ -122,7 +121,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 		return err
 	}
 
-	
 	var configs []struct {
 		DiscountRate          *big.Int
 		UserDiscountRate      *big.Int
@@ -144,11 +142,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	eoaToEoaDiscount := big.NewInt(0)
 
 	for _, config := range configs {
-		if config.IsEOADiscount {
-			eoaToEoaDiscount = config.DiscountRate
-			continue
-		}
-
 		discountConfig := types.LFMDiscountConfig{
 			Rewards:               config.Rewards,
 			DiscountRate:          config.DiscountRate,
@@ -159,8 +152,13 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 			MinimumValidatorShare: config.MinimumValidatorShare,
 		}
 
-		if !isValidConfig(discountConfig) {
-			log.Debug("Invalid LFM discount config", "address", discountConfig.DiscountAddress, "config", discountConfig)
+		if !isValidConfig(discountConfig, config.IsEOADiscount) {
+			log.Info("Invalid LFM discount config", "address", discountConfig.DiscountAddress, "config", discountConfig)
+			continue
+		}
+
+		if config.IsEOADiscount {
+			eoaToEoaDiscount = config.DiscountRate
 			continue
 		}
 
@@ -196,22 +194,31 @@ func (p *LFMDiscountConfigProvider) GetDiscountConfigByAddress(address common.Ad
 	return config, ok
 }
 
+func (p *LFMDiscountConfigProvider) GetDiscountPercentageDenominator() *big.Int {
+	return LFM_DISCOUNT_PERCENTAGE_DENOMINATOR
+}
+
+func verifyValidRate(rate *big.Int, minimumValidatorShare *big.Int) bool {
+	hasValidMinimumValidatorShare := minimumValidatorShare != nil && minimumValidatorShare.Sign() > 0 && minimumValidatorShare.Cmp(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR) <= 0
+
+	return hasValidMinimumValidatorShare && rate != nil && rate.Sign() > 0 && rate.Cmp(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR.Sub(LFM_DISCOUNT_PERCENTAGE_DENOMINATOR, minimumValidatorShare)) <= 0
+}
+
 // isValidConfig checks if a given LFM discount config is valid
-func isValidConfig(config types.LFMDiscountConfig) bool {
+func isValidConfig(config types.LFMDiscountConfig, isEOA bool) bool {
 	if !config.IsActive {
 		return false
 	}
 
-	if config.DiscountAddress == (common.Address{}) {
+	if config.DiscountAddress == (common.Address{}) && !isEOA {
 		return false
 	}
 
-	
-	if config.DiscountRate.Cmp(big.NewInt(0)) <= 0 || config.DiscountRate.Cmp(big.NewInt(10000)) > 0 {
+	if !verifyValidRate(config.DiscountRate, config.MinimumValidatorShare) {
 		return false
 	}
 
-	if config.UserDiscountRate.Cmp(big.NewInt(0)) <= 0 {
+	if !verifyValidRate(config.UserDiscountRate, config.MinimumValidatorShare) {
 		return false
 	}
 
@@ -221,24 +228,14 @@ func isValidConfig(config types.LFMDiscountConfig) bool {
 			return false
 		}
 
-		if reward.RewardPercentage.Cmp(big.NewInt(0)) <= 0 || reward.RewardPercentage.Cmp(big.NewInt(10000)) > 0 {
+		if !verifyValidRate(reward.RewardPercentage, config.MinimumValidatorShare) {
 			return false
 		}
 
 		totalRewardPercentage.Add(totalRewardPercentage, reward.RewardPercentage)
 	}
 
-	// Verify that DiscountRate = totalRewardPercentage + userDiscountRate
-	discountPercentage := big.NewInt(0).Add(totalRewardPercentage, config.UserDiscountRate)
-	if discountPercentage.Cmp(config.DiscountRate) != 0 {
-		return false
-	}
-
-	// 
-	// totalDiscount := big.NewInt(0).Add(config.DiscountRate, config.MinimumValidatorShare)
-	// if config.MinimumValidatorShare.Cmp(big.NewInt(0)) <= 0 || totalDiscount.Cmp(big.NewInt(10000)) > 0 {
-	// 	return false
-	// }
-
-	return true
+	// Verify that discountRate = totalRewardPercentage + userDiscountRate
+	totalDiscountRate := big.NewInt(0).Add(totalRewardPercentage, config.UserDiscountRate)
+	return config.DiscountRate.Cmp(totalDiscountRate) == 0
 }
