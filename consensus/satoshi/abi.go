@@ -2138,6 +2138,11 @@ const lmfDiscountABI = `
         "type": "uint256"
       },
       {
+        "internalType": "bool",
+        "name": "isEOADiscount",
+        "type": "bool"
+      },
+      {
         "components": [
           {
             "internalType": "address",
@@ -2153,11 +2158,6 @@ const lmfDiscountABI = `
         "internalType": "struct Configuration.Reward[]",
         "name": "rewards",
         "type": "tuple[]"
-      },
-      {
-        "internalType": "bool",
-        "name": "isEOADiscount",
-        "type": "bool"
       }
     ],
     "name": "addDiscount",
@@ -2242,27 +2242,10 @@ const lmfDiscountABI = `
   },
   {
     "inputs": [],
-    "name": "getAllAvailableDiscountConfigs",
+    "name": "getAllDiscountConfigs",
     "outputs": [
       {
         "components": [
-          {
-            "components": [
-              {
-                "internalType": "address",
-                "name": "rewardAddress",
-                "type": "address"
-              },
-              {
-                "internalType": "uint256",
-                "name": "rewardPercentage",
-                "type": "uint256"
-              }
-            ],
-            "internalType": "struct Configuration.Reward[]",
-            "name": "rewards",
-            "type": "tuple[]"
-          },
           {
             "internalType": "uint256",
             "name": "discountRate",
@@ -2297,10 +2280,27 @@ const lmfDiscountABI = `
             "internalType": "bool",
             "name": "isEOADiscount",
             "type": "bool"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "rewardAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "rewardPercentage",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Configuration.Reward[]",
+            "name": "rewards",
+            "type": "tuple[]"
           }
         ],
         "internalType": "struct Configuration.DiscountConfig[]",
-        "name": "configs",
+        "name": "",
         "type": "tuple[]"
       }
     ],
@@ -2323,6 +2323,11 @@ const lmfDiscountABI = `
         "type": "uint256"
       },
       {
+        "internalType": "uint256",
+        "name": "userDiscountRate",
+        "type": "uint256"
+      },
+      {
         "internalType": "bool",
         "name": "isActive",
         "type": "bool"
@@ -2330,6 +2335,21 @@ const lmfDiscountABI = `
       {
         "internalType": "uint256",
         "name": "timestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "discountAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "isEOADiscount",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minimumValidatorSharesOfValidator",
         "type": "uint256"
       },
       {

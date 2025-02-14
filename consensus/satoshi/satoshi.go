@@ -1257,6 +1257,11 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
+// TriggerLFMDiscountOnBlockStart triggers the LFM discount on block start
+func (p *Satoshi) TriggerLFMDiscountOnBlockStart(blockNumber uint64) {
+	p.lfmDiscountConfig.OnBlockStart(blockNumber)
+}
+
 // VerifyLFMDiscountConfigCacheInvalidation verifies if LFM discount config cache needs
 // to be reloaded on next block, by checking if a transaction receiver is the LFMDiscountContract system contract.
 func (p *Satoshi) VerifyLFMDiscountConfigCacheInvalidation(address common.Address) {
@@ -1264,6 +1269,11 @@ func (p *Satoshi) VerifyLFMDiscountConfigCacheInvalidation(address common.Addres
 		return
 	}
 
+	p.lfmDiscountConfig.ReloadOnNextBlock()
+}
+
+// ForceLFMDiscountConfigReloadOnNextBlock forces the LFM discount config cache to be reloaded on next block
+func (p *Satoshi) ForceLFMDiscountConfigReloadOnNextBlock() {
 	p.lfmDiscountConfig.ReloadOnNextBlock()
 }
 

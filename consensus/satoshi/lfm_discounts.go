@@ -94,7 +94,7 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	rpcBlockNumber := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber))
 
 	// method := "discountConfigs"
-	method := "getAllAvailableDiscountConfigs"
+	method := "getAllDiscountConfigs"
 
 	// Add timeout of 5 seconds
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -124,7 +124,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 
 	
 	var configs []struct {
-		Rewards               []types.LFMDiscountReward
 		DiscountRate          *big.Int
 		UserDiscountRate      *big.Int
 		IsActive              bool
@@ -132,6 +131,7 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 		DiscountAddress       common.Address
 		MinimumValidatorShare *big.Int
 		IsEOADiscount         bool
+		Rewards               []types.LFMDiscountReward
 	}
 
 	err = p.abi.UnpackIntoInterface(&configs, method, result)

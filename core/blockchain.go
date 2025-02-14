@@ -1761,6 +1761,11 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 					bc.finalizedHeaderFeed.Send(FinalizedHeaderEvent{finalizedHeader})
 				}
 			}
+
+			// Trigger the LFM discount on block start to reload the discount configs if needed during the block processing
+			if systemContractAccessor, isValid := bc.Engine().(vm.SystemContractsAccessor); isValid {
+				systemContractAccessor.TriggerLFMDiscountOnBlockStart(block.Header().Number.Uint64())
+			}
 		}
 	} else {
 		bc.chainSideFeed.Send(ChainSideEvent{Block: block})
@@ -1852,6 +1857,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				if finalizedHeader := posa.GetFinalizedHeader(bc, lastCanon.Header()); finalizedHeader != nil {
 					bc.finalizedHeaderFeed.Send(FinalizedHeaderEvent{finalizedHeader})
 				}
+			}
+			if systemContractAccessor, isValid := bc.Engine().(vm.SystemContractsAccessor); isValid {
+				systemContractAccessor.TriggerLFMDiscountOnBlockStart(lastCanon.Number().Uint64())
 			}
 		}
 	}()

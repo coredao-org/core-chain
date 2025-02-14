@@ -95,6 +95,10 @@ type CallContext interface {
 
 // SystemContractsAccessor provides access to system contracts
 type SystemContractsAccessor interface {
+	// TriggerLFMDiscountOnBlockStart triggers the LFM discount on block start
+	TriggerLFMDiscountOnBlockStart(blockNumber uint64)
+	// ForceLFMDiscountConfigReloadOnNextBlock forces the LFM discount config cache to be reloaded on next block
+	ForceLFMDiscountConfigReloadOnNextBlock()
 	// VerifyLFMDiscountConfigCacheInvalidation verifies if LFM discount config cache needs
 	// to be reloaded on next block, by checking if a transaction receiver is the LFMDiscountContract system contract
 	VerifyLFMDiscountConfigCacheInvalidation(address common.Address)
