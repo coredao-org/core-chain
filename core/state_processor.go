@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -224,7 +225,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	}()
 
 	// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
-	if bc != nil && config.Satoshi != nil {
+	if !reflect.ValueOf(bc).IsNil() && config.Satoshi != nil {
 		if systemContractAccessor, isValid := bc.Engine().(vm.SystemContractsAccessor); isValid {
 			vmenv.SystemContractAccessor = systemContractAccessor
 		}
