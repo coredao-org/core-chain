@@ -170,7 +170,6 @@ func (p *LFMDiscountConfigProvider) loadDiscountConfigs(blockNumber uint64) erro
 	p.configsBlockNumber = blockNumber
 	p.lock.Unlock()
 
-
 	return nil
 }
 
