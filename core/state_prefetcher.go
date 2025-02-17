@@ -114,6 +114,12 @@ func (p *statePrefetcher) PrefetchMining(txs TransactionsByPriceAndNonce, header
 			gaspool := new(GasPool).AddGas(gasLimit)
 			blockContext := NewEVMBlockContext(header, p.bc, nil)
 			evm := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
+
+			// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+			if systemContractAccessor, isValid := p.engine.(vm.SystemContractsAccessor); isValid {
+				evm.SystemContractAccessor = systemContractAccessor
+			}
+
 			// Iterate over and process the individual transactions
 			for {
 				select {
