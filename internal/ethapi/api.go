@@ -1146,6 +1146,11 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	}
 	evm, vmError := b.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
 
+	// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+	if systemContractAccessor, isValid := b.Engine().(vm.SystemContractsAccessor); isValid {
+		evm.SystemContractAccessor = systemContractAccessor
+	}
+
 	// Wait for the context to be done and cancel the evm. Even if the
 	// EVM has finished, cancelling may be done (repeatedly)
 	gopool.Submit(func() {
@@ -1492,6 +1497,11 @@ func (s *BlockChainAPI) replay(ctx context.Context, block *types.Block, accounts
 					statedb.AddBalance(block.Header().Coinbase, balance)
 				}
 			}
+		}
+
+		// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+		if systemContractAccessor, isValid := s.b.Engine().(vm.SystemContractsAccessor); isValid {
+			vmenv.SystemContractAccessor = systemContractAccessor
 		}
 
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
@@ -1841,6 +1851,10 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 		tracer := logger.NewAccessListTracer(accessList, args.from(), to, precompiles)
 		config := vm.Config{Tracer: tracer, NoBaseFee: true}
 		vmenv, _ := b.GetEVM(ctx, msg, statedb, header, &config, nil)
+		// Set the system contract accessor, if the engine implements the SystemContractsAccessor interface
+		if systemContractAccessor, isValid := b.Engine().(vm.SystemContractsAccessor); isValid {
+			vmenv.SystemContractAccessor = systemContractAccessor
+		}
 		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to apply transaction: %v err: %v", args.toTransaction().Hash(), err)
