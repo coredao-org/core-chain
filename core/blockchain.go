@@ -301,11 +301,11 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
+	logger     *tracing.Hooks
 	pipeCommit bool
 
 	// monitor
 	doubleSignMonitor *monitor.DoubleSignMonitor
-	logger            *tracing.Hooks
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -367,9 +367,9 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		diffLayerChanCache: diffLayerChanCache,
 		engine:             engine,
 		vmConfig:           vmConfig,
+		logger:             vmConfig.Tracer,
 		diffQueue:          prque.New[int64, *types.DiffLayer](nil),
 		diffQueueBuffer:    make(chan *types.DiffLayer),
-		logger:             vmConfig.Tracer,
 	}
 	bc.flushInterval.Store(int64(cacheConfig.TrieTimeLimit))
 	bc.forker = NewForkChoice(bc, shouldPreserve)
@@ -1981,6 +1981,17 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		return it.index, err
 	}
 
+	// No validation errors for the first block (or chain prefix skipped)
+	var activeState *state.StateDB
+	defer func() {
+		// The chain importer is starting and stopping trie prefetchers. If a bad
+		// block or other error is hit however, an early return may not properly
+		// terminate the background threads. This defer ensures that we clean up
+		// and dangling prefetcher, without deferring each and holding on live refs.
+		if activeState != nil {
+			activeState.StopPrefetcher()
+		}
+	}()
 	for ; block != nil && err == nil || errors.Is(err, ErrKnownBlock); block, err = it.next() {
 		// If the chain is terminating, stop processing blocks
 		if bc.insertStopped() {
@@ -2056,18 +2067,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		// Enable prefetching to pull in trie node paths while processing transactions
 		statedb.StartPrefetcher("chain")
+		activeState = statedb
 
-		// TODO: CZ: where edfer is being called?
-		// defer statedb.StopPrefetcher() // stopped on write anyway, defer meant to catch early error returns
-
-		// TODO: CZ: do we have to move this after prefetch?
-		//Process block using the parent state as reference point
-		if bc.pipeCommit {
-			statedb.EnablePipeCommit()
-		}
-		statedb.SetExpectedStateRoot(block.Root())
-
-		// ... to
 		// If we have a followup block, run that against the current state to pre-cache
 		// transactions and probabilistically some of the account/storage trie nodes.
 		var followupInterrupt atomic.Bool
@@ -2087,6 +2088,13 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				}(time.Now(), followup, throwaway)
 			}
 		}
+
+		// TODO: CZ: do we have to move this after prefetch?
+		//Process block using the parent state as reference point
+		if bc.pipeCommit {
+			statedb.EnablePipeCommit()
+		}
+		statedb.SetExpectedStateRoot(block.Root())
 
 		// The traced section of block import.
 		res, err := bc.processBlock(block, statedb, start, setHead)
@@ -2214,15 +2222,17 @@ func (bc *BlockChain) processBlock(block *types.Block, statedb *state.StateDB, s
 
 	// Process block using the parent state as reference point
 	pstart := time.Now()
-	receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
+	statedb, receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
 	if err != nil {
 		bc.reportBlock(block, receipts, err)
 		return nil, err
 	}
 	ptime := time.Since(pstart)
 
+	// Validate the state using the default validator
 	vstart := time.Now()
 	if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
+		log.Error("validate state failed", "error", err)
 		bc.reportBlock(block, receipts, err)
 		return nil, err
 	}
