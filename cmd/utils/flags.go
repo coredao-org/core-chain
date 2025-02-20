@@ -174,7 +174,7 @@ var (
 	}
 	NetworkIdFlag = &cli.Uint64Flag{
 		Name:     "networkid",
-		Usage:    "Explicitly set network id (integer)(For testnets: use --buffalo instead)",
+		Usage:    "Explicitly set network id (integer)(For testnets: use --pigeon instead)",
 		Value:    ethconfig.Defaults.NetworkId,
 		Category: flags.EthCategory,
 	}
@@ -186,6 +186,11 @@ var (
 	BuffaloFlag = &cli.BoolFlag{
 		Name:     "buffalo",
 		Usage:    "Buffalo network: pre-configured Proof-of-Stake-Authority CORE test network",
+		Category: flags.EthCategory,
+	}
+	PigeonFlag = &cli.BoolFlag{
+		Name:     "pigeon",
+		Usage:    "Pigeon network: pre-configured Proof-of-Stake-Authority CORE test2 network",
 		Category: flags.EthCategory,
 	}
 	DeveloperFlag = &cli.BoolFlag{
@@ -1141,6 +1146,7 @@ var (
 	// TestnetFlags is the flag group of all built-in supported testnets.
 	TestnetFlags = []cli.Flag{
 		BuffaloFlag,
+		PigeonFlag,
 	}
 	// NetworkFlags is the flag group of all built-in supported networks.
 	NetworkFlags = append([]cli.Flag{COREMainnetFlag}, TestnetFlags...)
@@ -2079,6 +2085,12 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		}
 		cfg.Genesis = core.DefaultBuffaloGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.BuffaloGenesisHash)
+	case ctx.Bool(PigeonFlag.Name):
+		if !ctx.IsSet(NetworkIdFlag.Name) {
+			cfg.NetworkId = 1114
+		}
+		cfg.Genesis = core.DefaultPigeonGenesisBlock()
+		SetDNSDiscoveryDefaults(cfg, params.PigeonGenesisHash)
 	case ctx.Bool(DeveloperFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1337
@@ -2489,6 +2501,8 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 		genesis = core.DefaultCOREGenesisBlock()
 	case ctx.Bool(BuffaloFlag.Name):
 		genesis = core.DefaultBuffaloGenesisBlock()
+	case ctx.Bool(PigeonFlag.Name):
+		genesis = core.DefaultPigeonGenesisBlock()
 	case ctx.Bool(DeveloperFlag.Name):
 		Fatalf("Developer chains are ephemeral")
 	}

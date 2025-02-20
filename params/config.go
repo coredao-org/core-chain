@@ -30,6 +30,7 @@ var (
 
 	CoreGenesisHash    = common.HexToHash("0xf7fc87f11e61508a5828cd1508060ed1714c8d32a92744ae10acb43c953357ad")
 	BuffaloGenesisHash = common.HexToHash("0xd90508c51efd64e75363cdf51114d9f2a90a79e6cd0f78f3c3038b47695c034a")
+	PigeonGenesisHash  = common.HexToHash("0xdfe68477f9fbc0d3e362940fcf87fa54add5bc97c4afd7d3dee31919df40212c")
 )
 
 func newUint64(val uint64) *uint64 { return &val }
@@ -136,6 +137,7 @@ var (
 		ShanghaiTime:        newUint64(1731999600), // 2024-11-19 7:00:00 AM UTC
 		KeplerTime:          newUint64(1731999600),
 		DemeterTime:         newUint64(1731999600),
+		AthenaTime:          newUint64(1738544400), // 2025-02-03 1:00:00 AM UTC
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -164,6 +166,35 @@ var (
 		ShanghaiTime:        newUint64(1729132200), // 2024-10-17 2:30:00 AM UTC
 		KeplerTime:          newUint64(1729132200),
 		DemeterTime:         newUint64(1729132200),
+		Satoshi: &SatoshiConfig{
+			Period: 3,
+			Epoch:  200,
+			Round:  86400,
+		},
+	}
+
+	PigeonChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(1114),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		HashPowerBlock:      big.NewInt(0),
+		ZeusBlock:           big.NewInt(0),
+		HeraBlock:           big.NewInt(0),
+		PoseidonBlock:       big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		HertzBlock:          big.NewInt(0),
+		ShanghaiTime:        newUint64(0),
+		KeplerTime:          newUint64(0),
+		DemeterTime:         newUint64(0),
+		AthenaTime:          newUint64(1737079200),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -381,6 +412,8 @@ func GetBuiltInChainConfig(ghash common.Hash) *ChainConfig {
 		return CoreChainConfig
 	case BuffaloGenesisHash:
 		return BuffaloChainConfig
+	case PigeonGenesisHash:
+		return PigeonChainConfig
 	default:
 		return nil
 	}
@@ -427,6 +460,7 @@ type ChainConfig struct {
 	ShanghaiTime *uint64 `json:"shanghaiTime,omitempty" ` // Shanghai switch time (nil = no fork, 0 = already on shanghai)
 	KeplerTime   *uint64 `json:"keplerTime,omitempty"`    // Kepler switch time (nil = no fork, 0 = already activated)
 	DemeterTime  *uint64 `json:"demeterTime,omitempty" `  // Demeter switch time (nil = no fork, 0 = already on demeter)
+	AthenaTime   *uint64 `json:"athenaTime,omitempty"`    // Athena switch time (nil = no fork, 0 = already on athena)
 	CancunTime   *uint64 `json:"cancunTime,omitempty" `   // Cancun switch time (nil = no fork, 0 = already on cancun)
 	HaberTime    *uint64 `json:"haberTime,omitempty"`     // Haber switch time (nil = no fork, 0 = already on haber)
 	PragueTime   *uint64 `json:"pragueTime,omitempty" `   // Prague switch time (nil = no fork, 0 = already on prague)
@@ -519,6 +553,11 @@ func (c *ChainConfig) String() string {
 		DemeterTime = big.NewInt(0).SetUint64(*c.DemeterTime)
 	}
 
+	var AthenaTime *big.Int
+	if c.AthenaTime != nil {
+		AthenaTime = big.NewInt(0).SetUint64(*c.AthenaTime)
+	}
+
 	var CancunTime *big.Int
 	if c.CancunTime != nil {
 		CancunTime = big.NewInt(0).SetUint64(*c.CancunTime)
@@ -529,7 +568,7 @@ func (c *ChainConfig) String() string {
 		HaberTime = big.NewInt(0).SetUint64(*c.HaberTime)
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, CancunTime: %v, HaberTime: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, AthenaTime: %v, CancunTime: %v, HaberTime: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -555,6 +594,7 @@ func (c *ChainConfig) String() string {
 		ShanghaiTime,
 		KeplerTime,
 		DemeterTime,
+		AthenaTime,
 		CancunTime,
 		HaberTime,
 		engine,
@@ -745,6 +785,20 @@ func (c *ChainConfig) IsOnDemeter(currentBlockNumber *big.Int, lastBlockTime uin
 	return !c.IsDemeter(lastBlockNumber, lastBlockTime) && c.IsDemeter(currentBlockNumber, currentBlockTime)
 }
 
+// IsAthena returns whether time is either equal to the athena fork time or greater.
+func (c *ChainConfig) IsAthena(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.AthenaTime, time)
+}
+
+// IsOnAthena returns whether currentBlockTime is either equal to the athena fork time or greater firstly.
+func (c *ChainConfig) IsOnAthena(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsAthena(lastBlockNumber, lastBlockTime) && c.IsAthena(currentBlockNumber, currentBlockTime)
+}
+
 // IsCancun returns whether num is either equal to the Cancun fork time or greater.
 func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
@@ -812,6 +866,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "hertzBlock", block: c.HertzBlock},
 		{name: "keplerTime", timestamp: c.KeplerTime},
 		{name: "demeterTime", timestamp: c.DemeterTime},
+		{name: "athenaTime", timestamp: c.AthenaTime},
 		{name: "cancunTime", timestamp: c.CancunTime},
 		{name: "haberTime", timestamp: c.HaberTime},
 		{name: "pragueTime", timestamp: c.PragueTime, optional: true},
@@ -936,6 +991,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.DemeterTime, newcfg.DemeterTime, headTimestamp) {
 		return newTimestampCompatError("Demeter fork timestamp", c.DemeterTime, newcfg.DemeterTime)
+	}
+	if isForkTimestampIncompatible(c.AthenaTime, newcfg.AthenaTime, headTimestamp) {
+		return newTimestampCompatError("Athena fork timestamp", c.AthenaTime, newcfg.AthenaTime)
 	}
 	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {
 		return newTimestampCompatError("Cancun fork timestamp", c.CancunTime, newcfg.CancunTime)

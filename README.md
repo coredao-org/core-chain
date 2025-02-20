@@ -7,7 +7,7 @@ https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/6874
 )](https://pkg.go.dev/github.com/ethereum/go-ethereum?tab=doc)
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.com/invite/coredaoofficial)
 
-More details in [White Paper](https://docs.coredao.org/).
+More details in [White Paper](https://whitepaper.coredao.org/).
 
 ## Key features
 
@@ -66,7 +66,7 @@ on how you can run your own `geth` instance.
 
 ### Hardware Requirements
 
-The hardware must meet certain requirements to run a full node. Please check [How to run a core fullnode](https://docs.coredao.org/developer/become-a-validator/validators/core-full-nodes).
+The hardware must meet certain requirements to run a full node. Please check [How to run a core fullnode](https://docs.coredao.org/docs/Node/Full-Node/on-mainnet#hardware-specifications-for-full-nodes-on-core-mainnet).
 
 ```shell
 $ geth console
@@ -93,7 +93,7 @@ Steps:
 3. Start your fullnode: `./geth --config ./config.toml --datadir ./node`.
 4. Or start a validator node: `./geth --config ./config.toml --datadir ./node -unlock ${validatorAddr} --mine --allow-insecure-unlock`. The ${validatorAddr} is the wallet account address of your running validator node. 
 
-More details about [running a node](https://docs.coredao.org/developer/become-a-validator/validators/core-full-nodes) and [becoming a validator](https://docs.coredao.org/developer/become-a-validator/validators/validator-registration).
+More details about [running a node](https://docs.coredao.org/docs/Node/validator/running-validator) and [becoming a validator](https://docs.coredao.org/docs/Node/validator/validator-register).
 
 *Note: Although there are some internal protective measures to prevent transactions from
 crossing over between the main network and test network, you should make sure to always

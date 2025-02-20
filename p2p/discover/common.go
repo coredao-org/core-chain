@@ -50,6 +50,8 @@ func ParseEthFilter(chain string) (NodeFilterFunc, error) {
 		filter = forkid.NewStaticFilter(params.CoreChainConfig, core.DefaultCOREGenesisBlock().ToBlock())
 	case "buffalo":
 		filter = forkid.NewStaticFilter(params.BuffaloChainConfig, core.DefaultBuffaloGenesisBlock().ToBlock())
+	case "pigeon":
+		filter = forkid.NewStaticFilter(params.PigeonChainConfig, core.DefaultPigeonGenesisBlock().ToBlock())
 	default:
 		return nil, fmt.Errorf("unknown network %q", chain)
 	}

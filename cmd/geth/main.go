@@ -317,6 +317,8 @@ func prepare(ctx *cli.Context) {
 	switch {
 	case ctx.IsSet(utils.BuffaloFlag.Name):
 		log.Info("Starting CORE on Buffalo testnet...")
+	case ctx.IsSet(utils.PigeonFlag.Name):
+		log.Info("Starting CORE on Pigeon testnet...")
 
 	case ctx.IsSet(utils.DeveloperFlag.Name):
 		log.Info("Starting Geth in ephemeral dev mode...")
@@ -343,7 +345,7 @@ func prepare(ctx *cli.Context) {
 	if !ctx.IsSet(utils.CacheFlag.Name) && !ctx.IsSet(utils.NetworkIdFlag.Name) {
 		// Make sure we're not on any supported preconfigured testnet either
 		if !ctx.IsSet(utils.DeveloperFlag.Name) &&
-			!ctx.IsSet(utils.BuffaloFlag.Name) {
+			!ctx.IsSet(utils.BuffaloFlag.Name) && !ctx.IsSet(utils.PigeonFlag.Name) {
 			// Nope, we're really on mainnet. Bump that cache up!
 			log.Info("Bumping default cache on mainnet", "provided", ctx.Int(utils.CacheFlag.Name), "updated", 4096)
 			ctx.Set(utils.CacheFlag.Name, strconv.Itoa(4096))
