@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -1026,12 +1027,8 @@ func (diff *StateOverride) Apply(statedb *state.StateDB) error {
 		}
 		// Override account balance.
 		if account.Balance != nil {
-<<<<<<< HEAD
-			state.SetBalance(addr, (*big.Int)(*account.Balance))
-=======
 			u256Balance, _ := uint256.FromBig((*big.Int)(*account.Balance))
 			statedb.SetBalance(addr, u256Balance, tracing.BalanceChangeUnspecified)
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 		}
 		if account.State != nil && account.StateDiff != nil {
 			return fmt.Errorf("account %s has both 'state' and 'stateDiff'", addr.Hex())
@@ -1142,23 +1139,15 @@ func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.S
 	defer cancel()
 
 	// Get a new instance of the EVM.
-	msg, err := args.ToMessage(globalGasCap, header.BaseFee)
-	if err != nil {
-		return nil, err
-	}
 	blockCtx := core.NewEVMBlockContext(header, NewChainContext(ctx, b), nil)
 	if blockOverrides != nil {
 		blockOverrides.Apply(&blockCtx)
 	}
-<<<<<<< HEAD
-	evm, vmError := b.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
-=======
 	if err := args.CallDefaults(globalGasCap, blockCtx.BaseFee, b.ChainConfig().ChainID); err != nil {
 		return nil, err
 	}
 	msg := args.ToMessage(blockCtx.BaseFee)
-	evm := b.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
+	evm, vmError := b.GetEVM(ctx, msg, state, header, &vm.Config{NoBaseFee: true}, &blockCtx)
 
 	// Wait for the context to be done and cancel the evm. Even if the
 	// EVM has finished, cancelling may be done (repeatedly)
@@ -1334,7 +1323,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	if state == nil || err != nil {
 		return 0, err
 	}
-<<<<<<< HEAD
 	err = overrides.Apply(state)
 	if err != nil {
 		return 0, err
@@ -1355,31 +1343,6 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 			lo = mid
 		} else {
 			hi = mid
-=======
-	if err = overrides.Apply(state); err != nil {
-		return 0, err
-	}
-	// Construct the gas estimator option from the user input
-	opts := &gasestimator.Options{
-		Config:     b.ChainConfig(),
-		Chain:      NewChainContext(ctx, b),
-		Header:     header,
-		State:      state,
-		ErrorRatio: estimateGasErrorRatio,
-	}
-	if err := args.CallDefaults(gasCap, header.BaseFee, b.ChainConfig().ChainID); err != nil {
-		return 0, err
-	}
-	call := args.ToMessage(header.BaseFee)
-	if err != nil {
-		return 0, err
-	}
-	// Run the gas estimation andwrap any revertals into a custom return
-	estimate, revert, err := gasestimator.Estimate(ctx, call, opts, gasCap)
-	if err != nil {
-		if len(revert) > 0 {
-			return 0, newRevertError(revert)
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 		}
 	}
 	// Reject the transaction as invalid if it still fails at the highest allowance
@@ -1879,13 +1842,8 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 
 		// Apply the transaction with the access list tracer
 		tracer := logger.NewAccessListTracer(accessList, args.from(), to, precompiles)
-<<<<<<< HEAD
-		config := vm.Config{Tracer: tracer, NoBaseFee: true}
-		vmenv, _ := b.GetEVM(ctx, msg, statedb, header, &config, nil)
-=======
 		config := vm.Config{Tracer: tracer.Hooks(), NoBaseFee: true}
 		vmenv := b.GetEVM(ctx, msg, statedb, header, &config, nil)
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to apply transaction: %v err: %v", args.ToTransaction().Hash(), err)

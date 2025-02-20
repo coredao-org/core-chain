@@ -160,25 +160,6 @@ func (a *AccessListTracer) OnOpcode(pc uint64, opcode byte, gas, cost uint64, sc
 	}
 }
 
-<<<<<<< HEAD
-func (*AccessListTracer) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, depth int, err error) {
-}
-
-func (*AccessListTracer) CaptureEnd(output []byte, gasUsed uint64, err error) {}
-
-func (*AccessListTracer) CaptureEnter(typ vm.OpCode, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
-}
-
-func (*AccessListTracer) CaptureExit(output []byte, gasUsed uint64, err error) {}
-
-func (*AccessListTracer) CaptureTxStart(gasLimit uint64) {}
-
-func (*AccessListTracer) CaptureTxEnd(restGas uint64) {}
-
-func (*AccessListTracer) CaptureSystemTxEnd(intrinsicGas uint64) {}
-
-=======
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 // AccessList returns the current accesslist maintained by the tracer.
 func (a *AccessListTracer) AccessList() types.AccessList {
 	return a.list.accessList()
