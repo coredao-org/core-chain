@@ -86,37 +86,19 @@ type input struct {
 }
 
 func Transition(ctx *cli.Context) error {
+
 	var getTracer = func(txIndex int, txHash common.Hash) (*tracers.Tracer, io.WriteCloser, error) { return nil, nil, nil }
 
-	var (
-		err     error
-		tracer  vm.EVMLogger
-		baseDir string
-	)
-	var getTracer func(txIndex int, txHash common.Hash) (vm.EVMLogger, error)
-
-	baseDir, err = createBasedir(ctx)
+	baseDir, err := createBasedir(ctx)
 	if err != nil {
 		return NewError(ErrorIO, fmt.Errorf("failed creating output basedir: %v", err))
 	}
 	if ctx.Bool(TraceFlag.Name) {
-		if ctx.IsSet(TraceDisableMemoryFlag.Name) && ctx.IsSet(TraceEnableMemoryFlag.Name) {
-			return NewError(ErrorConfig, fmt.Errorf("can't use both flags --%s and --%s", TraceDisableMemoryFlag.Name, TraceEnableMemoryFlag.Name))
-		}
-		if ctx.IsSet(TraceDisableReturnDataFlag.Name) && ctx.IsSet(TraceEnableReturnDataFlag.Name) {
-			return NewError(ErrorConfig, fmt.Errorf("can't use both flags --%s and --%s", TraceDisableReturnDataFlag.Name, TraceEnableReturnDataFlag.Name))
-		}
-		if ctx.IsSet(TraceDisableMemoryFlag.Name) {
-			log.Warn(fmt.Sprintf("--%s has been deprecated in favour of --%s", TraceDisableMemoryFlag.Name, TraceEnableMemoryFlag.Name))
-		}
-		if ctx.IsSet(TraceDisableReturnDataFlag.Name) {
-			log.Warn(fmt.Sprintf("--%s has been deprecated in favour of --%s", TraceDisableReturnDataFlag.Name, TraceEnableReturnDataFlag.Name))
-		}
 		// Configure the EVM logger
 		logConfig := &logger.Config{
 			DisableStack:     ctx.Bool(TraceDisableStackFlag.Name),
-			EnableMemory:     !ctx.Bool(TraceDisableMemoryFlag.Name) || ctx.Bool(TraceEnableMemoryFlag.Name),
-			EnableReturnData: !ctx.Bool(TraceDisableReturnDataFlag.Name) || ctx.Bool(TraceEnableReturnDataFlag.Name),
+			EnableMemory:     ctx.Bool(TraceEnableMemoryFlag.Name),
+			EnableReturnData: ctx.Bool(TraceEnableReturnDataFlag.Name),
 			Debug:            true,
 		}
 		var prevFile *os.File
@@ -144,6 +126,23 @@ func Transition(ctx *cli.Context) error {
 			}
 			return tracer, traceFile, nil
 		}
+		// TODO: CZ: let's bring this in
+		// } else if ctx.IsSet(TraceTracerFlag.Name) {
+		// 	var config json.RawMessage
+		// 	if ctx.IsSet(TraceTracerConfigFlag.Name) {
+		// 		config = []byte(ctx.String(TraceTracerConfigFlag.Name))
+		// 	}
+		// 	getTracer = func(txIndex int, txHash common.Hash) (*tracers.Tracer, io.WriteCloser, error) {
+		// 		traceFile, err := os.Create(filepath.Join(baseDir, fmt.Sprintf("trace-%d-%v.json", txIndex, txHash.String())))
+		// 		if err != nil {
+		// 			return nil, nil, NewError(ErrorIO, fmt.Errorf("failed creating trace-file: %v", err))
+		// 		}
+		// 		tracer, err := tracers.DefaultDirectory.New(ctx.String(TraceTracerFlag.Name), nil, config)
+		// 		if err != nil {
+		// 			return nil, nil, NewError(ErrorConfig, fmt.Errorf("failed instantiating tracer: %w", err))
+		// 		}
+		// 		return tracer, traceFile, nil
+		// 	}
 	} else {
 		// TODO: CZ: this is implemented in bsc
 		getTracer = func(txIndex int, txHash common.Hash) (*tracers.Tracer, io.WriteCloser, error) {
@@ -186,9 +185,7 @@ func Transition(ctx *cli.Context) error {
 	}
 	prestate.Env = *inputData.Env
 
-	vmConfig := vm.Config{
-		Tracer: tracer,
-	}
+	vmConfig := vm.Config{}
 	// Construct the chainconfig
 	var chainConfig *params.ChainConfig
 	if cConf, extraEips, err := tests.GetChainConfig(ctx.String(ForknameFlag.Name)); err != nil {
@@ -300,6 +297,9 @@ func Transition(ctx *cli.Context) error {
 		prestate.Env.Difficulty = calcDifficulty(chainConfig, env.Number, env.Timestamp,
 			env.ParentTimestamp, env.ParentDifficulty, env.ParentUncleHash)
 	}
+
+	// TODO: CZ: consider applying this https://github.com/bnb-chain/bsc/commit/300df874d789eba38fe652d270c8998c8759937c
+
 	// Run the test and aggregate the result
 	s, result, err := prestate.Apply(vmConfig, chainConfig, txs, ctx.Int64(RewardFlag.Name), getTracer)
 	if err != nil {
