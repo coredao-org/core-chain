@@ -118,6 +118,9 @@ type rejectedTx struct {
 	Err   string `json:"error"`
 }
 
+// TODO: CZ: consider applying this https://github.com/bnb-chain/bsc/commit/300df874d789eba38fe652d270c8998c8759937c
+// to handle the 3rd return parameter
+
 // Apply applies a set of transactions to a pre-state
 func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 	txs types.Transactions, miningReward int64,
