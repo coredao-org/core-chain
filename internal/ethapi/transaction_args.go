@@ -197,106 +197,6 @@ func (args *TransactionArgs) setLondonFeeDefaults(ctx context.Context, head *typ
 	return nil
 }
 
-<<<<<<< HEAD
-// ToMessage converts the transaction arguments to the Message type used by the
-// core evm. This method is used in calls and traces that do not require a real
-// live transaction.
-func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (*core.Message, error) {
-	// Reject invalid combinations of pre- and post-1559 fee styles
-	if args.GasPrice != nil && (args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil) {
-		return nil, errors.New("both gasPrice and (maxFeePerGas or maxPriorityFeePerGas) specified")
-	}
-	// Set sender address or use zero address if none specified.
-	addr := args.from()
-
-	// Set default gas & gas price if none were set
-	gas := globalGasCap
-	if gas == 0 {
-		gas = uint64(math.MaxUint64 / 2)
-	}
-	if args.Gas != nil {
-		gas = uint64(*args.Gas)
-	}
-	if globalGasCap != 0 && globalGasCap < gas {
-		log.Debug("Caller gas above allowance, capping", "requested", gas, "cap", globalGasCap)
-		gas = globalGasCap
-	}
-=======
-// setBlobTxSidecar adds the blob tx
-func (args *TransactionArgs) setBlobTxSidecar(ctx context.Context, b Backend) error {
-	// No blobs, we're done.
-	if args.Blobs == nil {
-		return nil
-	}
-
-	// Passing blobs is not allowed in all contexts, only in specific methods.
-	if !args.blobSidecarAllowed {
-		return errors.New(`"blobs" is not supported for this RPC method`)
-	}
-
-	n := len(args.Blobs)
-	// Assume user provides either only blobs (w/o hashes), or
-	// blobs together with commitments and proofs.
-	if args.Commitments == nil && args.Proofs != nil {
-		return errors.New(`blob proofs provided while commitments were not`)
-	} else if args.Commitments != nil && args.Proofs == nil {
-		return errors.New(`blob commitments provided while proofs were not`)
-	}
-
-	// len(blobs) == len(commitments) == len(proofs) == len(hashes)
-	if args.Commitments != nil && len(args.Commitments) != n {
-		return fmt.Errorf("number of blobs and commitments mismatch (have=%d, want=%d)", len(args.Commitments), n)
-	}
-	if args.Proofs != nil && len(args.Proofs) != n {
-		return fmt.Errorf("number of blobs and proofs mismatch (have=%d, want=%d)", len(args.Proofs), n)
-	}
-	if args.BlobHashes != nil && len(args.BlobHashes) != n {
-		return fmt.Errorf("number of blobs and hashes mismatch (have=%d, want=%d)", len(args.BlobHashes), n)
-	}
-
-	if args.Commitments == nil {
-		// Generate commitment and proof.
-		commitments := make([]kzg4844.Commitment, n)
-		proofs := make([]kzg4844.Proof, n)
-		for i, b := range args.Blobs {
-			c, err := kzg4844.BlobToCommitment(&b)
-			if err != nil {
-				return fmt.Errorf("blobs[%d]: error computing commitment: %v", i, err)
-			}
-			commitments[i] = c
-			p, err := kzg4844.ComputeBlobProof(&b, c)
-			if err != nil {
-				return fmt.Errorf("blobs[%d]: error computing proof: %v", i, err)
-			}
-			proofs[i] = p
-		}
-		args.Commitments = commitments
-		args.Proofs = proofs
-	} else {
-		for i, b := range args.Blobs {
-			if err := kzg4844.VerifyBlobProof(&b, args.Commitments[i], args.Proofs[i]); err != nil {
-				return fmt.Errorf("failed to verify blob proof: %v", err)
-			}
-		}
-	}
-
-	hashes := make([]common.Hash, n)
-	hasher := sha256.New()
-	for i, c := range args.Commitments {
-		hashes[i] = kzg4844.CalcBlobHashV1(hasher, &c)
-	}
-	if args.BlobHashes != nil {
-		for i, h := range hashes {
-			if h != args.BlobHashes[i] {
-				return fmt.Errorf("blob hash verification failed (have=%s, want=%s)", args.BlobHashes[i], h)
-			}
-		}
-	} else {
-		args.BlobHashes = hashes
-	}
-	return nil
-}
-
 // CallDefaults sanitizes the transaction arguments, often filling in zero values,
 // for the purpose of eth_call class of RPC methods.
 func (args *TransactionArgs) CallDefaults(globalGasCap uint64, baseFee *big.Int, chainID *big.Int) error {
@@ -355,7 +255,6 @@ func (args *TransactionArgs) CallDefaults(globalGasCap uint64, baseFee *big.Int,
 // live transaction.
 // Assumes that fields are not nil, i.e. setDefaults or CallDefaults has been called.
 func (args *TransactionArgs) ToMessage(baseFee *big.Int) *core.Message {
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 	var (
 		gasPrice  *big.Int
 		gasFeeCap *big.Int
@@ -381,14 +280,6 @@ func (args *TransactionArgs) ToMessage(baseFee *big.Int) *core.Message {
 			}
 		}
 	}
-<<<<<<< HEAD
-	value := new(big.Int)
-	if args.Value != nil {
-		value = args.Value.ToInt()
-	}
-	data := args.data()
-=======
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 	var accessList types.AccessList
 	if args.AccessList != nil {
 		accessList = *args.AccessList
@@ -403,11 +294,8 @@ func (args *TransactionArgs) ToMessage(baseFee *big.Int) *core.Message {
 		GasTipCap:         gasTipCap,
 		Data:              args.data(),
 		AccessList:        accessList,
-<<<<<<< HEAD
-=======
 		BlobGasFeeCap:     (*big.Int)(args.BlobFeeCap),
 		BlobHashes:        args.BlobHashes,
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 		SkipAccountChecks: true,
 	}
 }

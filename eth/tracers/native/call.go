@@ -41,6 +41,9 @@ type callLog struct {
 	Address common.Address `json:"address"`
 	Topics  []common.Hash  `json:"topics"`
 	Data    hexutil.Bytes  `json:"data"`
+	// Position of the log relative to subcalls within the same trace
+	// See https://github.com/ethereum/go-ethereum/pull/28389 for details
+	Position hexutil.Uint `json:"position"`
 }
 
 type callFrame struct {
@@ -224,10 +227,6 @@ func (t *callTracer) OnTxEnd(receipt *types.Receipt, err error) {
 	}
 }
 
-<<<<<<< HEAD
-func (t *callTracer) CaptureSystemTxEnd(intrinsicGas uint64) {
-	t.callstack[0].GasUsed -= intrinsicGas
-=======
 func (t *callTracer) OnLog(log *types.Log) {
 	// Only logs need to be captured via opcode processing
 	if !t.config.WithLog {
@@ -248,7 +247,6 @@ func (t *callTracer) OnLog(log *types.Log) {
 		Position: hexutil.Uint(len(t.callstack[len(t.callstack)-1].Calls)),
 	}
 	t.callstack[len(t.callstack)-1].Logs = append(t.callstack[len(t.callstack)-1].Logs, l)
->>>>>>> 064f37d6f (eth/tracers: live chain tracing with hooks (#29189))
 }
 
 // GetResult returns the json-encoded nested list of call traces, and any
