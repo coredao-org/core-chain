@@ -251,11 +251,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			PathSyncFlush:       config.PathSyncFlush,
 		}
 	)
-	// Override the chain config with provided settings.
-	var overrides core.ChainOverrides
-	if config.OverrideCancun != nil {
-		overrides.OverrideCancun = config.OverrideCancun
-	}
 	if config.VMTrace != "" {
 		var traceConfig json.RawMessage
 		if config.VMTraceConfig != "" {
