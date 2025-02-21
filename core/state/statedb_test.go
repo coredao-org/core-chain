@@ -169,7 +169,7 @@ func TestCopy(t *testing.T) {
 	orig, _ := New(types.EmptyRootHash, NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
 	for i := byte(0); i < 255; i++ {
-		obj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
+		obj := orig.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
 		obj.AddBalance(uint256.NewInt(uint64(i)), tracing.BalanceChangeUnspecified)
 		orig.updateStateObject(obj)
 	}
@@ -822,14 +822,9 @@ func testMissingTrieNodes(t *testing.T, scheme string) {
 	}
 	// Modify the state
 	state.SetBalance(addr, uint256.NewInt(2), tracing.BalanceChangeUnspecified)
-
-	// TODO: CZ: old code
 	state.Finalise(false)
 	state.AccountsIntermediateRoot()
 	root, _, err := state.Commit(0, nil)
-	// TODO: CZ: new code
-	// root, err := state.Commit(0, false)
-
 	if err == nil {
 		t.Fatalf("expected error, got root :%x", root)
 	}
