@@ -25,6 +25,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ebakus/go-ebakus/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -290,8 +291,7 @@ type ChainOverrides struct {
 	OverrideVerkle   *uint64
 }
 
-// TODO: CZ: check this
-func getGenesisState(db ethdb.Database, blockhash common.Hash) (alloc types.GenesisAlloc, err error) {
+func getGenesisState(db ethdb.Database, blockhash common.Hash) (alloc core.GenesisAlloc, err error) {
 	blob := rawdb.ReadGenesisStateSpec(db, blockhash)
 	if len(blob) != 0 {
 		if err := alloc.UnmarshalJSON(blob); err != nil {
