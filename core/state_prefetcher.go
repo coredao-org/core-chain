@@ -64,7 +64,6 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 			}
 			gaspool := new(GasPool).AddGas(block.GasLimit())
 			blockContext := NewEVMBlockContext(header, p.bc, nil)
-			// TODO: CZ: do we need newStatedb here?
 			evm := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, *cfg)
 			// Iterate over and process the individual transactions
 			for {
