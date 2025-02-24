@@ -42,6 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
 	"github.com/ethereum/go-ethereum/trie/triedb/pathdb"
+	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -297,7 +298,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	// - the coinbase self-destructed, or
 	// - there are only 'bad' transactions, which aren't executed. In those cases,
 	//   the coinbase gets no txfee, so isn't created, and thus needs to be touched
-	statedb.AddBalance(block.Coinbase(), new(big.Int), tracing.BalanceChangeUnspecified)
+	statedb.AddBalance(block.Coinbase(), new(uint256.Int), tracing.BalanceChangeUnspecified)
 	// And _now_ get the state root
 	root := statedb.IntermediateRoot(config.IsEIP158(block.Number()))
 	statedb.SetExpectedStateRoot(root)
@@ -322,7 +323,7 @@ func MakePreState(db ethdb.Database, accounts core.GenesisAlloc, snapshotter boo
 	for addr, a := range accounts {
 		statedb.SetCode(addr, a.Code)
 		statedb.SetNonce(addr, a.Nonce)
-		statedb.SetBalance(addr, a.Balance)
+		statedb.SetBalance(addr, uint256.MustFromBig(a.Balance), tracing.BalanceChangeUnspecified)
 		for k, v := range a.Storage {
 			statedb.SetState(addr, k, v)
 		}
