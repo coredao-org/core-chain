@@ -129,10 +129,10 @@ func (f *ForkChoice) ReorgNeededWithFastFinality(current *types.Header, header *
 	}
 
 	justifiedNumber, curJustifiedNumber := uint64(0), uint64(0)
-	if f.chain.Config().IsPlato(header.Number) {
+	if f.chain.Config().IsHertz(header.Number) {
 		justifiedNumber = f.chain.GetJustifiedNumber(header)
 	}
-	if f.chain.Config().IsPlato(current.Number) {
+	if f.chain.Config().IsHertz(current.Number) {
 		curJustifiedNumber = f.chain.GetJustifiedNumber(current)
 	}
 	if justifiedNumber == curJustifiedNumber {
