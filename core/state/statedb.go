@@ -1125,22 +1125,25 @@ func (s *StateDB) AccountsIntermediateRoot() {
 	// the account prefetcher. Instead, let's process all the storage updates
 	// first, giving the account prefetches just a few more milliseconds of time
 	// to pull useful data from disk.
-	for addr := range s.stateObjectsPending {
-		if obj := s.stateObjects[addr]; !obj.deleted {
-			wg.Add(1)
-			tasks <- func() {
-				obj.updateRoot()
+	for addr, op := range s.mutations {
+		if op.isDelete() {
+			continue
+		}
+		obj := s.stateObjects[addr] // closure for the task runner below
 
-				// Cache the data until commit. Note, this update mechanism is not symmetric
-				// to the deletion, because whereas it is enough to track account updates
-				// at commit time, deletions need tracking at transaction boundary level to
-				// ensure we capture state clearing.
-				s.AccountMux.Lock()
-				s.accounts[obj.addrHash] = types.SlimAccountRLP(obj.data)
-				s.AccountMux.Unlock()
+		wg.Add(1)
+		tasks <- func() {
+			obj.updateRoot()
 
-				wg.Done()
-			}
+			// Cache the data until commit. Note, this update mechanism is not symmetric
+			// to the deletion, because whereas it is enough to track account updates
+			// at commit time, deletions need tracking at transaction boundary level to
+			// ensure we capture state clearing.
+			s.AccountMux.Lock()
+			s.accounts[obj.addrHash] = types.SlimAccountRLP(obj.data)
+			s.AccountMux.Unlock()
+
+			wg.Done()
 		}
 	}
 	wg.Wait()
