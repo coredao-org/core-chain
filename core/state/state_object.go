@@ -345,7 +345,7 @@ func (s *stateObject) updateTrie() (Trie, error) {
 				if err := tr.DeleteStorage(s.address, key[:]); err != nil {
 					s.db.setError(err)
 				}
-				s.db.StorageDeleted.Add(1)
+				s.db.StorageDeleted += 1
 			} else {
 				if err := tr.UpdateStorage(s.address, key[:], value); err != nil {
 					s.db.setError(err)

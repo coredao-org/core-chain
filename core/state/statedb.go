@@ -853,9 +853,9 @@ func (s *StateDB) CopyDoPrefetch() *StateDB {
 func (s *StateDB) copyInternal(doPrefetch bool) *StateDB {
 	// Copy all the basic fields, initialize the memory ones
 	state := &StateDB{
-		db:     s.db,
-		trie:   s.db.CopyTrie(s.trie),
-		hasher: crypto.NewKeccakState(),
+		db:   s.db,
+		trie: s.db.CopyTrie(s.trie),
+		// hasher: crypto.NewKeccakState(),
 		// noTrie:s.noTrie,
 		// expectedRoot:         s.expectedRoot,
 		// stateRoot:            s.stateRoot,
@@ -1044,14 +1044,17 @@ func (s *StateDB) CorrectAccountsRoot(blockRoot common.Hash) {
 		return
 	}
 	if accounts, err := snapshot.Accounts(); err == nil && accounts != nil {
-		for _, obj := range s.stateObjects {
-			if !obj.deleted {
-				if account, exist := accounts[crypto.Keccak256Hash(obj.address[:])]; exist {
-					if len(account.Root) == 0 {
-						obj.data.Root = types.EmptyRootHash
-					} else {
-						obj.data.Root = common.BytesToHash(account.Root)
-					}
+		for addr, op := range s.mutations {
+			if op.isDelete() {
+				continue
+			}
+			obj := s.stateObjects[addr]
+
+			if account, exist := accounts[crypto.Keccak256Hash(obj.address[:])]; exist {
+				if len(account.Root) == 0 {
+					obj.data.Root = types.EmptyRootHash
+				} else {
+					obj.data.Root = common.BytesToHash(account.Root)
 				}
 			}
 		}
@@ -1060,12 +1063,14 @@ func (s *StateDB) CorrectAccountsRoot(blockRoot common.Hash) {
 
 // PopulateSnapAccountAndStorage tries to populate required accounts and storages for pipecommit
 func (s *StateDB) PopulateSnapAccountAndStorage() {
-	for addr := range s.stateObjectsPending {
-		if obj := s.stateObjects[addr]; !obj.deleted {
-			if s.snap != nil {
-				s.populateSnapStorage(obj)
-				s.accounts[obj.addrHash] = types.SlimAccountRLP(obj.data)
-			}
+	for addr, op := range s.mutations {
+		if op.applied || op.isDelete() {
+			continue
+		}
+		obj := s.stateObjects[addr]
+		if s.snap != nil {
+			s.populateSnapStorage(obj)
+			s.accounts[obj.addrHash] = types.SlimAccountRLP(obj.data)
 		}
 	}
 }
@@ -1125,7 +1130,7 @@ func (s *StateDB) AccountsIntermediateRoot() {
 	// first, giving the account prefetches just a few more milliseconds of time
 	// to pull useful data from disk.
 	for addr, op := range s.mutations {
-		if op.isDelete() {
+		if op.applied || op.isDelete() {
 			continue
 		}
 		obj := s.stateObjects[addr] // closure for the task runner below
@@ -1165,10 +1170,7 @@ func (s *StateDB) StateIntermediateRoot() common.Hash {
 	// first, giving the account prefetches just a few more milliseconds of time
 	// to pull useful data from disk.
 	for addr, op := range s.mutations {
-		if op.applied {
-			continue
-		}
-		if op.isDelete() {
+		if op.applied || op.isDelete() {
 			continue
 		}
 		s.stateObjects[addr].updateRoot()
@@ -1558,19 +1560,18 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 					continue
 				}
 
-				if obj := s.stateObjects[addr]; !obj.deleted {
-					tasks <- func() {
-						// Write any storage changes in the state object to its storage trie
-						if !s.noTrie {
-							if set, err := obj.commit(); err != nil {
-								taskResults <- taskResult{err, nil}
-								return
-							} else {
-								taskResults <- taskResult{nil, set}
-							}
+				obj := s.stateObjects[addr]
+				tasks <- func() {
+					// Write any storage changes in the state object to its storage trie
+					if !s.noTrie {
+						if set, err := obj.commit(); err != nil {
+							taskResults <- taskResult{err, nil}
+							return
 						} else {
-							taskResults <- taskResult{nil, nil}
+							taskResults <- taskResult{nil, set}
 						}
+					} else {
+						taskResults <- taskResult{nil, nil}
 					}
 					tasksNum++
 				}
@@ -1660,23 +1661,23 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 					continue
 				}
 
-				if obj := s.stateObjects[addr]; !obj.deleted {
-					// Write any contract code associated with the state object
-					if obj.code != nil && obj.dirtyCode {
-						rawdb.WriteCode(codeWriter, common.BytesToHash(obj.CodeHash()), obj.code)
-						obj.dirtyCode = false
-						if s.snap != nil {
-							diffLayer.Codes = append(diffLayer.Codes, types.DiffCode{
-								Hash: common.BytesToHash(obj.CodeHash()),
-								Code: obj.code,
-							})
+				obj := s.stateObjects[addr]
+
+				// Write any contract code associated with the state object
+				if obj.code != nil && obj.dirtyCode {
+					rawdb.WriteCode(codeWriter, common.BytesToHash(obj.CodeHash()), obj.code)
+					obj.dirtyCode = false
+					if s.snap != nil {
+						diffLayer.Codes = append(diffLayer.Codes, types.DiffCode{
+							Hash: common.BytesToHash(obj.CodeHash()),
+							Code: obj.code,
+						})
+					}
+					if codeWriter.ValueSize() > ethdb.IdealBatchSize {
+						if err := codeWriter.Write(); err != nil {
+							return err
 						}
-						if codeWriter.ValueSize() > ethdb.IdealBatchSize {
-							if err := codeWriter.Write(); err != nil {
-								return err
-							}
-							codeWriter.Reset()
-						}
+						codeWriter.Reset()
 					}
 				}
 			}

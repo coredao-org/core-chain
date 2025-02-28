@@ -19,6 +19,7 @@ package state
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -236,17 +237,19 @@ func TestCopyWithDirtyJournal(t *testing.T) {
 	// Fill up the initial states
 	for i := byte(0); i < 255; i++ {
 		obj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
-		obj.AddBalance(uint256.NewInt(uint64(i)), tracing.BalanceChangeUnspecified)
+		obj.AddBalance(uint256.NewInt(uint64(i)))
 		obj.data.Root = common.HexToHash("0xdeadbeef")
 		orig.updateStateObject(obj)
 	}
-	root, _ := orig.Commit(0, true)
+	orig.Finalise(true)
+	orig.AccountsIntermediateRoot()
+	root, _, _ := orig.Commit(0, nil)
 	orig, _ = New(root, db, nil)
 
 	// modify all in memory without finalizing
 	for i := byte(0); i < 255; i++ {
 		obj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
-		obj.SubBalance(uint256.NewInt(uint64(i)), tracing.BalanceChangeUnspecified)
+		obj.SubBalance(uint256.NewInt(uint64(i)))
 		orig.updateStateObject(obj)
 	}
 	cpy := orig.Copy()
@@ -280,7 +283,7 @@ func TestCopyObjectState(t *testing.T) {
 	// Fill up the initial states
 	for i := byte(0); i < 5; i++ {
 		obj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
-		obj.AddBalance(uint256.NewInt(uint64(i)), tracing.BalanceChangeUnspecified)
+		obj.AddBalance(uint256.NewInt(uint64(i)))
 		obj.data.Root = common.HexToHash("0xdeadbeef")
 		orig.updateStateObject(obj)
 	}
@@ -291,7 +294,7 @@ func TestCopyObjectState(t *testing.T) {
 			t.Fatalf("Error in test itself, the 'done' flag should not be set before Commit, have %v want %v", have, want)
 		}
 	}
-	orig.Commit(0, true)
+	orig.Commit(0, nil)
 	for _, op := range cpy.mutations {
 		if have, want := op.applied, false; have != want {
 			t.Fatalf("Error: original state affected copy, have %v want %v", have, want)
@@ -839,7 +842,7 @@ func TestCommitCopy(t *testing.T) {
 	// Copy the committed state database, the copied one is not functional.
 	state.Finalise(true)
 	state.AccountsIntermediateRoot()
-	root, _ := state.Commit(0, nil)
+	root, _, _ := state.Commit(0, nil)
 
 	state, _ = New(root, db, nil)
 	state.SetState(addr, skey2, sval2)
@@ -866,6 +869,9 @@ func TestCommitCopy(t *testing.T) {
 	}
 	if val := copied.GetCommittedState(addr, skey2); val != sval2 {
 		t.Fatalf("unexpected storage slot: have %x", val)
+	}
+	if !errors.Is(copied.Error(), trie.ErrCommitted) {
+		t.Fatalf("unexpected state error, %v", copied.Error())
 	}
 }
 
