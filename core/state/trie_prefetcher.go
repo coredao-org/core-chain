@@ -212,6 +212,10 @@ func (p *triePrefetcher) prefetch(owner common.Hash, root common.Hash, addr comm
 	select {
 	case <-p.term:
 		return errTerminated
+	default:
+	}
+
+	select {
 	case p.prefetchChan <- &prefetchMsg{owner, root, addr, keys}:
 	}
 	return nil
@@ -244,7 +248,7 @@ func (p *triePrefetcher) used(owner common.Hash, root common.Hash, used [][]byte
 		return
 	}
 	select {
-	case <-p.closeMainChan:
+	case <-p.term:
 	default:
 		p.fetchersMutex.RLock()
 		id := p.trieID(owner, root)
