@@ -846,6 +846,8 @@ func TestCommitCopy(t *testing.T) {
 
 	state, _ = New(root, db, nil)
 	state.SetState(addr, skey2, sval2)
+	state.Finalise(true)
+	state.AccountsIntermediateRoot()
 	state.Commit(1, nil)
 
 	// Copy the committed state database, the copied one is not fully functional.
