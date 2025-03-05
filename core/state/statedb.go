@@ -1306,7 +1306,7 @@ func (s *StateDB) slowDeleteStorage(addr common.Address, addrHash common.Hash, r
 	}
 	// skip deleting storages for EmptyTrie
 	if _, ok := tr.(*trie.EmptyTrie); ok {
-		return false, 0, nil, nil, nil
+		return 0, nil, nil, nil
 	}
 	it, err := tr.NodeIterator(nil)
 	if err != nil {
@@ -1463,7 +1463,6 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 		diffLayer   *types.DiffLayer
 		verified    chan struct{}
 		snapUpdated chan struct{}
-		incomplete  map[common.Address]struct{}
 		nodes       = trienode.NewMergedNodeSet()
 	)
 	if s.snap != nil {
@@ -1496,7 +1495,6 @@ func (s *StateDB) Commit(block uint64, failPostCommitFunc func(), postCommitFunc
 				return fmt.Errorf("invalid merkle root (remote: %x local: %x)", s.expectedRoot, s.stateRoot)
 			}
 
-			var err error
 			// Handle all state deletions first
 			if err := s.handleDestruction(nodes); err != nil {
 				return err
