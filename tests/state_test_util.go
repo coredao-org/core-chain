@@ -313,7 +313,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	// And _now_ get the state root
 	root = state.StateDB.IntermediateRoot(config.IsEIP158(block.Number()))
 	state.StateDB.SetExpectedStateRoot(root)
-	root, _, _ = state.StateDB.Commit(block.NumberU64(), nil)
+	root, _, _ = state.StateDB.Commit(block.NumberU64(), config.IsEIP158(block.Number()))
 	return state, root, err
 }
 
@@ -468,7 +468,7 @@ func MakePreState(db ethdb.Database, accounts types.GenesisAlloc, snapshotter bo
 	// Commit and re-open to start with a clean state.
 	root := statedb.IntermediateRoot(false)
 	statedb.SetExpectedStateRoot(root)
-	root, _, _ = statedb.Commit(0, nil)
+	root, _, _ = statedb.Commit(0, false)
 
 	// If snapshot is requested, initialize the snapshotter and use it in state.
 	var snaps *snapshot.Tree
