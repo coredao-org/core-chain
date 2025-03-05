@@ -141,8 +141,7 @@ func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, error) {
 			statedb.SetState(addr, key, value)
 		}
 	}
-	statedb.IntermediateRoot(false)
-	root, _, err := statedb.Commit(0, nil)
+	root, _, err := statedb.Commit(0, false)
 	return root, err
 }
 
@@ -168,8 +167,7 @@ func flushAlloc(ga *types.GenesisAlloc, db ethdb.Database, triedb *triedb.Databa
 			statedb.SetState(addr, key, value)
 		}
 	}
-	statedb.IntermediateRoot(false)
-	root, _, err := statedb.Commit(0, nil)
+	root, _, err := statedb.Commit(0, false)
 	if err != nil {
 		return err
 	}
