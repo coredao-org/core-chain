@@ -1856,7 +1856,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		return nil
 	}
 	// Commit all cached state changes into underlying memory database.
-	_, diffLayer, err := state.Commit(block.NumberU64(), tryCommitTrieDB)
+	_, diffLayer, err := state.Commit(block.NumberU64(), bc.chainConfig.IsEIP158(block.Number()), tryCommitTrieDB)
 	if err != nil {
 		return err
 	}
