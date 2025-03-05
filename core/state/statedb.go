@@ -1553,6 +1553,13 @@ func (s *StateDB) GetStorage(address common.Address) *sync.Map {
 	return s.storagePool.getStorage(address)
 }
 
+func (s *StateDB) GetSnap() snapshot.Snapshot {
+	if s.snaps != nil {
+		return s.snaps.Snapshot(s.originalRoot)
+	}
+	return nil
+}
+
 // markDelete is invoked when an account is deleted but the deletion is
 // not yet committed. The pending mutation is cached and will be applied
 // all together
