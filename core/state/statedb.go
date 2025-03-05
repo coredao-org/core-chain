@@ -1389,11 +1389,20 @@ func (s *StateDB) commitAndFlush(block uint64, deleteEmptyObjects bool) (*stateU
 	if err != nil {
 		return nil, err
 	}
+	if s.snaps != nil {
+		ret.diffLayer = &types.DiffLayer{}
+	}
 	// Commit dirty contract code if any exists
 	if db := s.db.DiskDB(); db != nil && len(ret.codes) > 0 {
 		batch := db.NewBatch()
 		for _, code := range ret.codes {
 			rawdb.WriteCode(batch, code.hash, code.blob)
+			if s.snaps != nil {
+				ret.diffLayer.Codes = append(ret.diffLayer.Codes, types.DiffCode{
+					Hash: code.hash,
+					Code: code.blob,
+				})
+			}
 		}
 		if err := batch.Write(); err != nil {
 			return nil, err
@@ -1405,6 +1414,7 @@ func (s *StateDB) commitAndFlush(block uint64, deleteEmptyObjects bool) (*stateU
 			s.snap = nil
 
 			start := time.Now()
+			ret.diffLayer.Destructs, ret.diffLayer.Accounts, ret.diffLayer.Storages = ret.SnapToDiffLayer()
 			if err := s.snaps.Update(ret.root, ret.originRoot, ret.destructs, ret.accounts, ret.storages); err != nil {
 				log.Warn("Failed to update snapshot tree", "from", ret.originRoot, "to", ret.root, "err", err)
 			}
@@ -1443,12 +1453,12 @@ func (s *StateDB) commitAndFlush(block uint64, deleteEmptyObjects bool) (*stateU
 //
 // The associated block number of the state transition is also provided
 // for more chain context.
-func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, error) {
+func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, *types.DiffLayer, error) {
 	ret, err := s.commitAndFlush(block, deleteEmptyObjects)
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, nil, err
 	}
-	return ret.root, nil
+	return ret.root, ret.diffLayer, nil
 }
 
 // Prepare handles the preparatory steps for executing a state transition with.
