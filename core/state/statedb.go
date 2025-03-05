@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"runtime"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -35,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/triestate"
@@ -951,133 +949,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// Finalise all the dirty storage states and write them into the tries
 	s.Finalise(deleteEmptyObjects)
-	s.AccountsIntermediateRoot()
-	return s.StateIntermediateRoot()
-}
 
-// CorrectAccountsRoot will fix account roots in pipecommit mode
-func (s *StateDB) CorrectAccountsRoot(blockRoot common.Hash) {
-	var snapshot snapshot.Snapshot
-	if blockRoot == (common.Hash{}) {
-		snapshot = s.snap
-	} else if s.snaps != nil {
-		snapshot = s.snaps.Snapshot(blockRoot)
-	}
-
-	if snapshot == nil {
-		return
-	}
-	if accounts, err := snapshot.Accounts(); err == nil && accounts != nil {
-		for addr, op := range s.mutations {
-			if op.isDelete() {
-				continue
-			}
-			obj := s.stateObjects[addr]
-
-			if account, exist := accounts[crypto.Keccak256Hash(obj.address[:])]; exist {
-				if len(account.Root) == 0 {
-					obj.data.Root = types.EmptyRootHash
-				} else {
-					obj.data.Root = common.BytesToHash(account.Root)
-				}
-			}
-		}
-	}
-}
-
-// PopulateSnapAccountAndStorage tries to populate required accounts and storages for pipecommit
-func (s *StateDB) PopulateSnapAccountAndStorage() {
-	for addr, op := range s.mutations {
-		if op.applied || op.isDelete() {
-			continue
-		}
-		obj := s.stateObjects[addr]
-		if s.snap != nil {
-			s.populateSnapStorage(obj)
-			s.accounts[obj.addrHash] = types.SlimAccountRLP(obj.data)
-		}
-	}
-}
-
-// populateSnapStorage tries to populate required storages for pipecommit, and returns a flag to indicate whether the storage root changed or not
-func (s *StateDB) populateSnapStorage(obj *stateObject) bool {
-	for key, value := range obj.dirtyStorage {
-		obj.pendingStorage[key] = value
-	}
-	if len(obj.pendingStorage) == 0 {
-		return false
-	}
-	hasher := crypto.NewKeccakState()
-	var storage map[common.Hash][]byte
-	for key, value := range obj.pendingStorage {
-		var v []byte
-		if (value != common.Hash{}) {
-			// Encoding []byte cannot fail, ok to ignore the error.
-			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
-		}
-		// If state snapshotting is active, cache the data til commit
-		if obj.db.snap != nil {
-			if storage == nil {
-				// Retrieve the old storage map, if available, create a new one otherwise
-				if storage = obj.db.storages[obj.addrHash]; storage == nil {
-					storage = make(map[common.Hash][]byte)
-					obj.db.storages[obj.addrHash] = storage
-				}
-			}
-			storage[crypto.HashData(hasher, key[:])] = v // v will be nil if value is 0x00
-		}
-	}
-	return true
-}
-
-func (s *StateDB) AccountsIntermediateRoot() {
-	tasks := make(chan func())
-	finishCh := make(chan struct{})
-	defer close(finishCh)
-	wg := sync.WaitGroup{}
-	for i := 0; i < runtime.NumCPU(); i++ {
-		go func() {
-			for {
-				select {
-				case task := <-tasks:
-					task()
-				case <-finishCh:
-					return
-				}
-			}
-		}()
-	}
-
-	// Although naively it makes sense to retrieve the account trie and then do
-	// the contract storage and account updates sequentially, that short circuits
-	// the account prefetcher. Instead, let's process all the storage updates
-	// first, giving the account prefetches just a few more milliseconds of time
-	// to pull useful data from disk.
-	for addr, op := range s.mutations {
-		if op.applied || op.isDelete() {
-			continue
-		}
-		obj := s.stateObjects[addr] // closure for the task runner below
-
-		wg.Add(1)
-		tasks <- func() {
-			obj.updateRoot()
-
-			// Cache the data until commit. Note, this update mechanism is not symmetric
-			// to the deletion, because whereas it is enough to track account updates
-			// at commit time, deletions need tracking at transaction boundary level to
-			// ensure we capture state clearing.
-			s.AccountMux.Lock()
-			s.accounts[obj.addrHash] = types.SlimAccountRLP(obj.data)
-			s.AccountMux.Unlock()
-
-			wg.Done()
-		}
-	}
-	wg.Wait()
-}
-
-func (s *StateDB) StateIntermediateRoot() common.Hash {
 	// If there was a trie prefetcher operating, terminate it async so that the
 	// individual storage tries can be updated as soon as the disk load finishes.
 	if s.prefetcher != nil {
@@ -1407,12 +1279,12 @@ func (s *StateDB) commit(deleteEmptyObjects bool) (*stateUpdate, error) {
 		return nil, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
 	}
 	// Finalize any pending changes and merge everything into the tries
-	// s.IntermediateRoot(deleteEmptyObjects)
+	s.IntermediateRoot(deleteEmptyObjects)
 
 	// Short circuit if any error occurs within the IntermediateRoot.
-	// if s.dbErr != nil {
-	// 	return nil, fmt.Errorf("commit aborted due to database error: %v", s.dbErr)
-	// }
+	if s.dbErr != nil {
+		return nil, fmt.Errorf("commit aborted due to database error: %v", s.dbErr)
+	}
 	// Finalize any pending changes and merge everything into the tries
 	var (
 		accountTrieNodesUpdated int
@@ -1711,6 +1583,10 @@ func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addre
 		return false, false
 	}
 	return s.accessList.Contains(addr, slot)
+}
+
+func (s *StateDB) GetStorage(address common.Address) *sync.Map {
+	return s.storagePool.getStorage(address)
 }
 
 // markDelete is invoked when an account is deleted but the deletion is

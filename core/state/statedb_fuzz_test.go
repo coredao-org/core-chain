@@ -232,7 +232,6 @@ func (test *stateTest) run() bool {
 		}
 		if byzantium {
 			state.Finalise(true) // call finalise at the transaction boundary
-			state.AccountsIntermediateRoot()
 		} else {
 			state.IntermediateRoot(true) // call intermediateRoot at the transaction boundary
 		}
