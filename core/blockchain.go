@@ -1738,11 +1738,11 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 
 // writeBlockWithState writes block, metadata and corresponding state data to the
 // database.
-func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, state *state.StateDB) error {
+func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, statedb *state.StateDB) error {
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
-		state.StopPrefetcher()
+		statedb.StopPrefetcher()
 		return consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
@@ -1765,12 +1765,18 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			rawdb.WriteBlobSidecars(blockBatch, block.Hash(), block.NumberU64(), block.Sidecars())
 		}
 		if bc.db.StateStore() != nil {
-			rawdb.WritePreimages(bc.db.StateStore(), state.Preimages())
+			rawdb.WritePreimages(bc.db.StateStore(), statedb.Preimages())
 		} else {
-			rawdb.WritePreimages(blockBatch, state.Preimages())
+			rawdb.WritePreimages(blockBatch, statedb.Preimages())
 		}
 		if err := blockBatch.Write(); err != nil {
 			log.Crit("Failed to write block into disk", "err", err)
+		}
+		bc.hc.tdCache.Add(block.Hash(), externTd)
+		bc.blockCache.Add(block.Hash(), block)
+		bc.cacheReceipts(block.Hash(), receipts, block)
+		if bc.chainConfig.IsCancun(block.Number(), block.Time()) {
+			bc.sidecarsCache.Add(block.Hash(), block.Sidecars())
 		}
 		wg.Done()
 	}()
