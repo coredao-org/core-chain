@@ -463,7 +463,7 @@ type ChainConfig struct {
 	AthenaTime   *uint64 `json:"athenaTime,omitempty"`    // Athena switch time (nil = no fork, 0 = already on athena)
 	CancunTime   *uint64 `json:"cancunTime,omitempty" `   // Cancun switch time (nil = no fork, 0 = already on cancun)
 	LubanTime    *uint64 `json:"lubanTime,omitempty"`     // Luban switch time (nil = no fork, 0 = already on luban)
-	PlatoTime   *uint64 `json:"platoTime,omitempty"`      // Plato switch time (nil = no fork, 0 = already on plato)
+	PlatoTime    *uint64 `json:"platoTime,omitempty"`     // Plato switch time (nil = no fork, 0 = already on plato)
 	HaberTime    *uint64 `json:"haberTime,omitempty"`     // Haber switch time (nil = no fork, 0 = already on haber)
 	PragueTime   *uint64 `json:"pragueTime,omitempty" `   // Prague switch time (nil = no fork, 0 = already on prague)
 	VerkleTime   *uint64 `json:"verkleTime,omitempty" `   // Verkle switch time (nil = no fork, 0 = already on verkle)
@@ -1005,7 +1005,7 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.PlatoTime, newcfg.PlatoTime, headTimestamp) {
 		return newTimestampCompatError("Plato fork timestamp", c.PlatoTime, newcfg.PlatoTime)
-	} 
+	}
 	if isForkTimestampIncompatible(c.PragueTime, newcfg.PragueTime, headTimestamp) {
 		return newTimestampCompatError("Prague fork timestamp", c.PragueTime, newcfg.PragueTime)
 	}
