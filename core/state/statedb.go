@@ -914,18 +914,6 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 		}()
 	}
 
-	// // Although naively it makes sense to retrieve the account trie and then do
-	// // the contract storage and account updates sequentially, that short circuits
-	// // the account prefetcher. Instead, let's process all the storage updates
-	// // first, giving the account prefetches just a few more milliseconds of time
-	// // to pull useful data from disk.
-	// for addr, op := range s.mutations {
-	// 	if op.applied || op.isDelete() {
-	// 		continue
-	// 	}
-	// 	s.stateObjects[addr].updateRoot()
-	// }
-
 	// Process all storage updates concurrently. The state object update root
 	// method will internally call a blocking trie fetch from the prefetcher,
 	// so there's no need to explicitly wait for the prefetchers to finish.
@@ -958,7 +946,6 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// _untouched_. We can check with the prefetcher, if it can give us a trie
 	// which has the same root, but also has some content loaded into it.
 	start = time.Now()
-
 	if s.prefetcher != nil {
 		if trie, err := s.prefetcher.trie(common.Hash{}, s.originalRoot); err != nil {
 			log.Error("Failed to retrieve account pre-fetcher trie", "err", err)
@@ -1182,9 +1169,8 @@ func (s *StateDB) handleDestruction() (map[common.Hash]*accountDelete, []*trieno
 		buf     = crypto.NewKeccakState()
 		deletes = make(map[common.Hash]*accountDelete)
 	)
-	if s.db.TrieDB().Scheme() == rawdb.HashScheme {
-		return deletes, nodes, nil
-	}
+	// Remove the early return for HashScheme to ensure account deletion is processed
+	// for both HashScheme and PathScheme
 	for addr, prev := range s.stateObjectsDestruct {
 		// The account was non-existent, and it's marked as destructed in the scope
 		// of block. It can be either case (a) or (b) and will be interpreted as
@@ -1425,9 +1411,11 @@ func (s *StateDB) commitAndFlush(block uint64, deleteEmptyObjects bool) (*stateU
 			// - head layer is paired with HEAD state
 			// - head-1 layer is paired with HEAD-1 state
 			// - head-127 layer(bottom-most diff layer) is paired with HEAD-127 state
-			if err := s.snaps.Cap(ret.root, s.snaps.CapLimit()); err != nil {
-				log.Warn("Failed to cap snapshot tree", "root", ret.root, "layers", s.snaps.CapLimit(), "err", err)
-			}
+			go func() {
+				if err := s.snaps.Cap(ret.root, s.snaps.CapLimit()); err != nil {
+					log.Warn("Failed to cap snapshot tree", "root", ret.root, "layers", s.snaps.CapLimit(), "err", err)
+				}
+			}()
 			if metrics.EnabledExpensive {
 				s.SnapshotCommits += time.Since(start)
 			}
@@ -1554,10 +1542,7 @@ func (s *StateDB) GetStorage(address common.Address) *sync.Map {
 }
 
 func (s *StateDB) GetSnap() snapshot.Snapshot {
-	if s.snaps != nil {
-		return s.snaps.Snapshot(s.originalRoot)
-	}
-	return nil
+	return s.snap
 }
 
 // markDelete is invoked when an account is deleted but the deletion is
