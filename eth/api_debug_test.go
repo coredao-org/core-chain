@@ -80,9 +80,7 @@ func TestAccountRange(t *testing.T) {
 			m[addr] = true
 		}
 	}
-	sdb.Finalise(true)
-	sdb.AccountsIntermediateRoot()
-	root, _, _ := sdb.Commit(0, nil)
+	root, _, _ := sdb.Commit(0, true)
 	sdb, _ = state.New(root, statedb, nil)
 
 	trie, err := statedb.OpenTrie(root)
@@ -140,8 +138,7 @@ func TestEmptyAccountRange(t *testing.T) {
 		st, _   = state.New(types.EmptyRootHash, statedb, nil)
 	)
 	// Commit(although nothing to flush) and re-init the statedb
-	st.IntermediateRoot(true)
-	st.Commit(0, nil)
+	st.Commit(0, true)
 	st, _ = state.New(types.EmptyRootHash, statedb, nil)
 
 	results := st.RawDump(&state.DumpConfig{
@@ -182,9 +179,7 @@ func TestStorageRangeAt(t *testing.T) {
 	for _, entry := range storage {
 		sdb.SetState(addr, *entry.Key, entry.Value)
 	}
-	sdb.Finalise(false)
-	sdb.AccountsIntermediateRoot()
-	root, _, _ := sdb.Commit(0, nil)
+	root, _, _ := sdb.Commit(0, false)
 	sdb, _ = state.New(root, db, nil)
 
 	// Check a few combinations of limit and start/end.
