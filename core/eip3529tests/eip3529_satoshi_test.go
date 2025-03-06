@@ -14,6 +14,7 @@ func postHertzPreShanghaiConfig() *params.ChainConfig {
 	config.ShanghaiTime = nil
 	config.KeplerTime = nil
 	config.DemeterTime = nil
+	config.AthenaTime = nil
 	config.CancunTime = nil
 	return &config
 }
@@ -26,6 +27,7 @@ func preHertzConfig() *params.ChainConfig {
 	config.ShanghaiTime = nil
 	config.KeplerTime = nil
 	config.DemeterTime = nil
+	config.AthenaTime = nil
 	config.CancunTime = nil
 	return &config
 }

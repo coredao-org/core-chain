@@ -3518,6 +3518,7 @@ func preShanghaiConfig() *params.ChainConfig {
 	config.ShanghaiTime = nil
 	config.KeplerTime = nil
 	config.DemeterTime = nil
+	config.AthenaTime = nil
 	config.CancunTime = nil
 	return &config
 }
@@ -4400,6 +4401,11 @@ func (c *mockSatoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, hea
 
 func (c *mockSatoshi) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	return big.NewInt(1)
+}
+
+func (c *mockSatoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction, uncles []*types.Header,
+	receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) (err error) {
+	return nil
 }
 
 func TestSatoshiBlobFeeReward(t *testing.T) {
