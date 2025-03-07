@@ -96,7 +96,7 @@ type StateDB struct {
 	// It will be updated when the Commit is called.
 	originalRoot common.Hash
 	expectedRoot common.Hash // The state root in the block header
-	stateRoot    common.Hash // The calculation result of IntermediateRoot
+	// stateRoot    common.Hash // The calculation result of IntermediateRoot
 
 	fullProcessed bool
 

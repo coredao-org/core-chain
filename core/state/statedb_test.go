@@ -234,7 +234,7 @@ func TestCopyWithDirtyJournal(t *testing.T) {
 	// Fill up the initial states
 	for i := byte(0); i < 255; i++ {
 		obj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
-		obj.AddBalance(uint256.NewInt(uint64(i)))
+		obj.AddBalance(uint256.NewInt(uint64(i)), tracing.BalanceChangeUnspecified)
 		obj.data.Root = common.HexToHash("0xdeadbeef")
 		orig.updateStateObject(obj)
 	}
@@ -244,7 +244,7 @@ func TestCopyWithDirtyJournal(t *testing.T) {
 	// modify all in memory without finalizing
 	for i := byte(0); i < 255; i++ {
 		obj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
-		obj.SubBalance(uint256.NewInt(uint64(i)))
+		obj.SubBalance(uint256.NewInt(uint64(i)), tracing.BalanceChangeUnspecified)
 		orig.updateStateObject(obj)
 	}
 	cpy := orig.Copy()
@@ -278,7 +278,7 @@ func TestCopyObjectState(t *testing.T) {
 	// Fill up the initial states
 	for i := byte(0); i < 5; i++ {
 		obj := orig.getOrNewStateObject(common.BytesToAddress([]byte{i}))
-		obj.AddBalance(uint256.NewInt(uint64(i)))
+		obj.AddBalance(uint256.NewInt(uint64(i)), tracing.BalanceChangeUnspecified)
 		obj.data.Root = common.HexToHash("0xdeadbeef")
 		orig.updateStateObject(obj)
 	}

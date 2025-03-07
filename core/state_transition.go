@@ -454,13 +454,13 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	fee.Mul(fee, effectiveTipU256)
 	// consensus engine is satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
-		st.state.AddBalance(consensus.SystemAddress, fee)
+		st.state.AddBalance(consensus.SystemAddress, fee, tracing.BalanceIncreaseRewardTransactionFee)
 		// add extra blob fee reward
 		if rules.IsCancun {
 			blobFee := new(big.Int).SetUint64(st.blobGasUsed())
 			blobFee.Mul(blobFee, st.evm.Context.BlobBaseFee)
 			blobFeeU256, _ := uint256.FromBig(blobFee)
-			st.state.AddBalance(consensus.SystemAddress, blobFeeU256)
+			st.state.AddBalance(consensus.SystemAddress, blobFeeU256, tracing.BalanceIncreaseRewardTransactionFee)
 		}
 	} else {
 		fee := new(uint256.Int).SetUint64(st.gasUsed())

@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -1240,8 +1241,8 @@ func (p *Satoshi) distributeIncoming(val common.Address, state *state.StateDB, h
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
-	state.SetBalance(consensus.SystemAddress, common.U2560)
-	state.AddBalance(coinbase, balance)
+	state.SetBalance(consensus.SystemAddress, common.U2560, tracing.BalanceDecreaseCoreDistributeReward)
+	state.AddBalance(coinbase, balance, tracing.BalanceIncreaseCoreDistributeReward)
 	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
 	return p.distributeToValidator(balance.ToBig(), val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }

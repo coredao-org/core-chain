@@ -212,6 +212,15 @@ const (
 	// account within the same tx (captured at end of tx).
 	// Note it doesn't account for a self-destruct which appoints itself as recipient.
 	BalanceDecreaseSelfdestructBurn BalanceChangeReason = 14
+
+	// Core specific balance changes
+
+	// BalanceDecreaseCoreDistributeReward is a balance change that decreases system address' balance and happens
+	// when Core is distributing rewards to validator.
+	BalanceDecreaseCoreDistributeReward BalanceChangeReason = 180
+	// BalanceIncreaseCoreDistributeReward is a balance change that increases the block validator's balance and
+	// happens when Core is distributing rewards to validator.
+	BalanceIncreaseCoreDistributeReward BalanceChangeReason = 181
 )
 
 // GasChangeReason is used to indicate the reason for a gas change, useful

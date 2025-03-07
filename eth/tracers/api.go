@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
@@ -282,8 +283,8 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 							if isSystem, _ := posa.IsSystemTransaction(tx, task.block.Header()); isSystem {
 								balance := task.statedb.GetBalance(consensus.SystemAddress)
 								if balance.Cmp(common.U2560) > 0 {
-									task.statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0))
-									task.statedb.AddBalance(blockCtx.Coinbase, balance)
+									task.statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+									task.statedb.AddBalance(blockCtx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 								}
 								beforeSystemTx = false
 							}
@@ -559,8 +560,8 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 				balance := statedb.GetBalance(consensus.SystemAddress)
 				if balance.Cmp(common.U2560) > 0 {
-					statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0))
-					statedb.AddBalance(vmctx.Coinbase, balance)
+					statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+					statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 				}
 			}
 		}
@@ -643,8 +644,8 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 					balance := statedb.GetBalance(consensus.SystemAddress)
 					if balance.Cmp(common.U2560) > 0 {
-						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0))
-						statedb.AddBalance(blockCtx.Coinbase, balance)
+						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+						statedb.AddBalance(blockCtx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 					}
 
 					beforeSystemTx = false
@@ -728,8 +729,8 @@ txloop:
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 					balance := statedb.GetBalance(consensus.SystemAddress)
 					if balance.Cmp(common.U2560) > 0 {
-						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0))
-						statedb.AddBalance(block.Header().Coinbase, balance)
+						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+						statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
 					}
 
 					beforeSystemTx = false
@@ -833,8 +834,8 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 					balance := statedb.GetBalance(consensus.SystemAddress)
 					if balance.Cmp(common.U2560) > 0 {
-						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0))
-						statedb.AddBalance(vmctx.Coinbase, balance)
+						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+						statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 					}
 
 					beforeSystemTx = false

@@ -216,6 +216,8 @@ func (p *triePrefetcher) prefetch(owner common.Hash, root common.Hash, addr comm
 	}
 
 	select {
+	case <-p.term:
+		return errTerminated
 	case p.prefetchChan <- &prefetchMsg{owner, root, addr, keys}:
 	}
 	return nil

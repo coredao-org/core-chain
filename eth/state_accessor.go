@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
@@ -252,8 +253,8 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 					balance := statedb.GetBalance(consensus.SystemAddress)
 					if balance.Cmp(common.U2560) > 0 {
-						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0))
-						statedb.AddBalance(block.Header().Coinbase, balance)
+						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+						statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
 					}
 
 					beforeSystemTx = false

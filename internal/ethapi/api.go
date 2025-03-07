@@ -1446,8 +1446,8 @@ func (s *BlockChainAPI) replay(ctx context.Context, block *types.Block, accounts
 			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 				balance := statedb.GetBalance(consensus.SystemAddress)
 				if balance.Cmp(common.U2560) > 0 {
-					statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0))
-					statedb.AddBalance(block.Header().Coinbase, balance)
+					statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+					statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
 				}
 			}
 		}
