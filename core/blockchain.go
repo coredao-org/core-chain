@@ -2259,6 +2259,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		// The traced section of block import.
 		res, err := bc.processBlock(block, statedb, start, setHead, interruptCh)
+		if err != nil {
+			return it.index, err
+		}
 
 		stats.usedGas += res.usedGas
 
@@ -2384,7 +2387,7 @@ func (bc *BlockChain) processBlock(block *types.Block, statedb *state.StateDB, s
 
 	// Process block using the parent state as reference point
 	pstart := time.Now()
-	receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
+	statedb, receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
 	close(interruptCh) // state prefetch can be stopped
 	if err != nil {
 		bc.reportBlock(block, receipts, err)

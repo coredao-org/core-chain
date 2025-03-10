@@ -63,7 +63,6 @@ type StateTrie struct {
 	trie             Trie
 	db               database.Database
 	preimages        preimageStore
-	hashKeyBuf       [common.HashLength]byte
 	secKeyCache      map[string][]byte
 	secKeyCacheOwner *StateTrie // Pointer to self, replace the key cache on mismatch
 }
@@ -299,8 +298,6 @@ func (t *StateTrie) MustNodeIterator(start []byte) NodeIterator {
 // hashKey returns the hash of key as an ephemeral buffer.
 // The caller must not hold onto the return value because it will become
 // invalid on the next call to hashKey or secKey.
-//
-// no use hashKeyBuf for thread safe.
 func (t *StateTrie) hashKey(key []byte) []byte {
 	hash := make([]byte, common.HashLength)
 	h := newHasher(false)

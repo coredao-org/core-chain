@@ -107,7 +107,7 @@ type StateDB struct {
 	// resurrection. The account value is tracked as the original value
 	// before the transition. This map is populated at the transaction
 	// boundaries.
-	stateObjectsDestruct map[common.Address]*types.StateAccount
+	stateObjectsDestruct map[common.Address]*stateObject
 
 	// This map tracks the account mutations that occurred during the
 	// transition. Uncommitted mutations belonging to the same account
@@ -187,7 +187,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		originalRoot:         root,
 		snaps:                snaps,
 		stateObjects:         make(map[common.Address]*stateObject),
-		stateObjectsDestruct: make(map[common.Address]*types.StateAccount),
+		stateObjectsDestruct: make(map[common.Address]*stateObject),
 		mutations:            make(map[common.Address]*mutation),
 		logs:                 make(map[common.Hash][]*types.Log),
 		preimages:            make(map[common.Hash][]byte),
@@ -804,7 +804,7 @@ func (s *StateDB) copyInternal(doPrefetch bool) *StateDB {
 		// fullProcessed:        s.fullProcessed,
 		// pipeCommit:           s.pipeCommit,
 		stateObjects:         make(map[common.Address]*stateObject, len(s.stateObjects)),
-		stateObjectsDestruct: maps.Clone(s.stateObjectsDestruct),
+		stateObjectsDestruct: make(map[common.Address]*stateObject, len(s.stateObjectsDestruct)),
 		mutations:            make(map[common.Address]*mutation, len(s.mutations)),
 		dbErr:                s.dbErr,
 		storagePool:          s.storagePool,
@@ -827,6 +827,10 @@ func (s *StateDB) copyInternal(doPrefetch bool) *StateDB {
 	// Deep copy cached state objects.
 	for addr, obj := range s.stateObjects {
 		state.stateObjects[addr] = obj.deepCopy(state)
+	}
+	// Deep copy destructed state objects.
+	for addr, obj := range s.stateObjectsDestruct {
+		state.stateObjectsDestruct[addr] = obj.deepCopy(state)
 	}
 	// Deep copy the object state markers.
 	for addr, op := range s.mutations {
@@ -893,7 +897,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			// set indefinitely). Note only the first occurred self-destruct
 			// event is tracked.
 			if _, ok := s.stateObjectsDestruct[obj.address]; !ok {
-				s.stateObjectsDestruct[obj.address] = obj.origin
+				s.stateObjectsDestruct[obj.address] = obj
 			}
 		} else {
 			obj.finalise()
@@ -1188,7 +1192,9 @@ func (s *StateDB) handleDestruction() (map[common.Hash]*accountDelete, []*trieno
 	)
 	// Remove the early return for HashScheme to ensure account deletion is processed
 	// for both HashScheme and PathScheme
-	for addr, prev := range s.stateObjectsDestruct {
+	for addr, prevObj := range s.stateObjectsDestruct {
+		prev := prevObj.origin
+
 		// The account was non-existent, and it's marked as destructed in the scope
 		// of block. It can be either case (a) or (b) and will be interpreted as
 		// null->null state transition.
@@ -1378,7 +1384,7 @@ func (s *StateDB) commit(deleteEmptyObjects bool) (*stateUpdate, error) {
 
 	// Clear all internal flags and update state root at the end.
 	s.mutations = make(map[common.Address]*mutation)
-	s.stateObjectsDestruct = make(map[common.Address]*types.StateAccount)
+	s.stateObjectsDestruct = make(map[common.Address]*stateObject)
 
 	origin := s.originalRoot
 	s.originalRoot = root

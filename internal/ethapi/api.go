@@ -1119,7 +1119,7 @@ func (diff *StateOverride) Apply(statedb *state.StateDB, precompiles vm.Precompi
 		}
 		// Override account nonce.
 		if account.Nonce != nil {
-			statedb.SetNonce(addr, uint64(*account.Nonce))
+			statedb.SetNonce(addr, uint64(*account.Nonce), tracing.NonceChangeUnspecified)
 		}
 		// Override account(contract) code.
 		if account.Code != nil {
@@ -1559,9 +1559,8 @@ func (s *BlockChainAPI) replay(ctx context.Context, block *types.Block, accounts
 
 		// Apply transaction
 		msg, _ := core.TransactionToMessage(tx, signer, parent.Header().BaseFee)
-		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(block.Header(), s.b.Chain(), nil)
-		vmenv := vm.NewEVM(context, txContext, statedb, s.b.ChainConfig(), vm.Config{})
+		evm := vm.NewEVM(context, statedb, s.b.ChainConfig(), vm.Config{})
 
 		if posa, ok := s.b.Engine().(consensus.PoSA); ok {
 			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
@@ -1573,10 +1572,10 @@ func (s *BlockChainAPI) replay(ctx context.Context, block *types.Block, accounts
 			}
 		}
 
-		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+		if _, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
 			return nil, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
-		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
+		statedb.Finalise(evm.ChainConfig().IsEIP158(block.Number()))
 
 		if !skip {
 			// Compute account balance diff.

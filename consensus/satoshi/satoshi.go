@@ -18,7 +18,6 @@ import (
 	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -750,8 +749,9 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	return nil
 }
 
-func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
-	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) (err error) {
+func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, txs *[]*types.Transaction,
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64, tracer *tracing.Hooks) (err error) {
+	vmConfig := vm.Config{Tracer: tracer}
 	cx := chainContext{Chain: chain, satoshi: p}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
@@ -766,7 +766,7 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 			systemcontracts.BTCLSTTokenContract,
 		}
 
-		err := p.initContractWithContracts(state, header, cx, txs, receipts, systemTxs, usedGas, false, contracts)
+		err := p.initContractWithContracts(state, header, cx, txs, receipts, systemTxs, usedGas, false, contracts, vmConfig)
 		if err != nil {
 			log.Error("init contract failed on demeter fork")
 		}
@@ -776,7 +776,7 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
 		log.Trace("turn round", "block hash", header.Hash())
-		err = p.turnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+		err = p.turnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false, vmConfig)
 		if err != nil {
 			// it is possible that turn round failed.
 			log.Error("turn round failed", "block hash", header.Hash())
@@ -786,8 +786,9 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 }
 
 func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error) {
+	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt, tracer *tracing.Hooks) (err error) {
 	cx := chainContext{Chain: chain, satoshi: p}
+	vmConfig := vm.Config{Tracer: tracer}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
 	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
@@ -801,7 +802,7 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 			systemcontracts.BTCLSTTokenContract,
 		}
 
-		err := p.initContractWithContracts(state, header, cx, txs, receipts, nil, &header.GasUsed, true, contracts)
+		err := p.initContractWithContracts(state, header, cx, txs, receipts, nil, &header.GasUsed, true, contracts, vmConfig)
 		if err != nil {
 			log.Error("init contract failed on demeter fork")
 		}
@@ -811,7 +812,7 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
 		log.Trace("turn round", "block hash", header.Hash())
-		err = p.turnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true)
+		err = p.turnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true, vmConfig)
 		if err != nil {
 			// it is possible that turn round failed.
 			log.Error("turn round failed", "block hash", header.Hash())
@@ -823,7 +824,7 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
 func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, txs *[]*types.Transaction,
-	uncles []*types.Header, _ []*types.Withdrawal, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64,tracer *tracing.Hooks) error {
+	uncles []*types.Header, _ []*types.Withdrawal, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64, tracer *tracing.Hooks) error {
 	// warn if not in majority fork
 	number := header.Number.Uint64()
 	snap, err := p.snapshot(chain, number-1, header.ParentHash, nil)
@@ -906,7 +907,7 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 		receipts = make([]*types.Receipt, 0)
 	}
 	if header.Number.Cmp(common.Big1) == 0 {
-		err := p.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true,vmConfig)
+		err := p.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, vmConfig)
 		if err != nil {
 			log.Error("init contract failed")
 		}
@@ -926,14 +927,14 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 			}
 		}
 		if !signedRecently {
-			err = p.slash(spoiledVal, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true,vmConfig)
+			err = p.slash(spoiledVal, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, vmConfig)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "err", err.Error())
 			}
 		}
 	}
-	err := p.distributeIncoming(p.val, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true,vmConfig)
+	err := p.distributeIncoming(p.val, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, vmConfig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1240,7 +1241,7 @@ func (p *Satoshi) getCurrentValidators(blockHash common.Hash) ([]common.Address,
 }
 
 // distributeIncoming collect transaction fees and distribute to validator contract
-func (p *Satoshi) distributeIncoming(val common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) distributeIncoming(val common.Address, state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
@@ -1251,7 +1252,7 @@ func (p *Satoshi) distributeIncoming(val common.Address, state *state.StateDB, h
 }
 
 // slash spoiled validators
-func (p *Satoshi) slash(spoiledVal common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) slash(spoiledVal common.Address, state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
 	// method
 	method := "slash"
@@ -1270,8 +1271,8 @@ func (p *Satoshi) slash(spoiledVal common.Address, state *state.StateDB, header 
 }
 
 // turnRound call candidate contract to execute turn round
-func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+func (p *Satoshi) turnRound(state vm.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
 	// method
 	method := "turnRound"
 
@@ -1288,7 +1289,7 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 }
 
 // init contract
-func (p *Satoshi) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) initContract(state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
 	contracts := []string{
 		systemcontracts.ValidatorContract,
@@ -1315,7 +1316,7 @@ func (p *Satoshi) initContract(state *state.StateDB, header *types.Header, chain
 	return p.initContractWithContracts(state, header, chain, txs, receipts, receivedTxs, usedGas, mining, contracts, vmConfig)
 }
 
-func (p *Satoshi) initContractWithContracts(state *state.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) initContractWithContracts(state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, contracts []string, vmConfig vm.Config) error {
 	// method
 	method := "init"
@@ -1340,7 +1341,7 @@ func (p *Satoshi) initContractWithContracts(state *state.StateDB, header *types.
 
 // distributeToValidator call validator contract to distribute reward
 func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Address,
-	state *state.StateDB, header *types.Header, chain core.ChainContext,
+	state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, vmConfig vm.Config) error {
 	// method
 	method := "deposit"
@@ -1360,34 +1361,33 @@ func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Addres
 }
 
 // get system message
-func (p *Satoshi) getSystemMessage(from, toAddress common.Address, gas uint64, data []byte, value *big.Int) callmsg {
-	return callmsg{
-		ethereum.CallMsg{
-			From:     from,
-			Gas:      gas,
-			GasPrice: big.NewInt(0),
-			Value:    value,
-			To:       &toAddress,
-			Data:     data,
-		},
+func (p *Satoshi) getSystemMessage(from, toAddress common.Address, gas uint64, data []byte, value *big.Int) *core.Message {
+	return &core.Message{
+		From:     from,
+		GasLimit: gas,
+		GasPrice: big.NewInt(0),
+		Value:    value,
+		To:       &toAddress,
+		Data:     data,
 	}
 }
 
 func (p *Satoshi) applyTransaction(
-	msg callmsg,
-	state *state.StateDB,
+	msg *core.Message,
+	state vm.StateDB,
 	header *types.Header,
 	chainContext core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt,
 	receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool,
-	vmConfig vm.Config
-) (err error) {
-	nonce := state.GetNonce(msg.From())
-	expectedTx := types.NewTransaction(nonce, *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
+	vmConfig vm.Config,
+) (applyErr error) {
+	nonce := state.GetNonce(msg.From)
+	expectedTx := types.NewTransaction(nonce, *msg.To, msg.Value, msg.GasLimit, msg.GasPrice, msg.Data)
 	expectedHash := p.signer.Hash(expectedTx)
 
-	if msg.From() == p.val && mining {
-		expectedTx, err = p.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, p.chainConfig.ChainID)
+	if msg.From == p.val && mining {
+		var err error
+		expectedTx, err = p.signTxFn(accounts.Account{Address: msg.From}, expectedTx, p.chainConfig.ChainID)
 		if err != nil {
 			return err
 		}
@@ -1467,8 +1467,6 @@ func (p *Satoshi) applyTransaction(
 	tracingReceipt.TransactionIndex = uint(state.TxIndex())
 	*receipts = append(*receipts, tracingReceipt)
 
-	// TODO(CZ): do we need this?
-	state.SetNonce(msg.From(), nonce+1)
 	return nil
 }
 
@@ -1592,23 +1590,9 @@ func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
 	return c.Chain.GetHeader(hash, number)
 }
 
-// callmsg implements core.Message to allow passing it as a transaction simulator.
-type callmsg struct {
-	ethereum.CallMsg
-}
-
-func (m callmsg) From() common.Address { return m.CallMsg.From }
-func (m callmsg) Nonce() uint64        { return 0 }
-func (m callmsg) CheckNonce() bool     { return false }
-func (m callmsg) To() *common.Address  { return m.CallMsg.To }
-func (m callmsg) GasPrice() *big.Int   { return m.CallMsg.GasPrice }
-func (m callmsg) Gas() uint64          { return m.CallMsg.Gas }
-func (m callmsg) Value() *big.Int      { return m.CallMsg.Value }
-func (m callmsg) Data() []byte         { return m.CallMsg.Data }
-
 // apply message
 func applyMessage(
-	msg callmsg,
+	msg *core.Message,
 	evm *vm.EVM,
 	state vm.StateDB,
 	header *types.Header,
@@ -1635,7 +1619,7 @@ func applyMessage(
 	if err != nil {
 		log.Error("apply message failed", "msg", string(ret), "err", err)
 	}
-	return msg.Gas() - returnGas, err
+	return msg.GasLimit - returnGas, err
 }
 
 // proposalKey build a key which is a combination of the block number and the proposer address.

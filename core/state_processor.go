@@ -94,7 +94,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		txNum   = len(block.Transactions())
 	)
 	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
-		ProcessBeaconBlockRoot(*beaconRoot, vmenv, tracingStateDB)
+		ProcessBeaconBlockRoot(*beaconRoot, evm)
 	}
 	// Iterate over and process the individual transactions
 	posa, isPoSA := p.engine.(consensus.PoSA)
@@ -116,7 +116,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			}
 		}
 	}
-	err := p.engine.BeforeValidateTx(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
+	err := p.engine.BeforeValidateTx(p.bc, header, tracingStateDB, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas, cfg.Tracer)
 	if err != nil {
 		return statedb, receipts, allLogs, *usedGas, err
 	}
@@ -251,11 +251,17 @@ func ApplyTransaction(config *params.ChainConfig, evm *vm.EVM, gp *GasPool, stat
 
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root
 // contract. This method is exported to be used in tests.
-func ProcessBeaconBlockRoot(beaconRoot common.Hash, vmenv *vm.EVM, statedb *state.StateDB) {
-	if tracer := vmenv.Config.Tracer; tracer != nil {
+func ProcessBeaconBlockRoot(beaconRoot common.Hash, evm *vm.EVM) {
+	// Return immediately if beaconRoot equals the zero hash when using the Satoshi engine.
+	if beaconRoot == (common.Hash{}) {
+		if chainConfig := evm.ChainConfig(); chainConfig != nil && chainConfig.Satoshi != nil {
+			return
+		}
+	}
+	if tracer := evm.Config.Tracer; tracer != nil {
 		onSystemCallStart(tracer, evm.GetVMContext())
 		if tracer.OnSystemCallEnd != nil {
-			defer vmenv.Config.Tracer.OnSystemCallEnd()
+			defer evm.Config.Tracer.OnSystemCallEnd()
 		}
 	}
 
@@ -270,10 +276,10 @@ func ProcessBeaconBlockRoot(beaconRoot common.Hash, vmenv *vm.EVM, statedb *stat
 		To:        &params.BeaconRootsAddress,
 		Data:      beaconRoot[:],
 	}
-	vmenv.SetTxContext(NewEVMTxContext(msg))
-	statedb.AddAddressToAccessList(params.BeaconRootsAddress)
-	_, _, _ = vmenv.Call(vm.AccountRef(msg.From), *msg.To, msg.Data, 30_000_000, common.U2560)
-	statedb.Finalise(true)
+	evm.SetTxContext(NewEVMTxContext(msg))
+	evm.StateDB.AddAddressToAccessList(params.BeaconRootsAddress)
+	_, _, _ = evm.Call(vm.AccountRef(msg.From), *msg.To, msg.Data, 30_000_000, common.U2560)
+	evm.StateDB.Finalise(true)
 }
 
 func onSystemCallStart(tracer *tracing.Hooks, ctx *tracing.VMContext) {

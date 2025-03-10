@@ -713,7 +713,7 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 		state:    state,
 		coinbase: coinbase,
 		header:   header,
-		evm:      vm.NewEVM(core.NewEVMBlockContext(header, miner.chain, &coinbase), state, miner.chainConfig, vm.Config{}),
+		evm:      vm.NewEVM(core.NewEVMBlockContext(header, w.chain, &coinbase), state, w.chainConfig, vm.Config{}),
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -1055,7 +1055,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	systemcontracts.UpgradeBuildInSystemContract(w.chainConfig, header.Number, parent.Time, header.Time, env.state)
 
 	if header.ParentBeaconRoot != nil {
-		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, env.evm, env.state)
+		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, env.evm)
 	}
 	return env, nil
 }
@@ -1228,7 +1228,7 @@ LOOP:
 		prevWork = work
 		workList = append(workList, work)
 
-		err = w.engine.BeforePackTx(w.chain, work.header, work.state, &work.txs, nil, &work.receipts)
+		err = w.engine.BeforePackTx(w.chain, work.header, work.state, &work.txs, nil, &work.receipts, nil)
 		if err != nil {
 			log.Error("Failed to pack system tx", "err", err)
 			return

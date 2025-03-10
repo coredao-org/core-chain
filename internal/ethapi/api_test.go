@@ -29,17 +29,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-
-	"slices"
-	"strings"
-	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -63,8 +59,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/triedb"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 )
 
 var emptyBlob = kzg4844.Blob{}
@@ -1072,7 +1066,7 @@ func TestCall(t *testing.T) {
 			},
 			overrides: StateOverride{
 				dad: OverrideAccount{
-					State: &map[common.Hash]common.Hash{},
+					State: map[common.Hash]common.Hash{},
 				},
 			},
 			want: "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -3559,8 +3553,10 @@ func (p *precompileContract) RequiredGas(input []byte) uint64 { return 0 }
 func (p *precompileContract) Run(input []byte) ([]byte, error) { return nil, nil }
 
 func TestStateOverrideMovePrecompile(t *testing.T) {
-	db := state.NewDatabase(triedb.NewDatabase(rawdb.NewMemoryDatabase(), nil), nil)
-	statedb, err := state.New(common.Hash{}, db)
+	disk := rawdb.NewMemoryDatabase()
+	tdb := triedb.NewDatabase(disk, nil)
+	db := state.NewDatabaseWithNodeDB(disk, tdb)
+	statedb, err := state.New(common.Hash{}, db, nil)
 	if err != nil {
 		t.Fatalf("failed to create statedb: %v", err)
 	}

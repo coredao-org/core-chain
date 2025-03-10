@@ -105,7 +105,7 @@ func (b *BlockGen) SetParentBeaconRoot(root common.Hash) {
 		blockContext = NewEVMBlockContext(b.header, b.cm, &b.header.Coinbase)
 		evm          = vm.NewEVM(blockContext, b.statedb, b.cm.config, vm.Config{})
 	)
-	ProcessBeaconBlockRoot(root, evm, b.statedb)
+	ProcessBeaconBlockRoot(root, evm)
 }
 
 // addTx adds a transaction to the generated block. If no coinbase has
@@ -124,7 +124,7 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 		evm          = vm.NewEVM(blockContext, b.statedb, b.cm.config, vmConfig)
 	)
 	b.statedb.SetTxContext(tx.Hash(), len(b.txs))
-	receipt, err := ApplyTransaction(b.cm.config, evm, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vmConfig, NewReceiptBloomGenerator())
+	receipt, err := ApplyTransaction(b.cm.config, evm, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, NewReceiptBloomGenerator())
 	if err != nil {
 		panic(err)
 	}

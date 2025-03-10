@@ -609,7 +609,6 @@ func (s *stateObject) CodeSize() int {
 }
 
 func (s *stateObject) SetCode(codeHash common.Hash, code []byte) {
-	prevcode := s.Code()
 	s.db.journal.setCode(s.address)
 	s.setCode(codeHash, code)
 }

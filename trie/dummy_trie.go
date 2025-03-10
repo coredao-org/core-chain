@@ -64,8 +64,8 @@ func (t *EmptyTrie) DeleteAccount(address common.Address) error {
 	return nil
 }
 
-func (t *EmptyTrie) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet, error) {
-	return common.Hash{}, nil, nil
+func (t *EmptyTrie) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet) {
+	return common.Hash{}, nil
 }
 
 func (t *EmptyTrie) Hash() common.Hash {

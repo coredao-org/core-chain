@@ -20,12 +20,10 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie/utils"
 	"github.com/holiman/uint256"
 )
 
@@ -55,6 +53,10 @@ func (s *hookedStateDB) CreateContract(addr common.Address) {
 
 func (s *hookedStateDB) GetBalance(addr common.Address) *uint256.Int {
 	return s.inner.GetBalance(addr)
+}
+
+func (s *hookedStateDB) SetBalance(addr common.Address, amount *uint256.Int, reason tracing.BalanceChangeReason) {
+	s.inner.SetBalance(addr, amount, reason)
 }
 
 func (s *hookedStateDB) GetNonce(addr common.Address) uint64 {
@@ -133,12 +135,16 @@ func (s *hookedStateDB) AddSlotToAccessList(addr common.Address, slot common.Has
 	s.inner.AddSlotToAccessList(addr, slot)
 }
 
-func (s *hookedStateDB) PointCache() *utils.PointCache {
-	return s.inner.PointCache()
-}
-
 func (s *hookedStateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList) {
 	s.inner.Prepare(rules, sender, coinbase, dest, precompiles, txAccesses)
+}
+
+func (s *hookedStateDB) SetTxContext(thash common.Hash, ti int) {
+	s.inner.SetTxContext(thash, ti)
+}
+
+func (s *hookedStateDB) TxIndex() int {
+	return s.inner.TxIndex()
 }
 
 func (s *hookedStateDB) RevertToSnapshot(i int) {
@@ -151,10 +157,6 @@ func (s *hookedStateDB) Snapshot() int {
 
 func (s *hookedStateDB) AddPreimage(hash common.Hash, bytes []byte) {
 	s.inner.Snapshot()
-}
-
-func (s *hookedStateDB) Witness() *stateless.Witness {
-	return s.inner.Witness()
 }
 
 func (s *hookedStateDB) SubBalance(addr common.Address, amount *uint256.Int, reason tracing.BalanceChangeReason) uint256.Int {
@@ -252,6 +254,10 @@ func (s *hookedStateDB) AddLog(log *types.Log) {
 	}
 }
 
+func (s *hookedStateDB) GetLogs(hash common.Hash, blockNumber uint64, blockHash common.Hash) []*types.Log {
+	return s.inner.GetLogs(hash, blockNumber, blockHash)
+}
+
 func (s *hookedStateDB) Finalise(deleteEmptyObjects bool) {
 	defer s.inner.Finalise(deleteEmptyObjects)
 	if s.hooks.OnBalanceChange == nil {
@@ -266,4 +272,8 @@ func (s *hookedStateDB) Finalise(deleteEmptyObjects bool) {
 			}
 		}
 	}
+}
+
+func (s *hookedStateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
+	return s.inner.IntermediateRoot(deleteEmptyObjects)
 }
