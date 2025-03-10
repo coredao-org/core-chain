@@ -188,7 +188,7 @@ func (c *CacheConfig) triedbConfig() *triedb.Config {
 			SyncFlush:       c.PathSyncFlush,
 			StateHistory:    c.StateHistory,
 			CleanCacheSize:  c.TrieCleanLimit * 1024 * 1024,
-			DirtyCacheSize:  c.TrieDirtyLimit * 1024 * 1024,
+			WriteBufferSize: c.TrieDirtyLimit * 1024 * 1024,
 			JournalFilePath: c.JournalFilePath,
 			JournalFile:     c.JournalFile,
 		}

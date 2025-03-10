@@ -108,9 +108,9 @@ func newTester(t *testing.T, historyLimit uint64) *tester {
 	var (
 		disk, _ = rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), t.TempDir(), "", false, false, false, false, false)
 		db      = New(disk, &Config{
-			StateHistory:   historyLimit,
-			CleanCacheSize: 256 * 1024,
-			DirtyCacheSize: 256 * 1024,
+			StateHistory:    historyLimit,
+			CleanCacheSize:  256 * 1024,
+			WriteBufferSize: 256 * 1024,
 		})
 		obj = &tester{
 			db:           db,

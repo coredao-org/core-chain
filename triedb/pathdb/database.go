@@ -108,7 +108,7 @@ type Config struct {
 	SyncFlush       bool   // Flag of trienodebuffer sync flush cache to disk
 	StateHistory    uint64 // Number of recent blocks to maintain state history for
 	CleanCacheSize  int    // Maximum memory allowance (in bytes) for caching clean nodes
-	DirtyCacheSize  int    // Maximum memory allowance (in bytes) for caching dirty nodes
+	WriteBufferSize int    // Maximum memory allowance (in bytes) for write buffer
 	ReadOnly        bool   // Flag whether the database is opened in read only mode.
 	NoTries         bool
 	JournalFilePath string
@@ -119,18 +119,18 @@ type Config struct {
 // unreasonable or unworkable.
 func (c *Config) sanitize() *Config {
 	conf := *c
-	if conf.DirtyCacheSize > MaxDirtyBufferSize {
-		log.Warn("Sanitizing invalid node buffer size", "provided", common.StorageSize(conf.DirtyCacheSize), "updated", common.StorageSize(MaxDirtyBufferSize))
-		conf.DirtyCacheSize = MaxDirtyBufferSize
+	if conf.WriteBufferSize > MaxDirtyBufferSize {
+		log.Warn("Sanitizing invalid node buffer size", "provided", common.StorageSize(conf.WriteBufferSize), "updated", common.StorageSize(MaxDirtyBufferSize))
+		conf.WriteBufferSize = MaxDirtyBufferSize
 	}
 	return &conf
 }
 
 // Defaults contains default settings for Ethereum mainnet.
 var Defaults = &Config{
-	StateHistory:   params.FullImmutabilityThreshold,
-	CleanCacheSize: defaultCleanSize,
-	DirtyCacheSize: DefaultDirtyBufferSize,
+	StateHistory:    params.FullImmutabilityThreshold,
+	CleanCacheSize:  defaultCleanSize,
+	WriteBufferSize: DefaultDirtyBufferSize,
 }
 
 // ReadOnly is the config in order to open database in read only mode.
@@ -172,7 +172,7 @@ func New(diskdb ethdb.Database, config *Config) *Database {
 
 	db := &Database{
 		readOnly:   config.ReadOnly,
-		bufferSize: config.DirtyCacheSize,
+		bufferSize: config.WriteBufferSize,
 		config:     config,
 		diskdb:     diskdb,
 	}
@@ -343,8 +343,7 @@ func (db *Database) Enable(root common.Hash) error {
 	}
 	// Re-construct a new disk layer backed by persistent state
 	// with **empty clean cache and node buffer**.
-	dl := newDiskLayer(root, 0, db, nil, NewTrieNodeBuffer(db.config.SyncFlush, db.bufferSize, nil, 0))
-	db.tree.reset(dl)
+	db.tree.reset(newDiskLayer(root, 0, db, nil, NewTrieNodeBuffer(db.config.SyncFlush, db.config.WriteBufferSize, nil, 0)))
 
 	// Re-enable the database as the final step.
 	db.waitSync = false
