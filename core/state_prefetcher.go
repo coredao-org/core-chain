@@ -64,7 +64,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 			}
 			gaspool := new(GasPool).AddGas(block.GasLimit())
 			blockContext := NewEVMBlockContext(header, p.bc, nil)
-			evm := vm.NewEVM(blockContext, statedb, p.config, *cfg)
+			evm := vm.NewEVM(blockContext, newStatedb, p.config, *cfg)
 			// Iterate over and process the individual transactions
 			for {
 				select {
@@ -114,7 +114,7 @@ func (p *statePrefetcher) PrefetchMining(txs TransactionsByPriceAndNonce, header
 			}
 			gaspool := new(GasPool).AddGas(gasLimit)
 			blockContext := NewEVMBlockContext(header, p.bc, nil)
-			evm := vm.NewEVM(blockContext, statedb, p.config, cfg)
+			evm := vm.NewEVM(blockContext, newStatedb, p.config, cfg)
 			// Iterate over and process the individual transactions
 			for {
 				select {
