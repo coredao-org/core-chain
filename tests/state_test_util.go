@@ -319,7 +319,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	//   the coinbase gets no txfee, so isn't created, and thus needs to be touched
 	st.StateDB.AddBalance(block.Coinbase(), new(uint256.Int), tracing.BalanceChangeUnspecified)
 	// And _now_ get the state root
-	// TODO(CZ): can we remove next line and move SetExpectedStateRoot down?
+	// TODO(CZ): can we remove next line?
 	root = st.StateDB.IntermediateRoot(config.IsEIP158(block.Number()))
 	st.StateDB.SetExpectedStateRoot(root)
 	root, _, _ = st.StateDB.Commit(block.NumberU64(), config.IsEIP158(block.Number()))
