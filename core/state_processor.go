@@ -240,12 +240,6 @@ func ApplyTransaction(config *params.ChainConfig, evm *vm.EVM, gp *GasPool, stat
 	if err != nil {
 		return nil, err
 	}
-	// TODO(CZ): do we need this?
-	defer func() {
-		ite := evm.Interpreter()
-		vm.EVMInterpreterPool.Put(ite)
-		vm.EvmPool.Put(evm)
-	}()
 	return ApplyTransactionWithEVM(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, evm, receiptProcessors...)
 }
 

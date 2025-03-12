@@ -19,7 +19,6 @@ package vm
 import (
 	"errors"
 	"math/big"
-	"sync"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -29,12 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
-
-var EvmPool = sync.Pool{
-	New: func() interface{} {
-		return &EVM{}
-	},
-}
 
 type (
 	// CanTransferFunc is the signature of a transfer guard function
@@ -124,17 +117,13 @@ type EVM struct {
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
 func NewEVM(blockCtx BlockContext, statedb StateDB, chainConfig *params.ChainConfig, config Config) *EVM {
-	evm := EvmPool.Get().(*EVM)
-	evm.Context = blockCtx
-	evm.StateDB = statedb
-	evm.Config = config
-	evm.chainConfig = chainConfig
-	evm.chainRules = chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time)
-
-	evm.abort.Store(false)
-	evm.callGasTemp = 0
-	evm.depth = 0
-
+	evm := &EVM{
+		Context:     blockCtx,
+		StateDB:     statedb,
+		Config:      config,
+		chainConfig: chainConfig,
+		chainRules:  chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
+	}
 	evm.precompiles = activePrecompiledContracts(evm.chainRules)
 	evm.interpreter = NewEVMInterpreter(evm)
 
