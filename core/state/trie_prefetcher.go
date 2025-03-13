@@ -404,12 +404,6 @@ func (sf *subfetcher) terminate(async bool) {
 	default:
 		close(sf.stop)
 	}
-	// no need to wait <-sf.term here, will check sf.term later
-	// TODO: CZ: verify if we need to wait here?
-	// if async {
-	// 	return
-	// }
-	// <-sf.term
 }
 
 // loop loads newly-scheduled trie tasks as they are received and loads them, stopping
