@@ -24,15 +24,28 @@ func _() {
 	_ = x[BalanceDecreaseSelfdestruct-13]
 	_ = x[BalanceDecreaseSelfdestructBurn-14]
 	_ = x[BalanceChangeRevert-15]
+	_ = x[BalanceDecreaseCoreDistributeReward-180]
+	_ = x[BalanceIncreaseCoreDistributeReward-181]
 }
 
-const _BalanceChangeReason_name = "BalanceChangeUnspecifiedBalanceIncreaseRewardMineUncleBalanceIncreaseRewardMineBlockBalanceIncreaseWithdrawalBalanceIncreaseGenesisBalanceBalanceIncreaseRewardTransactionFeeBalanceDecreaseGasBuyBalanceIncreaseGasReturnBalanceIncreaseDaoContractBalanceDecreaseDaoAccountBalanceChangeTransferBalanceChangeTouchAccountBalanceIncreaseSelfdestructBalanceDecreaseSelfdestructBalanceDecreaseSelfdestructBurnBalanceChangeRevert"
+const (
+	_BalanceChangeReason_name_0 = "BalanceChangeUnspecifiedBalanceIncreaseRewardMineUncleBalanceIncreaseRewardMineBlockBalanceIncreaseWithdrawalBalanceIncreaseGenesisBalanceBalanceIncreaseRewardTransactionFeeBalanceDecreaseGasBuyBalanceIncreaseGasReturnBalanceIncreaseDaoContractBalanceDecreaseDaoAccountBalanceChangeTransferBalanceChangeTouchAccountBalanceIncreaseSelfdestructBalanceDecreaseSelfdestructBalanceDecreaseSelfdestructBurnBalanceChangeRevert"
+	_BalanceChangeReason_name_1 = "BalanceDecreaseCoreDistributeRewardBalanceIncreaseCoreDistributeReward"
+)
 
-var _BalanceChangeReason_index = [...]uint16{0, 24, 54, 84, 109, 138, 173, 194, 218, 244, 269, 290, 315, 342, 369, 400, 419}
+var (
+	_BalanceChangeReason_index_0 = [...]uint16{0, 24, 54, 84, 109, 138, 173, 194, 218, 244, 269, 290, 315, 342, 369, 400, 419}
+	_BalanceChangeReason_index_1 = [...]uint8{0, 35, 70}
+)
 
 func (i BalanceChangeReason) String() string {
-	if i >= BalanceChangeReason(len(_BalanceChangeReason_index)-1) {
+	switch {
+	case i <= 15:
+		return _BalanceChangeReason_name_0[_BalanceChangeReason_index_0[i]:_BalanceChangeReason_index_0[i+1]]
+	case 180 <= i && i <= 181:
+		i -= 180
+		return _BalanceChangeReason_name_1[_BalanceChangeReason_index_1[i]:_BalanceChangeReason_index_1[i+1]]
+	default:
 		return "BalanceChangeReason(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _BalanceChangeReason_name[_BalanceChangeReason_index[i]:_BalanceChangeReason_index[i+1]]
 }
