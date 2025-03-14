@@ -35,6 +35,7 @@ import (
 )
 
 //go:generate go run github.com/fjl/gencodec -type account -field-override accountMarshaling -out gen_account_json.go
+//go:generate go run github.com/fjl/gencodec -type balanceChange -field-override balanceChangeMarshaling -out gen_balance_change_json.go
 
 func init() {
 	tracers.DefaultDirectory.Register("prestateTracer", newPrestateTracer, false)
@@ -43,11 +44,12 @@ func init() {
 type stateMap = map[common.Address]*account
 
 type account struct {
-	Balance *big.Int                    `json:"balance,omitempty"`
-	Code    []byte                      `json:"code,omitempty"`
-	Nonce   uint64                      `json:"nonce,omitempty"`
-	Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
-	empty   bool
+	Balance        *big.Int                    `json:"balance,omitempty"`
+	Code           []byte                      `json:"code,omitempty"`
+	Nonce          uint64                      `json:"nonce,omitempty"`
+	Storage        map[common.Hash]common.Hash `json:"storage,omitempty"`
+	BalanceReasons []balanceChange             `json:"balanceReasons,omitempty"`
+	empty          bool
 }
 
 func (a *account) exists() bool {
@@ -59,20 +61,32 @@ type accountMarshaling struct {
 	Code    hexutil.Bytes
 }
 
+type balanceChange struct {
+	Prev   *big.Int                    `json:"prev"`
+	New    *big.Int                    `json:"new"`
+	Reason tracing.BalanceChangeReason `json:"reason"`
+}
+
+type balanceChangeMarshaling struct {
+	Prev *hexutil.Big
+	New  *hexutil.Big
+}
 type prestateTracer struct {
-	env       *tracing.VMContext
-	pre       stateMap
-	post      stateMap
-	to        common.Address
-	config    prestateTracerConfig
-	interrupt atomic.Bool // Atomic flag to signal execution interruption
-	reason    error       // Textual reason for the interruption
-	created   map[common.Address]bool
-	deleted   map[common.Address]bool
+	env            *tracing.VMContext
+	pre            stateMap
+	post           stateMap
+	balanceChanges map[common.Address][]balanceChange
+	to             common.Address
+	config         prestateTracerConfig
+	interrupt      atomic.Bool // Atomic flag to signal execution interruption
+	reason         error       // Textual reason for the interruption
+	created        map[common.Address]bool
+	deleted        map[common.Address]bool
 }
 
 type prestateTracerConfig struct {
 	DiffMode       bool `json:"diffMode"`       // If true, this tracer will return state modifications
+	BalanceReasons bool `json:"balanceReasons"` // If true, this tracer will return the reason for the balance change
 	DisableCode    bool `json:"disableCode"`    // If true, this tracer will not return the contract code
 	DisableStorage bool `json:"disableStorage"` // If true, this tracer will not return the contract storage
 }
@@ -83,17 +97,19 @@ func newPrestateTracer(ctx *tracers.Context, cfg json.RawMessage, chainConfig *p
 		return nil, err
 	}
 	t := &prestateTracer{
-		pre:     stateMap{},
-		post:    stateMap{},
-		config:  config,
-		created: make(map[common.Address]bool),
-		deleted: make(map[common.Address]bool),
+		pre:            stateMap{},
+		post:           stateMap{},
+		balanceChanges: make(map[common.Address][]balanceChange),
+		config:         config,
+		created:        make(map[common.Address]bool),
+		deleted:        make(map[common.Address]bool),
 	}
 	return &tracers.Tracer{
 		Hooks: &tracing.Hooks{
-			OnTxStart: t.OnTxStart,
-			OnTxEnd:   t.OnTxEnd,
-			OnOpcode:  t.OnOpcode,
+			OnTxStart:       t.OnTxStart,
+			OnTxEnd:         t.OnTxEnd,
+			OnOpcode:        t.OnOpcode,
+			OnBalanceChange: t.OnBalanceChange,
 		},
 		GetResult: t.GetResult,
 		Stop:      t.Stop,
@@ -186,6 +202,27 @@ func (t *prestateTracer) OnTxEnd(receipt *types.Receipt, err error) {
 	}
 }
 
+func (t *prestateTracer) OnBalanceChange(a common.Address, prev, new *big.Int, reason tracing.BalanceChangeReason) {
+	// Skip if tracing was interrupted
+	if t.interrupt.Load() {
+		return
+	}
+
+	if !t.config.BalanceReasons {
+		return
+	}
+
+	t.lookupAccount(a)
+	if s := t.pre[a]; s != nil {
+		t.pre[a].Balance = prev
+	}
+
+	if _, ok := t.balanceChanges[a]; !ok {
+		t.balanceChanges[a] = []balanceChange{}
+	}
+	t.balanceChanges[a] = append(t.balanceChanges[a], balanceChange{prev, new, reason})
+}
+
 // GetResult returns the json-encoded nested list of call traces, and any
 // error arising from the encoding or forceful termination (via `Stop`).
 func (t *prestateTracer) GetResult() (json.RawMessage, error) {
@@ -260,6 +297,9 @@ func (t *prestateTracer) processDiffState() {
 
 		if modified {
 			t.post[addr] = postAccount
+			if reasons, ok := t.balanceChanges[addr]; ok {
+				postAccount.BalanceReasons = reasons
+			}
 		} else {
 			// if state is not modified, then no need to include into the pre state
 			delete(t.pre, addr)

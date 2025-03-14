@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/core/vm/program"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/params"
@@ -299,6 +300,10 @@ type dummyChain struct {
 
 // Engine retrieves the chain's consensus engine.
 func (d *dummyChain) Engine() consensus.Engine {
+	return nil
+}
+
+func (d *dummyChain) FeeMarket() *feemarket.FeeMarket {
 	return nil
 }
 

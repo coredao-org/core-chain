@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
@@ -1531,11 +1532,25 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	cx := chainContext{Chain: chain, satoshi: p}
 
+	if bc, ok := chain.(*core.BlockChain); ok {
+		cx.feemarket = bc.FeeMarket()
+	}
 	if body.Transactions == nil {
 		body.Transactions = make([]*types.Transaction, 0)
 	}
 	if receipts == nil {
 		receipts = make([]*types.Receipt, 0)
+	}
+
+	// Recalculate the cumulative gas used for each receipt, because of the fee market distributed gas
+	if p.chainConfig.IsTheseus(header.Number, header.Time) {
+		for i, receipt := range receipts {
+			if i == 0 {
+				receipt.CumulativeGasUsed = receipt.GasUsed
+			} else {
+				receipt.CumulativeGasUsed = receipts[i-1].CumulativeGasUsed + receipt.GasUsed
+			}
+		}
 	}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
@@ -2253,6 +2268,12 @@ func (p *Satoshi) applyTransaction(
 	tracingReceipt = types.NewReceipt(root, false, *usedGas)
 	tracingReceipt.TxHash = expectedTx.Hash()
 	tracingReceipt.GasUsed = gasUsed
+	if p.chainConfig.IsTheseus(header.Number, header.Time) {
+		tracingReceipt.DistributedGas = 0
+		if len(*receipts) > 0 {
+			tracingReceipt.CumulativeGasUsed = (*receipts)[len(*receipts)-1].CumulativeGasUsed + gasUsed
+		}
+	}
 
 	// Set the receipt logs and create a bloom for filtering
 	tracingReceipt.Logs = state.GetLogs(expectedTx.Hash(), header.Number.Uint64(), header.Hash())
@@ -2473,8 +2494,9 @@ func (p *Satoshi) NextProposalBlock(chain consensus.ChainHeaderReader, header *t
 
 // chain context
 type chainContext struct {
-	Chain   consensus.ChainHeaderReader
-	satoshi consensus.Engine
+	Chain     consensus.ChainHeaderReader
+	satoshi   consensus.Engine
+	feemarket *feemarket.FeeMarket
 }
 
 func (c chainContext) Engine() consensus.Engine {
@@ -2487,6 +2509,10 @@ func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
 
 func (c chainContext) Config() *params.ChainConfig {
 	return c.Chain.Config()
+}
+
+func (c chainContext) FeeMarket() *feemarket.FeeMarket {
+	return c.feemarket
 }
 
 // apply message

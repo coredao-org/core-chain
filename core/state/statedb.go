@@ -1097,6 +1097,11 @@ func (s *StateDB) ClearAccessList() {
 	s.accessList = nil
 }
 
+// TxHash returns the current transaction hash which is used when the EVM emits new state logs.
+func (s *StateDB) TxHash() common.Hash {
+	return s.thash
+}
+
 func (s *StateDB) clearJournalAndRefund() {
 	s.journal.reset()
 	s.refund = 0

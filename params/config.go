@@ -232,6 +232,7 @@ var (
 		KeplerTime:          newUint64(0),
 		DemeterTime:         newUint64(0),
 		AthenaTime:          newUint64(0),
+		TheseusTime:         newUint64(0),
 		CancunTime:          newUint64(0),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
@@ -500,6 +501,7 @@ type ChainConfig struct {
 	KeplerTime   *uint64 `json:"keplerTime,omitempty"`   // Kepler switch time (nil = no fork, 0 = already activated)
 	DemeterTime  *uint64 `json:"demeterTime,omitempty" ` // Demeter switch time (nil = no fork, 0 = already on demeter)
 	AthenaTime   *uint64 `json:"athenaTime,omitempty"`   // Athena switch time (nil = no fork, 0 = already on athena)
+	TheseusTime  *uint64 `json:"theseusTime,omitempty" ` // Theseus switch time (nil = no fork, 0 = already on theseus)
 	CancunTime   *uint64 `json:"cancunTime,omitempty"`   // Cancun switch time (nil = no fork, 0 = already on cancun)
 	LubanTime    *uint64 `json:"lubanTime,omitempty"`    // Luban switch time (nil = no fork, 0 = already on luban)
 	PlatoTime    *uint64 `json:"platoTime,omitempty"`    // Plato switch time (nil = no fork, 0 = already on plato)
@@ -646,6 +648,7 @@ func (c *ChainConfig) String() string {
 		{"KeplerTime", c.KeplerTime},
 		{"DemeterTime", c.DemeterTime},
 		{"AthenaTime", c.AthenaTime},
+		{"TheseusTime", c.TheseusTime},
 		{"CancunTime", c.CancunTime},
 		{"LubanTime", c.LubanTime},
 		{"PlatoTime", c.PlatoTime},
@@ -871,7 +874,21 @@ func (c *ChainConfig) IsOnAthena(currentBlockNumber *big.Int, lastBlockTime uint
 	return !c.IsAthena(lastBlockNumber, lastBlockTime) && c.IsAthena(currentBlockNumber, currentBlockTime)
 }
 
-// IsCancun returns whether time is either equal to the Cancun fork time or greater.
+// IsTheseus returns whether time is either equal to the theseus fork time or greater.
+func (c *ChainConfig) IsTheseus(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.TheseusTime, time)
+}
+
+// IsOnTheseus returns whether currentBlockTime is either equal to the theseus fork time or greater firstly.
+func (c *ChainConfig) IsOnTheseus(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsTheseus(lastBlockNumber, lastBlockTime) && c.IsTheseus(currentBlockNumber, currentBlockTime)
+}
+
+// IsCancun returns whether num is either equal to the Cancun fork time or greater.
 func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
 }
@@ -1079,6 +1096,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "keplerTime", timestamp: c.KeplerTime},
 		{name: "demeterTime", timestamp: c.DemeterTime},
 		{name: "athenaTime", timestamp: c.AthenaTime},
+		{name: "theseusTime", timestamp: c.TheseusTime},
 		{name: "cancunTime", timestamp: c.CancunTime},
 		{name: "haberTime", timestamp: c.HaberTime},
 		{name: "haberFixTime", timestamp: c.HaberFixTime},
@@ -1245,6 +1263,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.AthenaTime, newcfg.AthenaTime, headTimestamp) {
 		return newTimestampCompatError("Athena fork timestamp", c.AthenaTime, newcfg.AthenaTime)
+	}
+	if isForkTimestampIncompatible(c.TheseusTime, newcfg.TheseusTime, headTimestamp) {
+		return newTimestampCompatError("Theseus fork timestamp", c.TheseusTime, newcfg.TheseusTime)
 	}
 	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {
 		return newTimestampCompatError("Cancun fork timestamp", c.CancunTime, newcfg.CancunTime)

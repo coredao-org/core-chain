@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -441,6 +442,10 @@ func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.Ma
 
 func (b *EthAPIBackend) Engine() consensus.Engine {
 	return b.eth.engine
+}
+
+func (b *EthAPIBackend) FeeMarket() *feemarket.FeeMarket {
+	return b.eth.blockchain.FeeMarket()
 }
 
 func (b *EthAPIBackend) CurrentValidators() ([]common.Address, error) {

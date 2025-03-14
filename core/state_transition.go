@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -28,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -35,10 +37,11 @@ import (
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
 type ExecutionResult struct {
-	UsedGas     uint64 // Total used gas, not including the refunded gas
-	RefundedGas uint64 // Total gas refunded after execution
-	Err         error  // Any error encountered during the execution(listed in core/vm/errors.go)
-	ReturnData  []byte // Returned data from evm(function result or data supplied with revert opcode)
+	UsedGas        uint64 // Total used gas, not including the refunded gas
+	DistributedGas uint64 // Total gas distributed to the recipients
+	RefundedGas    uint64 // Total gas refunded after execution
+	Err            error  // Any error encountered during the execution(listed in core/vm/errors.go)
+	ReturnData     []byte // Returned data from evm(function result or data supplied with revert opcode)
 }
 
 // Unwrap returns the internal evm error which allows us for further
@@ -510,6 +513,7 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, value)
 	}
 
+	// TODO(cz): move gas Refund after Rev+
 	// Compute refund counter, capped to a refund quotient.
 	gasRefund := st.calcRefund()
 	st.gasRemaining += gasRefund
@@ -533,11 +537,163 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		}
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
+	// effectiveTip := msg.GasPrice
+	// if rules.IsLondon {
+	// 	effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
+	// }
+	// effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
+	// Keep track of the distributed amounts in order to remove it from the validator fee
+	distributedAmount := uint256.NewInt(0)
+
+	// Keep track of the distributed gas to the fee market reward recipients
+	distributedGas := uint64(0)
+
+	// For Satoshi consensus engine, we need to distribute the fee market rewards.
+	// If no rewards, the gas is refunded to the user.
+	isTheseus := st.evm.ChainConfig().IsTheseus(st.evm.Context.BlockNumber, st.evm.Context.Time)
+	if st.evm.ChainConfig().Satoshi != nil && isTheseus {
+		// Check if is a contract call
+		isContractCall := contractCreation || (msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0)
+		if vmerr == nil && isContractCall {
+			// Get a snapshot of the state before the distribution
+			snapshot := st.state.Snapshot()
+
+			// Get tx logs. Only tx hash is used to get logs, the blockNumber and blockHash
+			// are only being filled in the logs, we can ignore them in this specific use case.
+			logs := st.state.GetLogs(st.evm.StateDB.TxHash(), st.evm.Context.BlockNumber.Uint64(), common.Hash{})
+
+			fm := st.evm.Context.FeeMarket
+
+			if len(logs) > 0 && fm != nil {
+				feeMarketDenominator := feemarket.DENOMINATOR
+
+				// Cache of the configs for this transaction only, we consider that only our governance contract
+				// can add/update/remove configs and for this reason we don't need to check and invalidate for config changes.
+				configs := make(map[common.Address]types.FeeMarketConfig)
+
+			LOOP:
+				for _, eventLog := range logs {
+					if eventLog.Removed {
+						continue
+					}
+
+					// Check if is a precompile
+					if isPrecompile := slices.Contains(vm.ActivePrecompiles(rules), eventLog.Address); isPrecompile {
+						continue
+					}
+
+					// Get configuration from the fee market
+					config, foundInCache := configs[eventLog.Address]
+					if !foundInCache {
+						freshConfig, configReadGas, found := fm.GetActiveConfig(eventLog.Address, st.state)
+						if st.gasRemaining < configReadGas {
+							vmerr = ErrFeeMarketOutOfGas
+							break LOOP
+						}
+
+						// Remove the computational gas for reading the config from storage
+						st.gasRemaining -= configReadGas
+
+						// Cache the config, even if it's not found, we need to keep it in the cache
+						// to avoid reading the config from storage again.
+						configs[eventLog.Address] = freshConfig
+
+						if !found {
+							continue
+						}
+
+						config = freshConfig
+
+						// Check if config is active as we keep non found configs in the cache
+					} else if !config.IsActive {
+						continue
+					}
+
+					var feeMarketEvent types.FeeMarketEvent
+					for _, event := range config.Events {
+						if event.EventSignature == eventLog.Topics[0] {
+							feeMarketEvent = event
+							break
+						}
+					}
+					if len(feeMarketEvent.Rewards) == 0 {
+						continue
+					}
+
+					for _, reward := range feeMarketEvent.Rewards {
+						// Gas to reward for this specific address
+						rewardGas := (uint64(feeMarketEvent.Gas) * uint64(reward.RewardPercentage)) / uint64(feeMarketDenominator)
+
+						// Check if we have enough gas to distribute the fees
+						if st.gasRemaining < rewardGas+params.FeeMarketDistributeGas {
+							vmerr = ErrFeeMarketOutOfGas
+							break LOOP
+						}
+
+						// Remove the computational gas for fees distributions, no need to add a gas reason with hooks
+						st.gasRemaining -= params.FeeMarketDistributeGas
+
+						// Remove the distributed gas for fees distributions (this is the pumped gas for the fees)
+						st.gasRemaining -= rewardGas
+
+						// Add the reward amount for this specific address
+						rewardAmount := new(uint256.Int).SetUint64(rewardGas)
+						rewardAmount.Mul(rewardAmount, effectiveTipU256)
+
+						if rewardAmount.Sign() > 0 {
+							st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
+						}
+
+						// Track the distributed gas that will be added back the gas pool
+						distributedGas += rewardGas
+
+						// Keep track of the distributed amounts in order to validate for MaxFeeMarketRewardFeesCapPerTx and remove it from the validator fees
+						distributedAmount.Add(distributedAmount, rewardAmount)
+					}
+				}
+
+				if vmerr != nil {
+					// Revert the distributed gas.
+					// This way the user will be refunded the fee market rewards
+					st.gasRemaining += distributedGas
+
+					// Revert the state to the pre-distribution state
+					st.state.RevertToSnapshot(snapshot)
+
+					// Reset the distributed amounts
+					distributedAmount.SetUint64(0)
+					distributedGas = 0
+				}
+
+				// Return distributed gas to the block gas pool (block gas pump) so it is
+				// available for the next transaction.
+				if distributedGas > 0 {
+					st.gp.AddGas(distributedGas)
+				}
+			}
+		}
+	}
+
+	// var gasRefund uint64
+	// if !rules.IsLondon {
+	// 	// Before EIP-3529: refunds were capped to gasUsed / 2
+	// 	gasRefund = st.refundGas(params.RefundQuotient)
+	// } else {
+	// 	// After EIP-3529: refunds are capped to gasUsed / 5
+	// 	gasRefund = st.refundGas(params.RefundQuotientEIP3529)
+	// }
+
+	// Keep the fee calculation after the fee market distribution and gas refund
 	fee := new(uint256.Int).SetUint64(st.gasUsed())
 	fee.Mul(fee, effectiveTipU256)
 	// consensus engine is Satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
+		// Subtract the distributed amount from the fee to validator
+		if distributedAmount.Sign() > 0 && distributedAmount.Cmp(fee) <= 0 {
+			fee.Sub(fee, distributedAmount)
+		}
+
 		st.state.AddBalance(consensus.SystemAddress, fee, tracing.BalanceIncreaseRewardTransactionFee)
 		// add extra blob fee reward
 		if rules.IsCancun {
@@ -556,10 +712,11 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 	}
 
 	return &ExecutionResult{
-		UsedGas:     st.gasUsed(),
-		RefundedGas: gasRefund,
-		Err:         vmerr,
-		ReturnData:  ret,
+		UsedGas:        st.gasUsed(),
+		DistributedGas: distributedGas,
+		RefundedGas:    gasRefund,
+		Err:            vmerr,
+		ReturnData:     ret,
 	}, nil
 }
 

@@ -24,18 +24,21 @@ func _() {
 	_ = x[BalanceDecreaseSelfdestruct-13]
 	_ = x[BalanceDecreaseSelfdestructBurn-14]
 	_ = x[BalanceChangeRevert-15]
+	_ = x[BalanceDecreaseCoreDistributeReward-180]
+	_ = x[BalanceIncreaseCoreDistributeReward-181]
+	_ = x[BalanceIncreaseFeeMarketReward-182]
 	_ = x[BalanceDecreaseBSCDistributeReward-210]
 	_ = x[BalanceIncreaseBSCDistributeReward-211]
 }
 
 const (
 	_BalanceChangeReason_name_0 = "BalanceChangeUnspecifiedBalanceIncreaseRewardMineUncleBalanceIncreaseRewardMineBlockBalanceIncreaseWithdrawalBalanceIncreaseGenesisBalanceBalanceIncreaseRewardTransactionFeeBalanceDecreaseGasBuyBalanceIncreaseGasReturnBalanceIncreaseDaoContractBalanceDecreaseDaoAccountBalanceChangeTransferBalanceChangeTouchAccountBalanceIncreaseSelfdestructBalanceDecreaseSelfdestructBalanceDecreaseSelfdestructBurnBalanceChangeRevert"
-	_BalanceChangeReason_name_1 = "BalanceDecreaseBSCDistributeRewardBalanceIncreaseBSCDistributeReward"
+	_BalanceChangeReason_name_1 = "BalanceDecreaseCoreDistributeRewardBalanceIncreaseCoreDistributeRewardBalanceIncreaseFeeMarketReward"
 )
 
 var (
 	_BalanceChangeReason_index_0 = [...]uint16{0, 24, 54, 84, 109, 138, 173, 194, 218, 244, 269, 290, 315, 342, 369, 400, 419}
-	_BalanceChangeReason_index_1 = [...]uint8{0, 34, 68}
+	_BalanceChangeReason_index_1 = [...]uint8{0, 35, 70, 100}
 )
 
 func (i BalanceChangeReason) String() string {

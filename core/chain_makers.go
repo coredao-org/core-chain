@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/triedb"
@@ -735,6 +736,10 @@ func (cm *chainMaker) Config() *params.ChainConfig {
 // Engine returns the consensus engine (for ChainContext).
 func (cm *chainMaker) Engine() consensus.Engine {
 	return cm.engine
+}
+
+func (cm *chainMaker) FeeMarket() *feemarket.FeeMarket {
+	return nil
 }
 
 func (cm *chainMaker) CurrentHeader() *types.Header {

@@ -18,6 +18,7 @@ package core
 
 import (
 	"math/big"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -25,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -40,6 +42,9 @@ type ChainContext interface {
 
 	// Config returns the chain's configuration.
 	Config() *params.ChainConfig
+
+	// Fee market provider for retrieving configurations
+	FeeMarket() *feemarket.FeeMarket
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
@@ -66,7 +71,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	if header.Difficulty.Sign() == 0 {
 		random = &header.MixDigest
 	}
-	return vm.BlockContext{
+	blockContext := vm.BlockContext{
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
 		GetHash:     GetHashFn(header, chain),
@@ -79,6 +84,12 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:    header.GasLimit,
 		Random:      random,
 	}
+	if c := reflect.ValueOf(chain); c.Kind() == reflect.Ptr && !c.IsNil() {
+		if feemarket := chain.FeeMarket(); feemarket != nil {
+			blockContext.FeeMarket = feemarket
+		}
+	}
+	return blockContext
 }
 
 // NewEVMTxContext creates a new transaction context for a single transaction.

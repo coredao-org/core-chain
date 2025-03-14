@@ -41,6 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -132,6 +133,10 @@ func (b *testBackend) ChainConfig() *params.ChainConfig {
 
 func (b *testBackend) Engine() consensus.Engine {
 	return b.engine
+}
+
+func (b *testBackend) FeeMarket() *feemarket.FeeMarket {
+	return nil
 }
 
 func (b *testBackend) ChainDb() ethdb.Database {

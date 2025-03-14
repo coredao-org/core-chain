@@ -153,6 +153,10 @@ func (s *hookedStateDB) SetTxContext(thash common.Hash, ti int) {
 	s.inner.SetTxContext(thash, ti)
 }
 
+func (s *hookedStateDB) TxHash() common.Hash {
+	return s.inner.TxHash()
+}
+
 func (s *hookedStateDB) TxIndex() int {
 	return s.inner.TxIndex()
 }
@@ -279,6 +283,10 @@ func (s *hookedStateDB) AddLog(log *types.Log) {
 
 func (s *hookedStateDB) GetLogs(hash common.Hash, blockNumber uint64, blockHash common.Hash) []*types.Log {
 	return s.inner.GetLogs(hash, blockNumber, blockHash)
+}
+
+func (s *hookedStateDB) Logs() []*types.Log {
+	return s.inner.Logs()
 }
 
 func (s *hookedStateDB) Finalise(deleteEmptyObjects bool) {

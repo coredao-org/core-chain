@@ -313,14 +313,16 @@ const (
 	// It is only emitted when the tracer has opted in to use the journaling wrapper (WrapWithJournal).
 	BalanceChangeRevert BalanceChangeReason = 15
 
-	// BSC specific balance changes
+	// Core specific balance changes
 
-	// BalanceDecreaseBSCDistributeReward is a balance change that decreases system address' balance and happens
-	// when BSC is distributing rewards to validator.
-	BalanceDecreaseBSCDistributeReward BalanceChangeReason = 210
-	// BalanceIncreaseBSCDistributeReward is a balance change that increases the block validator's balance and
-	// happens when BSC is distributing rewards to validator.
-	BalanceIncreaseBSCDistributeReward BalanceChangeReason = 211
+	// BalanceDecreaseCoreDistributeReward is a balance change that decreases system address' balance and happens
+	// when Core is distributing rewards to validator.
+	BalanceDecreaseCoreDistributeReward BalanceChangeReason = 180
+	// BalanceIncreaseCoreDistributeReward is a balance change that increases the block validator's balance and
+	// happens when Core is distributing rewards to validator.
+	BalanceIncreaseCoreDistributeReward BalanceChangeReason = 181
+	// BalanceIncreaseFeeMarketReward is the fee market reward for a transaction.
+	BalanceIncreaseFeeMarketReward BalanceChangeReason = 182
 )
 
 // GasChangeReason is used to indicate the reason for a gas change, useful

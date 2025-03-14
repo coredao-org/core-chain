@@ -45,6 +45,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/syncx"
@@ -341,6 +342,9 @@ type BlockChain struct {
 	// monitor
 	doubleSignMonitor *monitor.DoubleSignMonitor
 	logger            *tracing.Hooks
+
+	// Fee market provider for retrieving configurations
+	feeMarket *feemarket.FeeMarket
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -433,6 +437,11 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	bc.currentBlock.Store(nil)
 	bc.currentSnapBlock.Store(nil)
 	bc.chasingHead.Store(nil)
+
+	// Initialize the fee market provider
+	if bc.chainConfig.Satoshi != nil {
+		bc.feeMarket = feemarket.NewFeeMarket()
+	}
 
 	// Update chain info data metrics
 	chainInfoGauge.Update(metrics.GaugeInfoValue{"chain_id": bc.chainConfig.ChainID.String()})
@@ -619,6 +628,11 @@ func (bc *BlockChain) GetVMConfig() *vm.Config {
 
 func (bc *BlockChain) NoTries() bool {
 	return bc.statedb.NoTries()
+}
+
+// FeeMarket returns the fee market provider
+func (bc *BlockChain) FeeMarket() *feemarket.FeeMarket {
+	return bc.feeMarket
 }
 
 func (bc *BlockChain) cacheReceipts(hash common.Hash, receipts types.Receipts, block *types.Block) {

@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -413,7 +414,8 @@ func (b *backendMock) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent)
 	return nil
 }
 
-func (b *backendMock) Engine() consensus.Engine { return nil }
+func (b *backendMock) Engine() consensus.Engine        { return nil }
+func (b *backendMock) FeeMarket() *feemarket.FeeMarket { return nil }
 
 func (b *backendMock) CurrentValidators() ([]common.Address, error) { return []common.Address{}, nil }
 
