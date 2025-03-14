@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -91,6 +92,7 @@ type Backend interface {
 	ChainDb() ethdb.Database
 	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, readOnly bool, preferDisk bool) (*state.StateDB, StateReleaseFunc, error)
 	StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (*types.Transaction, vm.BlockContext, *state.StateDB, StateReleaseFunc, error)
+	FeeMarket() *feemarket.FeeMarket
 }
 
 // API is the collection of tracing APIs exposed over the private debugging endpoint.
@@ -902,7 +904,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		}
 		vmRet, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.GasLimit))
 		if vmConf.Tracer.OnTxEnd != nil {
-			vmConf.Tracer.OnTxEnd(&types.Receipt{GasUsed: vmRet.UsedGas}, err)
+			vmConf.Tracer.OnTxEnd(&types.Receipt{GasUsed: vmRet.UsedGas, DistributedGas: vmRet.DistributedGas}, err)
 		}
 		if writer != nil {
 			writer.Flush()
