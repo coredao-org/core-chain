@@ -167,6 +167,30 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment similar to ApplyTransaction. However,
 // this method takes an already created EVM instance as input.
 func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, receiptProcessors ...ReceiptProcessor) (receipt *types.Receipt, err error) {
+	// Add a new fee market tracker to the EVM for tracking sender addresses and their cummulative gas used.
+	// This tracker adds to each individual transaction.
+	originalHooks := evm.Config.Tracer
+	gasTracker, err := newFeeMarketTracker(originalHooks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fee market tracker: %w", err)
+	}
+
+	// Get the hooks for the fee market tracker.
+	gasTrackerHooks, err := gasTracker.Hooks()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fee market tracker hooks: %w", err)
+	}
+
+	// Set the hooks for the fee market tracker.
+	evm.SetTracer(gasTrackerHooks)
+
+	// Defers are last in first out, so OnTxEnd will run before SetTracer,
+	// which is what we want.
+	if originalHooks != nil {
+		// Restore the original tracer.
+		defer func() { evm.SetTracer(originalHooks) }()
+	}
+
 	if hooks := evm.Config.Tracer; hooks != nil {
 		if hooks.OnTxStart != nil {
 			hooks.OnTxStart(evm.GetVMContext(), tx, msg.From)
@@ -178,6 +202,9 @@ func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPo
 
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
+
+	// Set the fee market tracker in the EVM context.
+	txContext.FeeMarketTracker = &gasTracker
 	evm.SetTxContext(txContext)
 
 	// Apply the transaction to the current state (included in the env).
@@ -195,7 +222,8 @@ func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPo
 	}
 	*usedGas += result.UsedGas
 
-	return MakeReceipt(evm, result, statedb, blockNumber, blockHash, tx, *usedGas, root, receiptProcessors...), nil
+	receipt = MakeReceipt(evm, result, statedb, blockNumber, blockHash, tx, *usedGas, root, receiptProcessors...)
+	return receipt, nil
 }
 
 // MakeReceipt generates the receipt object for a transaction given its execution result.

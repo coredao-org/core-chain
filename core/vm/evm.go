@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -64,16 +65,21 @@ type BlockContext struct {
 	BaseFee     *big.Int       // Provides information for BASEFEE (0 if vm runs with NoBaseFee flag and 0 gas price)
 	BlobBaseFee *big.Int       // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
 	Random      *common.Hash   // Provides information for PREVRANDAO
+
+	// TODO: Move this field somewhere else
+	// Fee market provider for discount calculations
+	FeeMarket *feemarket.FeeMarket
 }
 
 // TxContext provides the EVM with information about a transaction.
 // All fields can change between transactions.
 type TxContext struct {
 	// Message information
-	Origin     common.Address // Provides information for ORIGIN
-	GasPrice   *big.Int       // Provides information for GASPRICE (and is used to zero the basefee if NoBaseFee is set)
-	BlobHashes []common.Hash  // Provides information for BLOBHASH
-	BlobFeeCap *big.Int       // Is used to zero the blobbasefee if NoBaseFee is set
+	Origin           common.Address          // Provides information for ORIGIN
+	GasPrice         *big.Int                // Provides information for GASPRICE (and is used to zero the basefee if NoBaseFee is set)
+	BlobHashes       []common.Hash           // Provides information for BLOBHASH
+	BlobFeeCap       *big.Int                // Is used to zero the blobbasefee if NoBaseFee is set
+	FeeMarketTracker *FeeMarketTrackerReader // Fee market tracker
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides

@@ -460,7 +460,34 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	fee.Mul(fee, effectiveTipU256)
 	// consensus engine is satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
-		st.state.AddBalance(consensus.SystemAddress, fee, tracing.BalanceIncreaseRewardTransactionFee)
+
+		// Calculate full system reward
+		totalSystemReward := new(uint256.Int).Set(fee)
+		remainingSystemReward := new(uint256.Int).Set(totalSystemReward)
+
+		// Check if is a contract call
+		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
+
+			tracer := st.evm.Config.Tracer
+			feeMarket := st.evm.Context.FeeMarket
+			feeMarketTracker := *st.evm.TxContext.FeeMarketTracker
+
+			if tracer != nil && feeMarket != nil && feeMarketTracker != nil {
+				// Try to access the gas usage stats
+				gasUsageMap := feeMarketTracker.GetGasMap()
+
+				for addr, gas := range gasUsageMap {
+					fmt.Println()
+					fmt.Printf("🤡 TransitionDb -> Tracked addr: %v, gas: %v\n", addr, gas)
+
+					// Get discount configuration from fee market
+					config, found := st.evm.Context.FeeMarket.GetConfig(addr, st.state)
+					fmt.Println("🤡 TransitionDb -> read config:", found, config)
+				}
+			}
+		}
+
+		st.state.AddBalance(consensus.SystemAddress, remainingSystemReward, tracing.BalanceIncreaseRewardTransactionFee)
 		// add extra blob fee reward
 		if rules.IsCancun {
 			blobFee := new(big.Int).SetUint64(st.blobGasUsed())

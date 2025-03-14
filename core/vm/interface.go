@@ -110,3 +110,11 @@ type CallContext interface {
 	// Create creates a new contract
 	Create(env *EVM, me ContractRef, data []byte, gas, value *big.Int) ([]byte, common.Address, error)
 }
+
+// FeeMarketTrackerReader is an interface for reading fee market tracer data.
+type FeeMarketTrackerReader interface {
+	// Hooks returns the tracer hooks for the fee market.
+	Hooks() (*tracing.Hooks, error)
+	// GetGasMap returns the gas map for the fee market.
+	GetGasMap() map[common.Address]*uint256.Int
+}
