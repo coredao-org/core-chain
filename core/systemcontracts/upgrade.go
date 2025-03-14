@@ -49,6 +49,8 @@ var (
 	demeterUpgrade = make(map[string]*Upgrade)
 
 	athenaUpgrade = make(map[string]*Upgrade)
+
+	theseusUpgrade = make(map[string]*Upgrade)
 )
 
 func init() {
@@ -604,6 +606,9 @@ func UpgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 	}
 	if config.IsOnAthena(blockNumber, lastBlockTime, blockTime) {
 		applySystemContractUpgrade(athenaUpgrade[network], blockNumber, statedb, logger)
+	}
+	if config.IsOnTheseus(blockNumber, lastBlockTime, blockTime) {
+		applySystemContractUpgrade(theseusUpgrade[network], blockNumber, statedb, logger)
 	}
 }
 

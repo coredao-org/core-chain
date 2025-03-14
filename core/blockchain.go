@@ -46,6 +46,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/syncx"
@@ -310,6 +311,9 @@ type BlockChain struct {
 
 	// monitor
 	doubleSignMonitor *monitor.DoubleSignMonitor
+
+	// Fee market provider for retrieving configurations
+	feeMarket *feemarket.FeeMarket
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -379,6 +383,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	bc.flushInterval.Store(int64(cacheConfig.TrieTimeLimit))
 	bc.forker = NewForkChoice(bc, shouldPreserve)
 	bc.stateCache = state.NewDatabaseWithNodeDB(bc.db, bc.triedb)
+
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = NewStatePrefetcher(chainConfig, bc, engine)
 	bc.processor = NewStateProcessor(chainConfig, bc, engine)
@@ -397,6 +402,15 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	bc.currentBlock.Store(nil)
 	bc.currentSnapBlock.Store(nil)
 	bc.chasingHead.Store(nil)
+
+	// Initialize the fee market provider
+	if bc.chainConfig.Satoshi != nil {
+		feeMarket, err := feemarket.NewFeeMarket()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize fee market: %w", err)
+		}
+		bc.feeMarket = feeMarket
+	}
 
 	// Update chain info data metrics
 	chainInfoGauge.Update(metrics.GaugeInfoValue{"chain_id": bc.chainConfig.ChainID.String()})
@@ -598,6 +612,11 @@ func (bc *BlockChain) GetVMConfig() *vm.Config {
 
 func (bc *BlockChain) NoTries() bool {
 	return bc.stateCache.NoTries()
+}
+
+// FeeMarket returns the fee market provider
+func (bc *BlockChain) FeeMarket() *feemarket.FeeMarket {
+	return bc.feeMarket
 }
 
 func (bc *BlockChain) cacheReceipts(hash common.Hash, receipts types.Receipts, block *types.Block) {

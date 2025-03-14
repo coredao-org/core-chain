@@ -552,7 +552,7 @@ func (dl *diffLayer) journal(w io.Writer, journalType JournalType) error {
 		}
 	}
 
-	log.Info("Journaled pathdb diff layer", "root", dl.root, "parent", dl.parent.rootHash(), "id", dl.stateID(), "block", dl.block, "nodes", len(dl.nodes))
+	log.Debug("Journaled pathdb diff layer", "root", dl.root, "parent", dl.parent.rootHash(), "id", dl.stateID(), "block", dl.block, "nodes", len(dl.nodes))
 	return nil
 }
 

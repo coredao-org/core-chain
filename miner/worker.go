@@ -1204,8 +1204,8 @@ func (w *worker) commitWork(interruptCh chan int32, timestamp int64) {
 	// as long as the timestamp is not reached.
 	workList := make([]*environment, 0, 10)
 	var prevWork *environment
-	// workList clean up
 	defer func() {
+		// workList clean up
 		for _, wk := range workList {
 			// only keep the best work, discard others.
 			if wk == w.current {
@@ -1225,6 +1225,7 @@ LOOP:
 		if err != nil {
 			return
 		}
+
 		prevWork = work
 		workList = append(workList, work)
 
@@ -1432,6 +1433,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		if w.chainConfig.IsCancun(env.header.Number, env.header.Time) && env.sidecars == nil {
 			env.sidecars = make(types.BlobSidecars, 0)
 		}
+
 		// Create a local environment copy, avoid the data race with snapshot state.
 		// https://github.com/ethereum/go-ethereum/issues/24299
 		env := env.copy()

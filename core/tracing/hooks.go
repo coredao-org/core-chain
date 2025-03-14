@@ -320,6 +320,8 @@ const (
 	// BalanceIncreaseCoreDistributeReward is a balance change that increases the block validator's balance and
 	// happens when Core is distributing rewards to validator.
 	BalanceIncreaseCoreDistributeReward BalanceChangeReason = 181
+	// BalanceIncreaseFeeMarketReward is the fee market reward for a transaction.
+	BalanceIncreaseFeeMarketReward BalanceChangeReason = 182
 )
 
 // GasChangeReason is used to indicate the reason for a gas change, useful
@@ -331,6 +333,8 @@ const (
 // They can be recognized easily by their name, those that start with `GasChangeTx` are emitted
 // once per transaction, while those that start with `GasChangeCall` are emitted on a call basis.
 type GasChangeReason byte
+
+//go:generate stringer -type=GasChangeReason -output gen_gas_change_reason_stringer.go
 
 const (
 	GasChangeUnspecified GasChangeReason = 0
@@ -377,6 +381,9 @@ const (
 	// GasChangeCallFailedExecution is the burning of the remaining gas when the execution failed without a revert.
 	GasChangeCallFailedExecution GasChangeReason = 14
 
+	// GasChangeFeeMarketDistributedGas is the gas distributed as fee market rewards.
+	GasChangeFeeMarketDistributedGas GasChangeReason = 180
+
 	// GasChangeIgnored is a special value that can be used to indicate that the gas change should be ignored as
 	// it will be "manually" tracked by a direct emit of the gas change event.
 	GasChangeIgnored GasChangeReason = 0xFF
@@ -384,6 +391,8 @@ const (
 
 // NonceChangeReason is used to indicate the reason for a nonce change.
 type NonceChangeReason byte
+
+//go:generate stringer -type=NonceChangeReason -output gen_nonce_change_reason_stringer.go
 
 const (
 	NonceChangeUnspecified NonceChangeReason = 0
