@@ -282,7 +282,7 @@ func SampleMin(values []int64) int64 {
 	return min
 }
 
-// SamplePercentiles returns an arbitrary percentile of the slice of int64.
+// SamplePercentile returns an arbitrary percentile of the slice of int64.
 func SamplePercentile(values []int64, p float64) float64 {
 	return SamplePercentiles(values, []float64{p})[0]
 }
