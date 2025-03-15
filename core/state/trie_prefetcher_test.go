@@ -47,7 +47,7 @@ func filledStateDB() *StateDB {
 
 func TestUseAfterTerminate(t *testing.T) {
 	db := filledStateDB()
-	prefetcher := newTriePrefetcher(db.db, db.originalRoot, common.Hash{}, "")
+	prefetcher := newTriePrefetcher(db.db, db.originalRoot, "")
 	skey := common.HexToHash("aaa")
 
 	if err := prefetcher.prefetch(common.Hash{}, db.originalRoot, common.Address{}, [][]byte{skey.Bytes()}); err != nil {

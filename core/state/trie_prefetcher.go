@@ -54,11 +54,10 @@ type prefetchMsg struct {
 //
 // Note, the prefetcher's API is not thread safe.
 type triePrefetcher struct {
-	db         Database               // Database to fetch trie nodes through
-	root       common.Hash            // Root hash of the account trie for metrics
-	rootParent common.Hash            // Root has of the account trie from block before the prvious one, designed for pipecommit mode
-	fetchers   map[string]*subfetcher // Subfetchers for each trie
-	term       chan struct{}          // Channel to signal interruption
+	db       Database               // Database to fetch trie nodes through
+	root     common.Hash            // Root hash of the account trie for metrics
+	fetchers map[string]*subfetcher // Subfetchers for each trie
+	term     chan struct{}          // Channel to signal interruption
 
 	deliveryMissMeter metrics.Meter
 	accountLoadMeter  metrics.Meter
@@ -75,14 +74,13 @@ type triePrefetcher struct {
 }
 
 // newTriePrefetcher
-func newTriePrefetcher(db Database, root, rootParent common.Hash, namespace string) *triePrefetcher {
+func newTriePrefetcher(db Database, root common.Hash, namespace string) *triePrefetcher {
 	prefix := triePrefetchMetricsPrefix + namespace
 	return &triePrefetcher{
-		db:         db,
-		root:       root,
-		rootParent: rootParent,
-		fetchers:   make(map[string]*subfetcher), // Active prefetchers use the fetchers map
-		term:       make(chan struct{}),
+		db:       db,
+		root:     root,
+		fetchers: make(map[string]*subfetcher), // Active prefetchers use the fetchers map
+		term:     make(chan struct{}),
 
 		deliveryMissMeter: metrics.GetOrRegisterMeter(prefix+"/deliverymiss", nil),
 		accountLoadMeter:  metrics.GetOrRegisterMeter(prefix+"/account/load", nil),

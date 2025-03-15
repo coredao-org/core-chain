@@ -248,12 +248,7 @@ func (s *StateDB) StartPrefetcher(namespace string) {
 		s.prefetcher = nil
 	}
 	if s.snap != nil {
-		parent := s.snap.Parent()
-		if parent != nil {
-			s.prefetcher = newTriePrefetcher(s.db, s.originalRoot, parent.Root(), namespace)
-		} else {
-			s.prefetcher = newTriePrefetcher(s.db, s.originalRoot, common.Hash{}, namespace)
-		}
+		s.prefetcher = newTriePrefetcher(s.db, s.originalRoot, namespace)
 	}
 }
 
