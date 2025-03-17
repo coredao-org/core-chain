@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -458,36 +459,80 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	fee := new(uint256.Int).SetUint64(st.gasUsed())
 	fee.Mul(fee, effectiveTipU256)
+
 	// consensus engine is satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
-
-		// Calculate full system reward
-		totalSystemReward := new(uint256.Int).Set(fee)
-		remainingSystemReward := new(uint256.Int).Set(totalSystemReward)
-
 		// Check if is a contract call
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
 
 			tracer := st.evm.Config.Tracer
 			feeMarket := st.evm.Context.FeeMarket
 			feeMarketTracker := *st.evm.TxContext.FeeMarketTracker
+			feeMarketDenominator := st.evm.Context.FeeMarket.GetDenominator()
 
 			if tracer != nil && feeMarket != nil && feeMarketTracker != nil {
-				// Try to access the gas usage stats
-				gasUsageMap := feeMarketTracker.GetGasMap()
+				// Invalidate cache for the addresses that are being tracked
+				addressesToInvalidateCache := feeMarketTracker.GetAddressesToInvalidateCache()
+				for _, addr := range addressesToInvalidateCache {
+					feeMarket.InvalidateConfig(addr)
+				}
 
-				for addr, gas := range gasUsageMap {
+				feeConfigs := feeConfigs{}
+
+				// Get the gas usage map for the addresses that are being tracked
+				gasUsageMap := feeMarketTracker.GetGasMap()
+				for addr, gasUsed := range gasUsageMap {
 					fmt.Println()
-					fmt.Printf("🤡 TransitionDb -> Tracked addr: %v, gas: %v\n", addr, gas)
+					fmt.Printf("🤡 TransitionDb -> Tracked addr: %v, gasUsed: %v\n", addr, gasUsed)
 
 					// Get discount configuration from fee market
 					config, found := st.evm.Context.FeeMarket.GetConfig(addr, st.state)
-					fmt.Println("🤡 TransitionDb -> read config:", found, config)
+					if !found || !config.IsActive {
+						continue
+					}
+
+					// fmt.Println("🤡 TransitionDb -> read config:", found, config)
+
+					feeConfigs.addConfig(addr, gasUsed, config)
+				}
+
+				// Calculate the total gas used by the configurations
+				totalConfigGasUsed := feeConfigs.getConfigTotalGas()
+
+				for addr, feeConfig := range feeConfigs.configs {
+					// The portion of the total gas used by this specific configuration
+					configurationGasPercentage := uint256.NewInt(0).Div(feeConfig.gasUsed, totalConfigGasUsed)
+
+					// The portion of FeeMarketRewardGas that will be distributed to this configuration
+					rewardsGas := uint256.NewInt(0).Mul(configurationGasPercentage, uint256.NewInt(params.FeeMarketRewardGas))
+
+					fmt.Println("🤡 1️⃣ TransitionDb -> Config:", addr, "configurationGasPercentage:", configurationGasPercentage, "rewardsGas:", rewardsGas)
+
+					// Calculate the reward amount for each reward in the configuration
+					for _, reward := range feeConfig.configuration.Rewards {
+						// Gas to reward for this specific address
+						rewardGas := uint256.NewInt(0).Mul(rewardsGas, uint256.NewInt(0).Div(reward.RewardPercentage, feeMarketDenominator))
+
+						// TODO: handle overflow
+						st.gasRemaining -= rewardGas.Uint64()
+
+						// Reward amount for this specific address
+						rewardAmount := uint256.NewInt(0).Mul(rewardGas, effectiveTipU256)
+
+						fmt.Println("🤡 2️⃣ TransitionDb -> Reward:", reward.RewardAddress, "rewardGas:", rewardGas, "rewardAmount:", rewardAmount)
+
+						// Add fee reward to address
+						st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
+
+						log.Info("Add reward fee",
+							"rewardAddress", reward.RewardAddress,
+							"rewardAmount", rewardAmount)
+					}
 				}
 			}
 		}
 
-		st.state.AddBalance(consensus.SystemAddress, remainingSystemReward, tracing.BalanceIncreaseRewardTransactionFee)
+		st.state.AddBalance(consensus.SystemAddress, fee, tracing.BalanceIncreaseRewardTransactionFee)
 		// add extra blob fee reward
 		if rules.IsCancun {
 			blobFee := new(big.Int).SetUint64(st.blobGasUsed())
@@ -546,4 +591,30 @@ func (st *StateTransition) gasUsed() uint64 {
 // blobGasUsed returns the amount of blob gas used by the message.
 func (st *StateTransition) blobGasUsed() uint64 {
 	return uint64(len(st.msg.BlobHashes) * params.BlobTxBlobGasPerBlob)
+}
+
+type feeConfig struct {
+	gasUsed       *uint256.Int
+	configuration types.FeeMarketConfig
+}
+type feeConfigs struct {
+	configs            map[common.Address]feeConfig
+	totalConfigGasUsed *uint256.Int
+	// totalTxGasUsed     *uint256.Int
+}
+
+func (fc *feeConfigs) addConfig(addr common.Address, gasUsed *uint256.Int, configuration types.FeeMarketConfig) {
+	fc.configs[addr] = feeConfig{
+		gasUsed:       gasUsed,
+		configuration: configuration,
+	}
+}
+
+func (fc *feeConfigs) getConfigTotalGas() *uint256.Int {
+	totalGasUsed := uint256.NewInt(0)
+	for _, feeConfig := range fc.configs {
+		totalGasUsed = totalGasUsed.Add(totalGasUsed, feeConfig.gasUsed)
+	}
+	fc.totalConfigGasUsed = totalGasUsed
+	return fc.totalConfigGasUsed
 }

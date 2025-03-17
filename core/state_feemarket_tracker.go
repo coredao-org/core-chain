@@ -66,16 +66,18 @@ func (t *feeMarketTracker) Hooks() (*tracing.Hooks, error) {
 	wrapped.OnExit = t.OnExit
 	wrapped.OnLog = t.OnLog
 
-	journaledHooks, err := tracing.WrapWithJournal(&wrapped)
-	if err != nil {
-		return nil, err
-	}
 
-	return journaledHooks, nil
+	return &wrapped, nil
 }
 
+// GetGasMap returns the gas map for the fee market
 func (t *feeMarketTracker) GetGasMap() map[common.Address]*uint256.Int {
 	return t.gasTracker
+}
+
+// GetAddressesToInvalidateCache returns the addresses to invalidate cache for the fee market
+func (t *feeMarketTracker) GetAddressesToInvalidateCache() []common.Address {
+	return t.addressesToInvalidateCache
 }
 
 func (t *feeMarketTracker) OnEnter(depth int, typ byte, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
@@ -99,6 +101,7 @@ func (t *feeMarketTracker) OnExit(depth int, output []byte, gasUsed uint64, err 
 		t.hooks.OnExit(depth, output, gasUsed, err, reverted)
 	}
 
+	// TODO: do we care if the tx reverted? the gas cost happened either way
 	if reverted || t.internalTxToAddress == (common.Address{}) {
 		return
 	}
@@ -129,15 +132,20 @@ func (t *feeMarketTracker) OnTxEnd(receipt *types.Receipt, err error) {
 		t.hooks.OnTxEnd(receipt, err)
 	}
 
-	if receipt == nil || receipt.Status == types.ReceiptStatusFailed {
+	// Error happened during tx validation.
+	if err != nil || receipt == nil {
 		return
 	}
 
+	// We want to track the gas used by the tx even if it failed.
 	if t.txToAddress == (common.Address{}) {
 		return
 	}
 
-	t.gasTracker[t.txToAddress] = t.gasTracker[t.txToAddress].Add(t.gasTracker[t.txToAddress], uint256.NewInt(receipt.GasUsed))
+	// As this is the actual TX gas used, we don't need to add it on top of the internal tx gas used
+	t.gasTracker[t.txToAddress] = uint256.NewInt(receipt.GasUsed)
+
+	// TODO: shall we invalidate gas use for other addresses too? or mark this address as root level?
 
 	t.txToAddress = (common.Address{})
 }

@@ -67,6 +67,10 @@ func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketState
 	}
 
 	config, found = p.findConfigForAddress(address, state)
+	if !config.IsValidConfig(GetDenominator()) {
+		return types.FeeMarketConfig{}, false
+	}
+
 	if found {
 		p.configCache[address] = config // set in cache
 	}

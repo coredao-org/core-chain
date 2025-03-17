@@ -320,6 +320,8 @@ const (
 	// BalanceIncreaseCoreDistributeReward is a balance change that increases the block validator's balance and
 	// happens when Core is distributing rewards to validator.
 	BalanceIncreaseCoreDistributeReward BalanceChangeReason = 181
+	// BalanceIncreaseRewardTransactionFee is the reward for a transaction.
+	BalanceIncreaseFeeMarketReward BalanceChangeReason = 182
 )
 
 // GasChangeReason is used to indicate the reason for a gas change, useful

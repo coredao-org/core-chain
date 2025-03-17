@@ -117,4 +117,6 @@ type FeeMarketTrackerReader interface {
 	Hooks() (*tracing.Hooks, error)
 	// GetGasMap returns the gas map for the fee market.
 	GetGasMap() map[common.Address]*uint256.Int
+	// GetAddressesToInvalidateCache returns the addresses to invalidate cache for the fee market.
+	GetAddressesToInvalidateCache() []common.Address
 }
