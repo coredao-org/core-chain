@@ -379,6 +379,11 @@ const (
 	// GasChangeCallFailedExecution is the burning of the remaining gas when the execution failed without a revert.
 	GasChangeCallFailedExecution GasChangeReason = 14
 
+	// GasChangeFeeMarketRewardAllocated is the pre-allocated gas for the fee market reward. It will be refunded to the user if not used.
+	GasChangeFeeMarketRewardAllocated GasChangeReason = 180
+	// GasChangeFeeMarketRewardRefunded is the refunded gas back to the userfor the fee market reward.
+	GasChangeFeeMarketRewardRefunded GasChangeReason = 181
+
 	// GasChangeIgnored is a special value that can be used to indicate that the gas change should be ignored as
 	// it will be "manually" tracked by a direct emit of the gas change event.
 	GasChangeIgnored GasChangeReason = 0xFF

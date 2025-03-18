@@ -441,6 +441,149 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1, tracing.NonceChangeEoACall)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, value)
+
+		// TODO(ziogaschr): don't add FeeMarketRewardGas for system contracts calls?
+		// TODO(ziogaschr): skip the logic for EOA-to-EOA
+
+		precompiles := vm.ActivePrecompiles(rules)
+		// we need to skip the Satoshi contracts as well
+		isPrecompile := false
+		for _, precompile := range precompiles {
+			if precompile == st.to() {
+				isPrecompile = true
+				break
+			}
+		}
+
+		// Add logic for our precompiles
+		// if st.to() == common.HexToAddress(systemcontracts.FeeMarketContract) {
+		// 	isPrecompile = true
+		// }
+
+		// Apply the gas for the fee market reward. If no fee market reward, the gas is refunded to the user.
+		// This logic applies the gas for all transactions when estimatingGas. If this gas is not needed, we will refund it on execution,
+		// on the logic below in this function.
+		if st.evm.ChainConfig().Satoshi != nil && !isPrecompile {
+			if st.gasRemaining < params.FeeMarketRewardGas {
+				return nil, fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, params.FeeMarketRewardGas)
+			}
+			fmt.Println()
+			if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+				st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-params.FeeMarketRewardGas, tracing.GasChangeFeeMarketRewardAllocated)
+			}
+			st.gasRemaining -= params.FeeMarketRewardGas
+		}
+	}
+
+	effectiveTip := msg.GasPrice
+	if rules.IsLondon {
+		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
+	}
+	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
+
+	// For Satoshi consensus engine, we need to distribute the fee market rewards.
+	// If no rewards, the gas is refunded to the user.
+	if st.evm.ChainConfig().Satoshi != nil {
+		// TODO: handle EIP-7702
+
+		// Check if is a contract call
+		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
+			tracer := st.evm.Config.Tracer
+			feeMarket := st.evm.Context.FeeMarket
+
+			if tracer != nil && feeMarket != nil {
+				feeMarketTracker := *st.evm.TxContext.FeeMarketTracker
+				if feeMarketTracker != nil {
+					feeMarketRewardsApplied := false
+					feeMarketDenominator := feeMarket.GetDenominator().ToBig()
+
+					// Invalidate cache for the addresses that are being tracked
+					addressesToInvalidateCache := feeMarketTracker.GetAddressesToInvalidateCache()
+					for _, addr := range addressesToInvalidateCache {
+						feeMarket.InvalidateConfig(addr)
+					}
+
+					feeConfigs := feeConfigs{
+						configs: make(map[common.Address]feeConfig),
+					}
+
+					// Get the gas usage map for the addresses that are being tracked
+					gasUsageMap := feeMarketTracker.GetGasMap()
+					for addr, gasUsed := range gasUsageMap {
+
+						// Get discount configuration from fee market
+						config, found := feeMarket.GetConfig(addr, st.state)
+						if !found || !config.IsActive {
+							continue
+						}
+
+						// fmt.Println("🤡 TransitionDb -> read config:", found, config)
+
+						feeConfigs.addConfig(addr, gasUsed, config)
+					}
+
+					// Calculate the total gas used by the configurations
+					txGasUsed := st.gasUsed()
+					totalConfigGasUsed := feeConfigs.getConfigsTotalGasPercentage(txGasUsed)
+
+					// Not needed, just a validation
+					sumRewardGas := new(big.Float).SetUint64(0)
+
+					for addr, feeConfig := range feeConfigs.configs {
+						// The portion of the total gas used by this specific configuration
+						configurationTxGasPercentage := new(big.Float).Quo(new(big.Float).SetUint64(feeConfig.gasUsed), new(big.Float).SetUint64(txGasUsed))
+
+
+						configurationRewardGasPercentage := new(big.Float)
+						configurationRewardGasPercentage.SetPrec(64)
+						configurationRewardGasPercentage.Quo(configurationTxGasPercentage, totalConfigGasUsed)
+
+						// The portion of FeeMarketRewardGas that will be distributed to this configuration
+						configurationGas := new(big.Float).Mul(configurationRewardGasPercentage, new(big.Float).SetUint64(params.FeeMarketRewardGas))
+
+
+						// Calculate the reward amount for each reward in the configuration
+						for _, reward := range feeConfig.configuration.Rewards {
+							// Gas to reward for this specific address
+							actualRewardPercentage := new(big.Float).Quo(new(big.Float).SetInt(reward.RewardPercentage.ToBig()), new(big.Float).SetInt(feeMarketDenominator))
+							rewardGas := new(big.Float).Mul(configurationGas, actualRewardPercentage)
+
+							sumRewardGas.Add(sumRewardGas, configurationGas)
+
+							// Reward amount for this specific address
+							rewardAmount, _ := new(big.Float).Mul(rewardGas, new(big.Float).SetInt(effectiveTip)).Int(nil)
+							rewardAmountU256, overflow := uint256.FromBig(rewardAmount)
+							if overflow {
+								return nil, fmt.Errorf("fee market reward for address %v required balance exceeds 256 bits", reward.RewardAddress.Hex())
+							}
+
+
+							feeMarketRewardsApplied = true
+
+							st.state.AddBalance(reward.RewardAddress, rewardAmountU256, tracing.BalanceIncreaseFeeMarketReward)
+
+							log.Info("Add reward fee",
+								"rewardAddress", reward.RewardAddress,
+								"rewardAmount", rewardAmount)
+						}
+					}
+
+					if feeMarketRewardsApplied && sumRewardGas.Cmp(new(big.Float).SetUint64(params.FeeMarketRewardGas)) != 0 {
+						return nil, fmt.Errorf("FeeMarketRewardGas not consumed fylly. have: %v, want: %v", sumRewardGas, params.FeeMarketRewardGas)
+					}
+
+					// TODO(ziogaschr): verify that the full FeeMarketRewardGas is consumed?
+
+					// Refund the gas for the fee market reward.
+					if !feeMarketRewardsApplied {
+						if tracer.OnGasChange != nil {
+							tracer.OnGasChange(st.gasRemaining, st.gasRemaining+params.FeeMarketRewardGas, tracing.GasChangeFeeMarketRewardRefunded)
+						}
+						st.gasRemaining += params.FeeMarketRewardGas
+					}
+				}
+			}
+		}
 	}
 
 	var gasRefund uint64
@@ -451,87 +594,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// After EIP-3529: refunds are capped to gasUsed / 5
 		gasRefund = st.refundGas(params.RefundQuotientEIP3529)
 	}
-	effectiveTip := msg.GasPrice
-	if rules.IsLondon {
-		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
-	}
-	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
 	fee := new(uint256.Int).SetUint64(st.gasUsed())
 	fee.Mul(fee, effectiveTipU256)
 
 	// consensus engine is satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
-		// Check if is a contract call
-		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
-
-			tracer := st.evm.Config.Tracer
-			feeMarket := st.evm.Context.FeeMarket
-			feeMarketTracker := *st.evm.TxContext.FeeMarketTracker
-			feeMarketDenominator := st.evm.Context.FeeMarket.GetDenominator()
-
-			if tracer != nil && feeMarket != nil && feeMarketTracker != nil {
-				// Invalidate cache for the addresses that are being tracked
-				addressesToInvalidateCache := feeMarketTracker.GetAddressesToInvalidateCache()
-				for _, addr := range addressesToInvalidateCache {
-					feeMarket.InvalidateConfig(addr)
-				}
-
-				feeConfigs := feeConfigs{}
-
-				// Get the gas usage map for the addresses that are being tracked
-				gasUsageMap := feeMarketTracker.GetGasMap()
-				for addr, gasUsed := range gasUsageMap {
-					fmt.Println()
-					fmt.Printf("🤡 TransitionDb -> Tracked addr: %v, gasUsed: %v\n", addr, gasUsed)
-
-					// Get discount configuration from fee market
-					config, found := st.evm.Context.FeeMarket.GetConfig(addr, st.state)
-					if !found || !config.IsActive {
-						continue
-					}
-
-					// fmt.Println("🤡 TransitionDb -> read config:", found, config)
-
-					feeConfigs.addConfig(addr, gasUsed, config)
-				}
-
-				// Calculate the total gas used by the configurations
-				totalConfigGasUsed := feeConfigs.getConfigTotalGas()
-
-				for addr, feeConfig := range feeConfigs.configs {
-					// The portion of the total gas used by this specific configuration
-					configurationGasPercentage := uint256.NewInt(0).Div(feeConfig.gasUsed, totalConfigGasUsed)
-
-					// The portion of FeeMarketRewardGas that will be distributed to this configuration
-					rewardsGas := uint256.NewInt(0).Mul(configurationGasPercentage, uint256.NewInt(params.FeeMarketRewardGas))
-
-					fmt.Println("🤡 1️⃣ TransitionDb -> Config:", addr, "configurationGasPercentage:", configurationGasPercentage, "rewardsGas:", rewardsGas)
-
-					// Calculate the reward amount for each reward in the configuration
-					for _, reward := range feeConfig.configuration.Rewards {
-						// Gas to reward for this specific address
-						rewardGas := uint256.NewInt(0).Mul(rewardsGas, uint256.NewInt(0).Div(reward.RewardPercentage, feeMarketDenominator))
-
-						// TODO: handle overflow
-						st.gasRemaining -= rewardGas.Uint64()
-
-						// Reward amount for this specific address
-						rewardAmount := uint256.NewInt(0).Mul(rewardGas, effectiveTipU256)
-
-						fmt.Println("🤡 2️⃣ TransitionDb -> Reward:", reward.RewardAddress, "rewardGas:", rewardGas, "rewardAmount:", rewardAmount)
-
-						// Add fee reward to address
-						st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
-
-						log.Info("Add reward fee",
-							"rewardAddress", reward.RewardAddress,
-							"rewardAmount", rewardAmount)
-					}
-				}
-			}
-		}
-
 		st.state.AddBalance(consensus.SystemAddress, fee, tracing.BalanceIncreaseRewardTransactionFee)
 		// add extra blob fee reward
 		if rules.IsCancun {
@@ -594,27 +662,30 @@ func (st *StateTransition) blobGasUsed() uint64 {
 }
 
 type feeConfig struct {
-	gasUsed       *uint256.Int
+	gasUsed       uint64
 	configuration types.FeeMarketConfig
 }
 type feeConfigs struct {
 	configs            map[common.Address]feeConfig
-	totalConfigGasUsed *uint256.Int
+	totalConfigGasUsed uint64
 	// totalTxGasUsed     *uint256.Int
 }
 
-func (fc *feeConfigs) addConfig(addr common.Address, gasUsed *uint256.Int, configuration types.FeeMarketConfig) {
+func (fc *feeConfigs) addConfig(addr common.Address, gasUsed uint64, configuration types.FeeMarketConfig) {
 	fc.configs[addr] = feeConfig{
 		gasUsed:       gasUsed,
 		configuration: configuration,
 	}
 }
 
-func (fc *feeConfigs) getConfigTotalGas() *uint256.Int {
-	totalGasUsed := uint256.NewInt(0)
+func (fc *feeConfigs) getConfigsTotalGasPercentage(gasUsed uint64) *big.Float {
+	totalGasUsed := big.NewFloat(0)
+	totalGasUsed.SetPrec(64)
 	for _, feeConfig := range fc.configs {
-		totalGasUsed = totalGasUsed.Add(totalGasUsed, feeConfig.gasUsed)
+		gasUsedPercentage := new(big.Float).Quo(new(big.Float).SetUint64(feeConfig.gasUsed), new(big.Float).SetUint64(gasUsed))
+
+		totalGasUsed.Add(totalGasUsed, gasUsedPercentage)
 	}
-	fc.totalConfigGasUsed = totalGasUsed
-	return fc.totalConfigGasUsed
+	// fc.totalConfigGasUsed = totalGasUsed
+	return totalGasUsed
 }

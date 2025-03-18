@@ -116,4 +116,8 @@ var (
 
 	// ErrBlobTxCreate is returned if a blob transaction has no explicit to field.
 	ErrBlobTxCreate = errors.New("blob transaction of type create")
+
+	// ErrFeeMarketGas is returned if the transaction is specified to use less gas
+	// than required to distribute the fee market rewards. If no rewards, the gas is refunded to the user.
+	ErrFeeMarketGas = errors.New("not enough gas for fee market")
 )

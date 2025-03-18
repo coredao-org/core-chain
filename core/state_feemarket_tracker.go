@@ -17,6 +17,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -24,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/holiman/uint256"
 )
 
 // feeMarketTracker is a tracer for tracking the to addresses of top and internal transactions and their cummulative gas used.
@@ -37,7 +37,7 @@ type feeMarketTracker struct {
 	internalTxToAddress common.Address // to address of the internal transaction
 
 	// gasTracker is a map of addresses to the gas used
-	gasTracker map[common.Address]*uint256.Int
+	gasTracker map[common.Address]uint64
 
 	// addressesToInvalidateCache is a list of addresses to invalidate the fee market cache for
 	addressesToInvalidateCache []common.Address
@@ -47,7 +47,7 @@ type feeMarketTracker struct {
 func newFeeMarketTracker(hooks *tracing.Hooks) (vm.FeeMarketTrackerReader, error) {
 	return &feeMarketTracker{
 		hooks:      hooks,
-		gasTracker: make(map[common.Address]*uint256.Int),
+		gasTracker: make(map[common.Address]uint64),
 	}, nil
 }
 
@@ -71,7 +71,7 @@ func (t *feeMarketTracker) Hooks() (*tracing.Hooks, error) {
 }
 
 // GetGasMap returns the gas map for the fee market
-func (t *feeMarketTracker) GetGasMap() map[common.Address]*uint256.Int {
+func (t *feeMarketTracker) GetGasMap() map[common.Address]uint64 {
 	return t.gasTracker
 }
 
@@ -91,8 +91,8 @@ func (t *feeMarketTracker) OnEnter(depth int, typ byte, from common.Address, to 
 	}
 
 	t.internalTxToAddress = toCopy
-	if t.gasTracker[t.internalTxToAddress] == nil {
-		t.gasTracker[t.internalTxToAddress] = uint256.NewInt(0)
+	if _, found := t.gasTracker[t.internalTxToAddress]; !found {
+		t.gasTracker[t.internalTxToAddress] = 0
 	}
 }
 
@@ -106,7 +106,7 @@ func (t *feeMarketTracker) OnExit(depth int, output []byte, gasUsed uint64, err 
 		return
 	}
 
-	t.gasTracker[t.internalTxToAddress] = t.gasTracker[t.internalTxToAddress].Add(t.gasTracker[t.internalTxToAddress], uint256.NewInt(gasUsed))
+	t.gasTracker[t.internalTxToAddress] += gasUsed
 
 	t.internalTxToAddress = (common.Address{})
 }
@@ -122,8 +122,8 @@ func (t *feeMarketTracker) OnTxStart(vm *tracing.VMContext, tx *types.Transactio
 	}
 
 	t.txToAddress = *toCopy
-	if t.gasTracker[t.txToAddress] == nil {
-		t.gasTracker[t.txToAddress] = uint256.NewInt(0)
+	if _, found := t.gasTracker[t.txToAddress]; !found {
+		t.gasTracker[t.txToAddress] = 0
 	}
 }
 
@@ -143,7 +143,7 @@ func (t *feeMarketTracker) OnTxEnd(receipt *types.Receipt, err error) {
 	}
 
 	// As this is the actual TX gas used, we don't need to add it on top of the internal tx gas used
-	t.gasTracker[t.txToAddress] = uint256.NewInt(receipt.GasUsed)
+	t.gasTracker[t.txToAddress] += receipt.GasUsed
 
 	// TODO: shall we invalidate gas use for other addresses too? or mark this address as root level?
 

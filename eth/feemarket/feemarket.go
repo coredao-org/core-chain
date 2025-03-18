@@ -10,7 +10,7 @@ import (
 
 const (
 	// DenominatorValue is the denominator used for percentages (10000 = 100.00%)
-	DenominatorValue = 10000
+	DenominatorValue = uint64(10000)
 )
 
 // FeeMarket represents the fee market integration which is used to get the fee market config for an address.
