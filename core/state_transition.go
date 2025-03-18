@@ -529,10 +529,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					// Not needed, just a validation
 					sumRewardGas := new(big.Float).SetUint64(0)
 
-					for addr, feeConfig := range feeConfigs.configs {
+					for _, feeConfig := range feeConfigs.configs {
 						// The portion of the total gas used by this specific configuration
 						configurationTxGasPercentage := new(big.Float).Quo(new(big.Float).SetUint64(feeConfig.gasUsed), new(big.Float).SetUint64(txGasUsed))
-
 
 						configurationRewardGasPercentage := new(big.Float)
 						configurationRewardGasPercentage.SetPrec(64)
@@ -540,7 +539,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 						// The portion of FeeMarketRewardGas that will be distributed to this configuration
 						configurationGas := new(big.Float).Mul(configurationRewardGasPercentage, new(big.Float).SetUint64(params.FeeMarketRewardGas))
-
 
 						// Calculate the reward amount for each reward in the configuration
 						for _, reward := range feeConfig.configuration.Rewards {
@@ -556,7 +554,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							if overflow {
 								return nil, fmt.Errorf("fee market reward for address %v required balance exceeds 256 bits", reward.RewardAddress.Hex())
 							}
-
 
 							feeMarketRewardsApplied = true
 

@@ -17,7 +17,6 @@
 package core
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -65,7 +64,6 @@ func (t *feeMarketTracker) Hooks() (*tracing.Hooks, error) {
 	wrapped.OnEnter = t.OnEnter
 	wrapped.OnExit = t.OnExit
 	wrapped.OnLog = t.OnLog
-
 
 	return &wrapped, nil
 }
