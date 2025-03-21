@@ -80,6 +80,9 @@ type TxContext struct {
 	BlobHashes       []common.Hash           // Provides information for BLOBHASH
 	BlobFeeCap       *big.Int                // Is used to zero the blobbasefee if NoBaseFee is set
 	FeeMarketTracker *FeeMarketTrackerReader // Fee market tracker
+	TxHash           common.Hash             // Provides information for TXHASH
+	BlockHash        common.Hash             // Provides information for BLOCKHASH
+	BlockNumber      *big.Int                // Provides information for BLOCKNUMBER
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides

@@ -168,8 +168,8 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 	configsBaseSlotBytes := crypto.Keccak256(configsSlot[:])
 	configsBaseSlot := common.BytesToHash(configsBaseSlotBytes)
 
-	// Each Config takes 3 slots (packed fields, events.length, functionSignatures.length)
-	configSizeInSlots := uint64(2)
+	// Each Config takes 3 slots (events.length, functionSignatures.length, packed fields)
+	configSizeInSlots := uint64(3)
 
 	// Calculate this config's starting slot
 	indexOffset := new(big.Int).Mul(
