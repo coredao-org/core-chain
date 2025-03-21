@@ -473,6 +473,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
+	ghostGas := uint64(0)
+
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
 	if st.evm.ChainConfig().Satoshi != nil {
@@ -557,6 +559,15 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 								st.state.AddBalance(reward.RewardAddress, rewardAmountU256, tracing.BalanceIncreaseFeeMarketReward)
 
+								// calculate the ghost gas
+								returnedGas := rewardGas
+								returnedGas.SetPrec(0)
+								returnedGasUint64, acc := rewardGas.Uint64()
+								if acc == big.Exact {
+									// ghostGas += returnedGasUint64
+								}
+								ghostGas += returnedGasUint64
+
 								log.Info("Add reward fee",
 									"rewardAddress", reward.RewardAddress,
 									"rewardAmount", rewardAmount)
@@ -609,6 +620,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		fee := new(uint256.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTipU256)
 		st.state.AddBalance(st.evm.Context.Coinbase, fee, tracing.BalanceIncreaseRewardTransactionFee)
+	}
+
+	// Also return ghost gas to the block gas counter so it is
+	// available for the next transaction.
+	if ghostGas > 0 {
+		st.gp.AddGas(ghostGas)
 	}
 
 	return &ExecutionResult{
