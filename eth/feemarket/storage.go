@@ -164,119 +164,133 @@ func (p *StorageProvider) readConfigsLength(state FeeMarketStateReader) (uint64,
 func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateReader) (types.FeeMarketConfig, error) {
 	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT_IN_CONTRACT))
 
-	// Calculate the storage slot for the array data
-	// For dynamic arrays, the data starts at keccak256(slot)
+	// Calculate base slot for configs array
 	configsBaseSlotBytes := crypto.Keccak256(configsSlot[:])
 	configsBaseSlot := common.BytesToHash(configsBaseSlotBytes)
 
-	// For arrays of structs containing dynamic arrays, Solidity uses a more complex layout
-	// Each Config is allocated a fixed amount of slots regardless of its actual Rewards array size
+	// Each Config takes 3 slots (packed fields, events.length, functionSignatures.length)
+	configSizeInSlots := uint64(2)
 
-	// The size of each Config in slots, including space for fixed fields
-	configSizeInSlots := uint64(4) // configRate, userConfigRate, isActive+configAddress (packed), rewards.length
-
-	// Calculate the starting slot for this config
+	// Calculate this config's starting slot
 	indexOffset := new(big.Int).Mul(
 		big.NewInt(int64(configSizeInSlots)),
 		big.NewInt(int64(index)),
 	)
-
 	configSlot := common.BigToHash(new(big.Int).Add(
 		new(big.Int).SetBytes(configsBaseSlot[:]),
 		indexOffset,
 	))
 
-	// Each Config struct has the following fields in Solidity:
-	// uint256 configRate - at slot + 0
-	// uint256 userConfigRate - at slot + 1
-	// bool isActive - at slot + 2 (packed with configAddress)
-	// address configAddress - at slot + 2 (packed with isActive)
-	// Reward[] rewards - at slot + 3 (dynamic array)
+	// First slot is holding the events and functionSignatures lengths (slot + 0)
+	// Read events array length (right-aligned)
+	packedArraysLengthSlot := configSlot
+	packedArraysLengthData := state.GetState(p.contractAddr, packedArraysLengthSlot)
+	eventsLength := new(uint256.Int).SetBytes(packedArraysLengthData[16:32]).Uint64()
+	functionSignaturesLength := new(uint256.Int).SetBytes(packedArraysLengthData[0:15]).Uint64()
 
-	// Read ConfigRate (at slot)
-	configRateBytes := state.GetState(p.contractAddr, configSlot)
-	configRate := new(uint256.Int).SetBytes(configRateBytes[:])
-	// fmt.Println("- readConfigAtIndex -> configRate:", configRate)
-
-	// Read UserConfigRate (at slot+1)
-	userConfigRateSlot := incrementHash(configSlot)
-	userConfigRateBytes := state.GetState(p.contractAddr, userConfigRateSlot)
-	userConfigRate := new(uint256.Int).SetBytes(userConfigRateBytes[:])
-	// fmt.Println("- readConfigAtIndex -> userConfigRate:", userConfigRate)
-
-	// Read packed isActive and configAddress (at slot+2)
-	// Solidity packs bool (1 byte) and address (20 bytes) into a single slot
-	packedSlot := incrementHash(userConfigRateSlot)
-	packedData := state.GetState(p.contractAddr, packedSlot)
-	// fmt.Println("- readConfigAtIndex -> packedData:", packedData)
-
-	// Extract isActive (lowest byte, rightmost bit)
-	isActive := packedData[31]&0x01 == 1
-	// fmt.Println("- readConfigAtIndex -> isActive:", isActive)
-
-	// Extract configAddress (20 bytes, right-aligned)
-	// In Solidity, the address is stored in the higher order bytes
-	configAddr := common.BytesToAddress(packedData[11:31])
-	// fmt.Println("- readConfigAtIndex -> configAddr:", configAddr)
-
-	// Read the length of the Rewards array (at slot+3)
-	rewardsSlot := incrementHash(packedSlot)
-	rewardsLengthBytes := state.GetState(p.contractAddr, rewardsSlot)
-	rewardsLength := new(uint256.Int).SetBytes(rewardsLengthBytes[:]).Uint64()
-	// fmt.Println("- readConfigAtIndex -> rewardsLength:", rewardsLength)
-
-	// Calculate base slot for rewards array data
-	// For dynamic arrays, data is at keccak256(slot)
-	rewardsBaseSlotBytes := crypto.Keccak256(rewardsSlot[:])
-	rewardsBaseSlot := common.BytesToHash(rewardsBaseSlotBytes)
-
-	// TODO: do we want to add a cap to rewardsLength?
-	//       We can use the MAX_REWARD_ADDRESS from contract, though if we change this later, we will skip reading already set rewards in existing configs
-
-	// Read each reward
-	rewards := make([]types.FeeMarketReward, rewardsLength)
-	for i := uint64(0); i < rewardsLength; i++ {
-		rewardIndexBig := new(big.Int).SetUint64(i)
-		rewardSlot := common.BigToHash(new(big.Int).Add(
-			new(big.Int).SetBytes(rewardsBaseSlot[:]),
-			rewardIndexBig,
+	// Read events
+	eventsBaseSlot := common.BytesToHash(crypto.Keccak256(packedArraysLengthSlot[:]))
+	events := make([]types.FeeMarketEvent, eventsLength)
+	for i := uint64(0); i < eventsLength; i++ {
+		// Each Event takes 3 slots (rewards.length, eventSignature, gas)
+		eventSlot := common.BigToHash(new(big.Int).Add(
+			new(big.Int).SetBytes(eventsBaseSlot.Bytes()),
+			new(big.Int).Mul(big.NewInt(3), big.NewInt(int64(i))),
 		))
 
-		// In Solidity, the Reward struct has:
-		// address rewardAddress;
-		// uint256 rewardPercentage;
+		// Read rewards
+		rewardsLength := new(uint256.Int).SetBytes(
+			state.GetState(p.contractAddr, eventSlot).Bytes(),
+		).Uint64()
+		rewards := readRewards(p.contractAddr, eventSlot, rewardsLength, state)
 
-		// Since address (20 bytes) and a uint256 (32 bytes) don't fit in one slot,
-		// they will be stored in separate slots:
-		// - rewardAddress at slot + 0
-		// - rewardPercentage at slot + 1
+		// Read eventSignature and gas
+		eventSigSlot := incrementHash(eventSlot)
+		gasSlot := incrementHash(eventSigSlot)
 
-		// Read reward address (at slot)
-		rewardAddrBytes := state.GetState(p.contractAddr, rewardSlot)
-		rewardAddr := common.BytesToAddress(rewardAddrBytes[:])
-		// fmt.Println("- readConfigAtIndex -> reward[].address:", rewardAddr)
-
-		// Read reward percentage (at slot+1)
-		rewardPercentageSlot := incrementHash(rewardSlot)
-		rewardPercentageBytes := state.GetState(p.contractAddr, rewardPercentageSlot)
-		rewardPercentage := new(uint256.Int).SetBytes(rewardPercentageBytes[:])
-		// fmt.Println("- readConfigAtIndex -> reward[].percentage:", rewardPercentage)
-
-		rewards[i] = types.FeeMarketReward{
-			RewardAddress:    rewardAddr,
-			RewardPercentage: rewardPercentage,
+		events[i] = types.FeeMarketEvent{
+			Rewards:        rewards,
+			EventSignature: state.GetState(p.contractAddr, eventSigSlot),
+			Gas:            new(uint256.Int).SetBytes(state.GetState(p.contractAddr, gasSlot).Bytes()),
 		}
 	}
 
-	config := types.FeeMarketConfig{
-		ConfigRate:     configRate,
-		UserConfigRate: userConfigRate,
-		IsActive:       isActive,
-		ConfigAddress:  configAddr,
-		Rewards:        rewards,
+	// Read functionSignatures
+	functionSignaturesBaseSlot := incrementHash(packedArraysLengthSlot)
+	functionSignatures := make([]types.FeeMarketFunctionSignature, functionSignaturesLength)
+	for i := uint64(0); i < functionSignaturesLength; i++ {
+		// Each Event takes 3 slots (rewards.length, funcSigsignature, gas)
+		functionSignatureslot := common.BigToHash(new(big.Int).Add(
+			new(big.Int).SetBytes(functionSignaturesBaseSlot.Bytes()),
+			new(big.Int).Mul(big.NewInt(3), big.NewInt(int64(i))),
+		))
+
+		// Read rewards
+		rewardsLength := new(uint256.Int).SetBytes(
+			state.GetState(p.contractAddr, functionSignatureslot).Bytes(),
+		).Uint64()
+		rewards := readRewards(p.contractAddr, functionSignatureslot, rewardsLength, state)
+
+		// Read funcSigsignature and gas
+		functionSigSlot := incrementHash(functionSignatureslot)
+		gasSlot := incrementHash(functionSigSlot)
+
+		functionSignatures[i] = types.FeeMarketFunctionSignature{
+			Rewards:           rewards,
+			FunctionSignature: state.GetState(p.contractAddr, functionSigSlot),
+			Gas:               new(uint256.Int).SetBytes(state.GetState(p.contractAddr, gasSlot).Bytes()),
+		}
+
 	}
 
+	// Read packed isActive and configAddress (at slot+2)
+	// Solidity packs bool (1 byte) and address (20 bytes) into a single slot
+	packedSlot := incrementHash(functionSignaturesBaseSlot)
+	packedData := state.GetState(p.contractAddr, packedSlot)
+
+	// Extract isActive (lowest byte, rightmost bit)
+	isActive := packedData[31]&0x01 == 1
+	configAddr := common.BytesToAddress(packedData[12:32])
+
+	// fmt.Println("- readConfigAtIndex -> rewardsLength:", rewardsLength)
+
+	config := types.FeeMarketConfig{
+		Events:             events,
+		FunctionSignatures: nil,
+		ConfigAddress:      configAddr,
+		IsActive:           isActive,
+	}
+
+	// TODO: do we want to add a cap to rewardsLength?
+	//       We can use the MAX_REWARD_ADDRESS from contract, though if we change this later, we will skip reading already set rewards in existing configs
 	return config, nil
+}
+
+	// Read each reward
+func readRewards(contractAddr common.Address, rewardsLengthSlot common.Hash, rewardsLength uint64, state FeeMarketStateReader) []types.FeeMarketReward {
+	rewardsBaseSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
+	rewards := make([]types.FeeMarketReward, rewardsLength)
+
+	for i := uint64(0); i < rewardsLength; i++ {
+		// Each Reward takes 1 slot with packed fields (rewardAddr, rewardPercentage)
+		rewardSlot := common.BigToHash(new(big.Int).Add(
+			new(big.Int).SetBytes(rewardsBaseSlot[:]),
+			big.NewInt(int64(i)),
+		))
+
+		// First 20 bytes for the address
+		// Last 2 bytes for the percentage (uint16)
+		// Solidity packs data right-aligned, so we need to read from the end
+		packedBytes := state.GetState(contractAddr, rewardSlot)
+		rewardAddress := common.BytesToAddress(packedBytes[12:32])
+		rewardPercentage := uint256.NewInt(0).SetBytes(packedBytes[10:12])
+
+		rewards[i] = types.FeeMarketReward{
+			RewardAddress:    rewardAddress,
+			RewardPercentage: rewardPercentage,
+		}
+	}
+	return rewards
 }
 
 // incrementHash increments a hash value by 1
