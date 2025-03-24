@@ -26,6 +26,9 @@ import (
 	"github.com/holiman/billy"
 )
 
+// Maximum number of blocks to keep blobs in limbo.
+const maxReservedBlock = 200
+
 // limboBlob is a wrapper around an opaque blobset that also contains the tx hash
 // to which it belongs as well as the block number in which it was included for
 // finality eviction.
@@ -112,15 +115,9 @@ func (l *limbo) parseBlob(id uint64, data []byte) error {
 }
 
 // finalize evicts all blobs belonging to a recently finalized block or older.
-func (l *limbo) finalize(final *types.Header) {
-	// Just in case there's no final block yet (network not yet merged, weird
-	// restart, sethead, etc), fail gracefully.
-	if final == nil {
-		log.Error("Nil finalized block cannot evict old blobs")
-		return
-	}
+func (l *limbo) finalize(currentBlockHeight uint64) {
 	for block, ids := range l.groups {
-		if block > final.Number.Uint64() {
+		if block > currentBlockHeight - maxReservedBlock {
 			continue
 		}
 		for id, owner := range ids {
