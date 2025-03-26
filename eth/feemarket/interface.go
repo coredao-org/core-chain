@@ -17,6 +17,9 @@ type Provider interface {
 	// InvalidateConfig invalidates the cache for a specific address
 	InvalidateConfig(address common.Address)
 
+	// InvalidateConstants invalidates the cache for the constants
+	InvalidateConstants()
+
 	// CleanCache cleans the cache
 	CleanCache()
 }

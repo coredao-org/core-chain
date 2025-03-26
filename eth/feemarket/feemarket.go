@@ -5,7 +5,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/holiman/uint256"
 )
 
 const (
@@ -41,6 +40,11 @@ func (fm *FeeMarket) InvalidateConfig(address common.Address) {
 	fm.provider.InvalidateConfig(address)
 }
 
+// InvalidateConstants invalidates the cache for the constants
+func (fm *FeeMarket) InvalidateConstants() {
+	fm.provider.InvalidateConstants()
+}
+
 // GetDenominator returns the denominator used for percentages
 func (fm *FeeMarket) GetDenominator(state FeeMarketStateReader) uint64 {
 	return fm.provider.GetDenominator(state)
@@ -50,5 +54,3 @@ func (fm *FeeMarket) GetDenominator(state FeeMarketStateReader) uint64 {
 func (fm *FeeMarket) CleanCache() {
 	fm.provider.CleanCache()
 }
-
-// GetDenominatorBig returns the denominator as a uint256.Int

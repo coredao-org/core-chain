@@ -28,11 +28,22 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
+
+type FeeMarketGasError struct {
+	gasHave    uint64
+	gasWant    uint64
+	isEstimate bool
+}
+
+func (e *FeeMarketGasError) Error() string {
+	return fmt.Sprintf("fee market gas error: have %d, want %d", e.gasHave, e.gasWant)
+}
 
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
@@ -461,12 +472,13 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
-	ghostGas := uint64(0)
-
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
 	if st.evm.ChainConfig().Satoshi != nil {
 		// TODO: handle EIP-7702
+
+		feeMarketComputationalGas := uint64(0)
+		ghostGas := uint64(0)
 
 		// Check if is a contract call
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
@@ -478,9 +490,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			}
 
 			feeMarket := st.evm.Context.FeeMarket
+			feeMarketDenominator := feeMarket.GetDenominator(st.state)
 
-			if len(logs) > 0 && feeMarket != nil {
-				feeMarketDenominator := feeMarket.GetDenominator(st.state)
+			if len(logs) > 0 && feeMarket != nil && feeMarketDenominator > 0 {
 
 				for _, eventLog := range logs {
 
@@ -490,8 +502,21 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 					// move this into feemarket
 					if eventLog.Address == common.HexToAddress(systemcontracts.FeeMarketContract) {
-						// loop topics and invalidate config for address
 						// feeMarket.InvalidateConfig(addr)
+						id := common.BytesToHash(crypto.Keccak256([]byte("ConfigUpdated(address,uint256,uint256)")))
+						if eventLog.Topics[0] == id && len(eventLog.Topics) > 1 {
+							// get config address from event.topics[1]
+							configAddress := common.HexToAddress(eventLog.Topics[1].Hex())
+							// invalidate the config for the address
+							feeMarket.InvalidateConfig(configAddress)
+						}
+
+						id = common.BytesToHash(crypto.Keccak256([]byte("ConstantUpdated()")))
+						if eventLog.Topics[0] == id {
+							feeMarket.InvalidateConstants()
+						}
+
+						continue
 					}
 
 					// Get configuration from fee market
@@ -500,49 +525,72 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						continue
 					}
 
-					for _, topic := range eventLog.Topics {
-						var feeMarketEvent types.FeeMarketEvent
-						for _, event := range config.Events {
-							if event.EventSignature != topic {
-								continue
-							}
-
-							feeMarketEvent = event
+					var feeMarketEvent types.FeeMarketEvent
+					for _, event := range config.Events {
+						if event.EventSignature != eventLog.Topics[0] {
+							continue
 						}
 
-						for _, reward := range feeMarketEvent.Rewards {
-							// Gas to reward for this specific address
-							rewardPercentage := reward.RewardPercentage / feeMarketDenominator
-							rewardGas := feeMarketEvent.Gas * rewardPercentage
+						feeMarketEvent = event
+					}
+					if len(feeMarketEvent.Rewards) == 0 {
+						continue
+					}
 
-							// Reward amount for this specific address
-							rewardAmount := new(uint256.Int).SetUint64(rewardGas)
-							rewardAmount.Mul(rewardAmount, effectiveTipU256)
+					for _, reward := range feeMarketEvent.Rewards {
+						// Gas to reward for this specific address
+						rewardGas := (feeMarketEvent.Gas * reward.RewardPercentage) / feeMarketDenominator
 
-							log.Info("Add fee to issuer: %v, rewardGas: %v, rewardAmount: %v", reward.RewardAddress, rewardGas, rewardAmount)
+						// Reward amount for this specific address
+						rewardAmount := new(uint256.Int).SetUint64(rewardGas)
+						rewardAmount.Mul(rewardAmount, effectiveTipU256)
+
+						log.Info("Add fee to issuer", "address", reward.RewardAddress, "rewardGas", rewardGas, "rewardAmount", rewardAmount)
+
+						st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
+
+						// Add the computational gas for fees distributions for the AddBalance call
+						feeMarketComputationalGas += params.CallStipend
+
+						// add the pumped gas for the actual fees
+						ghostGas += rewardGas
+					}
+
+					if st.gasRemaining < ghostGas+feeMarketComputationalGas {
+						feeMarketErr := &FeeMarketGasError{
+							gasHave:    st.gasRemaining,
+							gasWant:    st.gasUsed() + ghostGas + feeMarketComputationalGas,
+							isEstimate: st.evm.Config.NoBaseFee, // Using NoBaseFee as estimation indicator
+						}
+
+
+						if feeMarketErr.isEstimate {
+							return nil, feeMarketErr // Return error for eth_estimateGas
+						}
+
+						// For consensus flow, consume all gas and return execution result
+						st.gasRemaining = 0
+						vmerr = feeMarketErr
+					} else {
 
 							// TODO: check if user has enough balance
-							st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
+						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
+						}
 
-							// st.gasRemaining -= rewardGas
-							// TODO: we have to have a way to check if it's for gas estimation and return error if gas not enough or try to move this on precheck, which seems not possible
+						// Remove the ghost gas for fees distributions (this is the pumped gas for the fees)
+						st.gasRemaining -= ghostGas
 
-							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
-								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+params.FeeMarketRewardGas, tracing.GasChangeFeeMarketRewardRefunded)
-							}
-							st.gasRemaining -= params.CallStipend // computational cost has to be decided
+						// Remove the computational gas for fees distributions (mostly for the AddBalance calls)
+						st.gasRemaining -= feeMarketComputationalGas
 
-							// return tx fee gas to the ghost gas
-							ghostGas += rewardGas
+						// Also return ghost gas to the block gas counter so it is
+						// available for the next transaction.
+						if ghostGas > 0 {
+							st.gp.AddGas(ghostGas)
 						}
 					}
 				}
-
-				// TODO: move this to another place, to be considered next week
-				if st.gasRemaining < st.gasUsed()+ghostGas {
-					return nil, fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+ghostGas)
-				}
-				// st.gasRemaining -= ghostGas
 			}
 		}
 	}
@@ -573,12 +621,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		fee := new(uint256.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTipU256)
 		st.state.AddBalance(st.evm.Context.Coinbase, fee, tracing.BalanceIncreaseRewardTransactionFee)
-	}
-
-	// Also return ghost gas to the block gas counter so it is
-	// available for the next transaction.
-	if ghostGas > 0 {
-		st.gp.AddGas(ghostGas)
 	}
 
 	return &ExecutionResult{
@@ -626,33 +668,4 @@ func (st *StateTransition) gasUsed() uint64 {
 // blobGasUsed returns the amount of blob gas used by the message.
 func (st *StateTransition) blobGasUsed() uint64 {
 	return uint64(len(st.msg.BlobHashes) * params.BlobTxBlobGasPerBlob)
-}
-
-type feeConfig struct {
-	gasUsed       uint64
-	configuration types.FeeMarketConfig
-}
-type feeConfigs struct {
-	configs            map[common.Address]feeConfig
-	totalConfigGasUsed uint64
-	// totalTxGasUsed     *uint256.Int
-}
-
-func (fc *feeConfigs) addConfig(addr common.Address, gasUsed uint64, configuration types.FeeMarketConfig) {
-	fc.configs[addr] = feeConfig{
-		gasUsed:       gasUsed,
-		configuration: configuration,
-	}
-}
-
-func (fc *feeConfigs) getConfigsTotalGasPercentage(gasUsed uint64) *big.Float {
-	totalGasUsed := big.NewFloat(0)
-	totalGasUsed.SetPrec(64)
-	for _, feeConfig := range fc.configs {
-		gasUsedPercentage := new(big.Float).Quo(new(big.Float).SetUint64(feeConfig.gasUsed), new(big.Float).SetUint64(gasUsed))
-
-		totalGasUsed.Add(totalGasUsed, gasUsedPercentage)
-	}
-	// fc.totalConfigGasUsed = totalGasUsed
-	return totalGasUsed
 }
