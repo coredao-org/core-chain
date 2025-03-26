@@ -203,8 +203,7 @@ func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPo
 	}
 	*usedGas += result.UsedGas
 
-	receipt = MakeReceipt(evm, result, statedb, blockNumber, blockHash, tx, *usedGas, root, receiptProcessors...)
-	return receipt, nil
+	return MakeReceipt(evm, result, statedb, blockNumber, blockHash, tx, *usedGas, root, receiptProcessors...), nil
 }
 
 // MakeReceipt generates the receipt object for a transaction given its execution result.
