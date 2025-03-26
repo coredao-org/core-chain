@@ -480,7 +480,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			feeMarket := st.evm.Context.FeeMarket
 
 			if len(logs) > 0 && feeMarket != nil {
-				feeMarketDenominator := feeMarket.GetDenominator().ToBig()
+				feeMarketDenominator := feeMarket.GetDenominator(st.state)
 
 				for _, eventLog := range logs {
 

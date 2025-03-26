@@ -42,8 +42,8 @@ func (fm *FeeMarket) InvalidateConfig(address common.Address) {
 }
 
 // GetDenominator returns the denominator used for percentages
-func (fm *FeeMarket) GetDenominator() *uint256.Int {
-	return GetDenominator()
+func (fm *FeeMarket) GetDenominator(state FeeMarketStateReader) uint64 {
+	return fm.provider.GetDenominator(state)
 }
 
 // CleanCache cleans the cache
@@ -52,6 +52,3 @@ func (fm *FeeMarket) CleanCache() {
 }
 
 // GetDenominatorBig returns the denominator as a uint256.Int
-func GetDenominator() *uint256.Int {
-	return new(uint256.Int).SetUint64(DenominatorValue)
-}

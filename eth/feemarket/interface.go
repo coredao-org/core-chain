@@ -8,6 +8,9 @@ import (
 
 // Provider defines the interface for fee monetization services
 type Provider interface {
+	// GetDenominator returns the denominator used for percentages
+	GetDenominator(state FeeMarketStateReader) uint64
+
 	// GetConfig returns configuration for a specific address
 	GetConfig(address common.Address, state FeeMarketStateReader) (types.FeeMarketConfig, bool)
 
