@@ -35,16 +35,6 @@ import (
 	"github.com/holiman/uint256"
 )
 
-type FeeMarketGasError struct {
-	gasHave    uint64
-	gasWant    uint64
-	isEstimate bool
-}
-
-func (e *FeeMarketGasError) Error() string {
-	return fmt.Sprintf("fee market gas error: have %d, want %d", e.gasHave, e.gasWant)
-}
-
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
 type ExecutionResult struct {
@@ -456,14 +446,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 		// TODO(ziogaschr): don't add FeeMarketRewardGas for system contracts calls?
 		// TODO(ziogaschr): skip the logic for EOA-to-EOA
-
-		// if st.to() == common.HexToAddress(systemcontracts.FeeMarketContract) {
-		// 	isPrecompile = true
-		// }
-
-		// Apply the gas for the fee market reward. If no fee market reward, the gas is refunded to the user.
-		// This logic applies the gas for all transactions when estimatingGas. If this gas is not needed, we will refund it on execution,
-		// on the logic below in this function.
 	}
 
 	effectiveTip := msg.GasPrice
@@ -550,7 +532,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
 
 						// Add the computational gas for fees distributions for the AddBalance call
-						feeMarketComputationalGas += params.CallStipend
+						feeMarketComputationalGas += params.FeeMarketDistributeGas
 
 						// add the pumped gas for the actual fees
 						ghostGas += rewardGas
@@ -573,7 +555,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						vmerr = feeMarketErr
 					} else {
 
-							// TODO: check if user has enough balance
 						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
 							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
 						}
