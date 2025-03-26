@@ -167,29 +167,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // and uses the input parameters for its environment similar to ApplyTransaction. However,
 // this method takes an already created EVM instance as input.
 func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, receiptProcessors ...ReceiptProcessor) (receipt *types.Receipt, err error) {
-	// Add a new fee market tracker to the EVM for tracking sender addresses and their cummulative gas used.
-	// This tracker adds to each individual transaction.
-	// originalHooks := evm.Config.Tracer
-	// gasTracker, err := newFeeMarketTracker(originalHooks) //, evm.Context.FeeMarket)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create fee market tracker: %w", err)
-	// }
-
-	// // Get the hooks for the fee market tracker.
-	// gasTrackerHooks, err := gasTracker.Hooks()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create fee market tracker hooks: %w", err)
-	// }
-
-	// // Set the hooks for the fee market tracker.
-	// evm.SetTracer(gasTrackerHooks)
-
-	// // Defers are last in first out, so OnTxEnd will run before SetTracer,
-	// // which is what we want.
-	// if originalHooks != nil {
-	// 	// Restore the original tracer.
-	// 	defer func() { evm.SetTracer(originalHooks) }()
-	// }
+	fmt.Println("ApplyTransactionWithEVM -> tx:", tx.Hash(), "blockHash:", blockHash, "blockNumber", blockNumber)
 
 	if hooks := evm.Config.Tracer; hooks != nil {
 		if hooks.OnTxStart != nil {

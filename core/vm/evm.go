@@ -79,7 +79,6 @@ type TxContext struct {
 	GasPrice         *big.Int                // Provides information for GASPRICE (and is used to zero the basefee if NoBaseFee is set)
 	BlobHashes       []common.Hash           // Provides information for BLOBHASH
 	BlobFeeCap       *big.Int                // Is used to zero the blobbasefee if NoBaseFee is set
-	FeeMarketTracker *FeeMarketTrackerReader // Fee market tracker
 	TxHash           common.Hash             // Provides information for TXHASH
 	BlockHash        common.Hash             // Provides information for BLOCKHASH
 	BlockNumber      *big.Int                // Provides information for BLOCKNUMBER
