@@ -512,28 +512,19 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 						for _, reward := range feeMarketEvent.Rewards {
 							// Gas to reward for this specific address
-							rewardPercentage := new(big.Float).Quo(new(big.Float).SetInt(reward.RewardPercentage.ToBig()), new(big.Float).SetInt(feeMarketDenominator))
-							rewardGas := new(big.Float).Mul(new(big.Float).SetInt(feeMarketEvent.Gas.ToBig()), rewardPercentage)
+							rewardPercentage := reward.RewardPercentage / feeMarketDenominator
+							rewardGas := feeMarketEvent.Gas * rewardPercentage
 
 							// Reward amount for this specific address
-							rewardAmount, _ := new(big.Float).Mul(rewardGas, new(big.Float).SetInt(effectiveTip)).Int(nil)
-							rewardAmountU256, overflow := uint256.FromBig(rewardAmount)
-							if overflow {
-								return nil, fmt.Errorf("fee market reward for address %v required balance exceeds 256 bits", reward.RewardAddress.Hex())
-							}
+							rewardAmount := new(uint256.Int).SetUint64(rewardGas)
+							rewardAmount.Mul(rewardAmount, effectiveTipU256)
 
-							log.Info("Add fee to issuer: %v, rewardGas: %v, rewardAmount: %v, rewardAmountU256: %v", reward.RewardAddress, rewardGas, rewardAmount, rewardAmountU256)
+							log.Info("Add fee to issuer: %v, rewardGas: %v, rewardAmount: %v", reward.RewardAddress, rewardGas, rewardAmount)
 
 							// TODO: check if user has enough balance
-							st.state.AddBalance(reward.RewardAddress, rewardAmountU256, tracing.BalanceIncreaseFeeMarketReward)
+							st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
 
-							returnedGas := rewardGas
-							returnedGas.SetPrec(0)
-							returnedGasUint64, acc := rewardGas.Uint64()
-							if acc == big.Exact {
-								// ghostGas += returnedGasUint64
-							}
-							// st.gasRemaining -= uint64(returnedGasUint64)
+							// st.gasRemaining -= rewardGas
 							// TODO: we have to have a way to check if it's for gas estimation and return error if gas not enough or try to move this on precheck, which seems not possible
 
 							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
@@ -541,9 +532,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							}
 							st.gasRemaining -= params.CallStipend // computational cost has to be decided
 
-							// calculate the ghost gas
-
-							ghostGas += returnedGasUint64
+							// return tx fee gas to the ghost gas
+							ghostGas += rewardGas
 						}
 					}
 				}
@@ -552,7 +542,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 				if st.gasRemaining < st.gasUsed()+ghostGas {
 					return nil, fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+ghostGas)
 				}
-				st.gasRemaining -= ghostGas
+				// st.gasRemaining -= ghostGas
 			}
 		}
 	}
