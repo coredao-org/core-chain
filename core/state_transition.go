@@ -473,8 +473,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 			var logs []*types.Log
 
-			if st.evm.TxContext.TxHash != (common.Hash{}) && st.evm.TxContext.BlockNumber != nil && st.evm.TxContext.BlockHash != (common.Hash{}) {
-				logs = st.state.GetLogs(st.evm.TxContext.TxHash, st.evm.TxContext.BlockNumber.Uint64(), st.evm.TxContext.BlockHash)
+			if st.evm.TxContext.LogsContext.TxHash != (common.Hash{}) && st.evm.TxContext.LogsContext.BlockNumber != nil && st.evm.TxContext.LogsContext.BlockHash != (common.Hash{}) {
+				logs = st.state.GetLogs(st.evm.TxContext.LogsContext.TxHash, st.evm.TxContext.LogsContext.BlockNumber.Uint64(), st.evm.TxContext.LogsContext.BlockHash)
 			}
 
 			feeMarket := st.evm.Context.FeeMarket

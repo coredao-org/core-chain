@@ -71,17 +71,23 @@ type BlockContext struct {
 	FeeMarket *feemarket.FeeMarket
 }
 
+// TxLogsContext provides the EVM with information for fetching the transaction logs.
+// All fields can change between transactions.
+type TxLogsContext struct {
+	TxHash      common.Hash // Provides information for TXHASH
+	BlockHash   common.Hash // Provides information for BLOCKHASH
+	BlockNumber *big.Int    // Provides information for BLOCKNUMBER
+}
+
 // TxContext provides the EVM with information about a transaction.
 // All fields can change between transactions.
 type TxContext struct {
 	// Message information
-	Origin           common.Address          // Provides information for ORIGIN
-	GasPrice         *big.Int                // Provides information for GASPRICE (and is used to zero the basefee if NoBaseFee is set)
-	BlobHashes       []common.Hash           // Provides information for BLOBHASH
-	BlobFeeCap       *big.Int                // Is used to zero the blobbasefee if NoBaseFee is set
-	TxHash           common.Hash             // Provides information for TXHASH
-	BlockHash        common.Hash             // Provides information for BLOCKHASH
-	BlockNumber      *big.Int                // Provides information for BLOCKNUMBER
+	Origin      common.Address // Provides information for ORIGIN
+	GasPrice    *big.Int       // Provides information for GASPRICE (and is used to zero the basefee if NoBaseFee is set)
+	BlobHashes  []common.Hash  // Provides information for BLOBHASH
+	BlobFeeCap  *big.Int       // Is used to zero the blobbasefee if NoBaseFee is set
+	LogsContext TxLogsContext  // Provides information for fetching the transaction logs
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
