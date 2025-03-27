@@ -65,11 +65,13 @@ func (p *StorageProvider) EnableCache() {
 	p.CleanCache()
 
 	p.withCache.Store(true)
+	log.Debug("Enabled fee market cache")
 }
 
 // DisableCache disables the cache
 func (p *StorageProvider) DisableCache() {
 	p.withCache.Store(false)
+	log.Debug("Disabled fee market cache")
 	p.InvalidateConstants()
 	p.CleanCache()
 }
@@ -77,8 +79,19 @@ func (p *StorageProvider) DisableCache() {
 // CleanCache cleans the cache
 func (p *StorageProvider) CleanCache() {
 	p.lock.Lock()
+	log.Debug("Cleaned fee market cache", "entries", len(p.configCache))
 	p.configCache = make(map[common.Address]types.FeeMarketConfig)
 	p.lock.Unlock()
+}
+
+// InvalidateConstants invalidates the constants in the cache
+func (p *StorageProvider) InvalidateConstants() {
+	p.denominator.Store(0)
+	p.maxRewards.Store(0)
+	p.maxGas.Store(0)
+	p.maxEvents.Store(0)
+	p.maxFunctionSignatures.Store(0)
+	log.Debug("Invalidated fee market constants")
 }
 
 // GetDenominator reads the denominator from storage
@@ -177,15 +190,6 @@ func (p *StorageProvider) GetMaxFunctionSignatures(state FeeMarketStateReader) (
 		maxFunctionSignatures = math.MaxUint8
 	}
 	return maxFunctionSignatures
-}
-
-// InvalidateConstants invalidates the constants in the cache
-func (p *StorageProvider) InvalidateConstants() {
-	p.denominator.Store(0)
-	p.maxRewards.Store(0)
-	p.maxGas.Store(0)
-	p.maxEvents.Store(0)
-	p.maxFunctionSignatures.Store(0)
 }
 
 // GetConfig returns configuration for a specific address
