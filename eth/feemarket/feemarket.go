@@ -62,5 +62,6 @@ func (fm *FeeMarket) DisableCache() {
 
 // CleanCache cleans the cache
 func (fm *FeeMarket) CleanCache() {
+	fm.provider.InvalidateConstants()
 	fm.provider.CleanCache()
 }
