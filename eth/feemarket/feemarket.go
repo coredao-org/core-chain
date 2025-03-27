@@ -50,6 +50,16 @@ func (fm *FeeMarket) GetDenominator(state FeeMarketStateReader) uint64 {
 	return fm.provider.GetDenominator(state)
 }
 
+// EnableCache enables the cache
+func (fm *FeeMarket) EnableCache() {
+	fm.provider.EnableCache()
+}
+
+// DisableCache disables the cache
+func (fm *FeeMarket) DisableCache() {
+	fm.provider.DisableCache()
+}
+
 // CleanCache cleans the cache
 func (fm *FeeMarket) CleanCache() {
 	fm.provider.CleanCache()
