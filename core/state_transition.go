@@ -539,14 +539,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					}
 
 					if st.gasRemaining < ghostGas+feeMarketComputationalGas {
-						feeMarketErr := &FeeMarketGasError{
-							gasHave:    st.gasRemaining,
-							gasWant:    st.gasUsed() + ghostGas + feeMarketComputationalGas,
-							isEstimate: st.evm.Config.NoBaseFee, // Using NoBaseFee as estimation indicator
-						}
+						feeMarketErr := fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+ghostGas+feeMarketComputationalGas)
 
-
-						if feeMarketErr.isEstimate {
+						// Using NoBaseFee as estimation indicator
+						isEstimate := st.evm.Config.NoBaseFee
+						if isEstimate {
 							return nil, feeMarketErr // Return error for eth_estimateGas
 						}
 

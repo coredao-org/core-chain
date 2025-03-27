@@ -18,7 +18,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -122,13 +121,3 @@ var (
 	// than required to distribute the fee market rewards. If no rewards, the gas is refunded to the user.
 	ErrFeeMarketGas = errors.New("not enough gas for fee market")
 )
-
-type FeeMarketGasError struct {
-	gasHave    uint64
-	gasWant    uint64
-	isEstimate bool
-}
-
-func (e *FeeMarketGasError) Error() string {
-	return fmt.Sprintf("fee market gas error: have %d, want %d", e.gasHave, e.gasWant)
-}
