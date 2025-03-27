@@ -45,17 +45,10 @@ type StorageProvider struct {
 
 // NewStorageProvider creates a new provider that reads directly from storage
 func NewStorageProvider(contractAddr common.Address) (*StorageProvider, error) {
-	provider := &StorageProvider{
+	return &StorageProvider{
 		contractAddr: contractAddr,
 		configCache:  make(map[common.Address]types.FeeMarketConfig),
-	}
-
-	// TODO: shall we read the DENOMINATOR from the contract?
-
-	// does it make sense to warm up all configs from storage?
-	// p.reloadAllConfigs(state)
-
-	return provider, nil
+	}, nil
 }
 
 // EnableCache enables the cache
@@ -206,15 +199,6 @@ func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketState
 		if found {
 			return config, true
 		}
-
-		defer func() {
-			if found {
-				// Cache the config
-				p.lock.Lock()
-				p.configCache[address] = config
-				p.lock.Unlock()
-			}
-		}()
 	}
 
 	// Not found in cache, try to find it in storage
@@ -230,42 +214,6 @@ func (p *StorageProvider) InvalidateConfig(address common.Address) {
 	p.lock.Lock()
 	delete(p.configCache, address)
 	p.lock.Unlock()
-}
-
-// loadAllConfigs reloads all configs from storage (must be called with lock held)
-func (p *StorageProvider) loadAllConfigs(state FeeMarketStateReader) {
-	if state == nil || !p.withCache.Load() {
-		return
-	}
-
-	// Clear the cache
-	p.lock.Lock()
-	p.configCache = make(map[common.Address]types.FeeMarketConfig)
-	p.lock.Unlock()
-
-	configsLength, err := p.readConfigsLength(state)
-	if err != nil {
-		log.Error("Failed to read configs length", "err", err)
-		return
-	}
-
-	// Read each config
-	for i := uint64(0); i < configsLength; i++ {
-		config, err := p.readConfigAtIndex(i, state)
-		if err != nil {
-			log.Error("Failed to read config", "index", i, "err", err)
-			continue
-		}
-
-		if !config.IsValidConfig(p.GetDenominator(state), p.GetMaxGas(state), p.GetMaxEvents(state), p.GetMaxRewards(state)) {
-			log.Info("Invalid fee market config in storage", "address", config.ConfigAddress)
-			continue
-		}
-
-		p.lock.Lock()
-		p.configCache[config.ConfigAddress] = config
-		p.lock.Unlock()
-	}
 }
 
 // findConfigForAddress finds a config for an address by scanning all configs
@@ -284,11 +232,22 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Fee
 			continue
 		}
 
+		if !config.IsValidConfig(p.GetDenominator(state), p.GetMaxGas(state), p.GetMaxEvents(state), p.GetMaxRewards(state)) {
+			log.Debug("Invalid config found in storage", "index", i, "config", config)
+			continue
+		}
+
+		// Small optimization that caches valid configs, even if they are not for the address we are looking for
+		// This way next time we can skip reading whole storage for each config
+		if p.withCache.Load() {
+			p.lock.Lock()
+			p.configCache[address] = config
+			p.lock.Unlock()
+		}
+
 		if config.ConfigAddress == address {
 			return config, true
 		}
-
-		// TODO: we can check if config is valid here and add it to the cache?
 	}
 
 	return types.FeeMarketConfig{}, false
@@ -332,8 +291,8 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 	isActive := packedData[11]&0x01 == 1
 	configAddr := common.BytesToAddress(packedData[12:32])
 
-	// Short circuit if config is already in cache, so as to avoid reading from storage
-	// Take care of the lock here, to not be blocked by the parent function
+	// Short circuit optimisation if config is already in cache, so as to avoid reading from storage the rest slots for this config.
+	// Take care of the lock here, to not be blocked by the parent function.
 	if p.withCache.Load() {
 		p.lock.RLock()
 		config, found := p.configCache[configAddr]
