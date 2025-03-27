@@ -1512,6 +1512,12 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
+	// Disable fee market cache during rewind
+	if bc.feeMarket != nil {
+		bc.feeMarket.DisableCache()
+		defer bc.feeMarket.EnableCache()
+	}
+
 	var (
 		ancientBlocks, liveBlocks     types.Blocks
 		ancientReceipts, liveReceipts []types.Receipts
