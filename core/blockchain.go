@@ -587,6 +587,12 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		go bc.startDoubleSignMonitor()
 	}
 
+	// Set up the fee market cache cleaner
+	if bc.feeMarket != nil {
+		bc.wg.Add(1)
+		go bc.setupFeeMarketCacheCleaner()
+	}
+
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
@@ -1042,6 +1048,12 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	}
 	defer bc.chainmu.Unlock()
 
+	// Disable fee market cache during rewind
+	if bc.feeMarket != nil {
+		bc.feeMarket.DisableCache()
+		defer bc.feeMarket.EnableCache()
+	}
+
 	var (
 		// Track the block number of the requested root hash
 		rootNumber uint64 // (no root == always 0)
@@ -1260,6 +1272,12 @@ func (bc *BlockChain) ResetWithGenesisBlock(genesis *types.Block) error {
 	bc.hc.SetCurrentHeader(bc.genesisBlock.Header())
 	bc.currentSnapBlock.Store(bc.genesisBlock.Header())
 	headFastBlockGauge.Update(int64(bc.genesisBlock.NumberU64()))
+
+	// Clean fee market cache too
+	if bc.feeMarket != nil {
+		bc.feeMarket.CleanCache()
+	}
+
 	return nil
 }
 
@@ -1986,6 +2004,10 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 		}
 	} else {
 		bc.chainSideFeed.Send(ChainSideEvent{Block: block})
+		// Clean fee market cache
+		if bc.feeMarket != nil {
+			bc.feeMarket.CleanCache()
+		}
 	}
 	return status, nil
 }
@@ -2708,6 +2730,12 @@ func (bc *BlockChain) reorg(oldHead *types.Header, newHead *types.Block) error {
 	}
 	newBlock := newHead
 
+	// Disable fee market cache during reorg
+	if bc.feeMarket != nil {
+		bc.feeMarket.DisableCache()
+		defer bc.feeMarket.EnableCache()
+	}
+
 	// Reduce the longer chain to the same number as the shorter one
 	if oldBlock.NumberU64() > newBlock.NumberU64() {
 		// Old chain is longer, gather all transactions and logs as deleted ones
@@ -2891,6 +2919,12 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 	}
 	defer bc.chainmu.Unlock()
 
+	// Disable fee market cache during reorg
+	if bc.feeMarket != nil {
+		bc.feeMarket.DisableCache()
+		defer bc.feeMarket.EnableCache()
+	}
+
 	// Re-execute the reorged chain in case the head state is missing.
 	if !bc.HasState(head.Root()) {
 		if latestValidHash, err := bc.recoverAncestors(head); err != nil {
@@ -3031,6 +3065,30 @@ func (bc *BlockChain) startDoubleSignMonitor() {
 		case event := <-eventChan:
 			if bc.doubleSignMonitor != nil {
 				bc.doubleSignMonitor.Verify(event.Block.Header())
+			}
+		case <-bc.quit:
+			return
+		}
+	}
+}
+
+// setupFeeMarketCacheCleaner subscribes to chain side events (reorgs) and cleans the fee market cache
+func (bc *BlockChain) setupFeeMarketCacheCleaner() {
+	sideEvents := make(chan ChainSideEvent, 5)
+	sideEventSub := bc.SubscribeChainSideEvent(sideEvents)
+	defer func() {
+		sideEventSub.Unsubscribe()
+		close(sideEvents)
+		bc.wg.Done()
+	}()
+
+	for {
+		select {
+		case <-sideEvents:
+			// When a reorg occurs, clean the fee market cache
+			if bc.feeMarket != nil {
+				bc.feeMarket.CleanCache()
+				log.Debug("Cleaned fee market cache after chain reorganization event")
 			}
 		case <-bc.quit:
 			return
