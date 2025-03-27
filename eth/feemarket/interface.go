@@ -20,6 +20,12 @@ type Provider interface {
 	// InvalidateConstants invalidates the cache for the constants
 	InvalidateConstants()
 
+	// EnableCache enables the cache
+	EnableCache()
+
+	// DisableCache disables the cache
+	DisableCache()
+
 	// CleanCache cleans the cache
 	CleanCache()
 }

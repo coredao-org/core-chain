@@ -16,14 +16,17 @@ func (m *mockStateDB) GetState(addr common.Address, key common.Hash) common.Hash
 }
 
 // TestStorageProviderRetrieveFromCache tests basic functionality of StorageProvider
-func TestStorageProviderRetrieveFromCache(t *testing.T) {
+func TestCache(t *testing.T) {
 	testAddr := common.HexToAddress("0x01")
 	contractAddr := common.HexToAddress("0x1234")
 
+	stateDB := &mockStateDB{}
 	provider, err := NewStorageProvider(contractAddr)
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
+
+	provider.EnableCache()
 
 	// Add a test config directly to the cache
 	testConfig := types.FeeMarketConfig{
@@ -33,7 +36,7 @@ func TestStorageProviderRetrieveFromCache(t *testing.T) {
 	provider.configCache[testAddr] = testConfig
 
 	// Test GetConfig with cached value
-	_, found := provider.GetConfig(testAddr, nil)
+	_, found := provider.GetConfig(testAddr, stateDB)
 	if !found {
 		t.Errorf("Expected to find config for address %s but not found", testAddr.Hex())
 	}
@@ -44,7 +47,7 @@ func TestStorageProviderRetrieveFromCache(t *testing.T) {
 
 	// Test invalidating and fetching again (should fail as we didn't set up the storage)
 	provider.InvalidateConfig(testAddr)
-	_, found = provider.GetConfig(testAddr, nil)
+	_, found = provider.GetConfig(testAddr, stateDB)
 	if found {
 		t.Errorf("Expected config to not be found after invalidation")
 	}
@@ -73,6 +76,8 @@ func TestReadingOfConstants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create storage provider: %v", err)
 	}
+
+	provider.EnableCache()
 
 	checkInitialValues := func(st *mockStateDB) {
 		denominator := provider.GetDenominator(st)

@@ -27,14 +27,18 @@ type StorageProvider struct {
 	// contractAddr is the address of the fee market contract
 	contractAddr common.Address
 
-	// configCache is a cache of configs by address
-	configCache map[common.Address]types.FeeMarketConfig
-
+	// Configuration contract constants
 	denominator           atomic.Uint64
 	maxRewards            atomic.Uint64
 	maxGas                atomic.Uint64
 	maxEvents             atomic.Uint64
 	maxFunctionSignatures atomic.Uint64
+
+	// configCache is a cache of configs by address
+	configCache map[common.Address]types.FeeMarketConfig
+
+	// withCache is used in order to skip cache during snap sync, cache can be used only in full sync
+	withCache atomic.Bool
 
 	lock sync.RWMutex // Protects the cache access
 }
@@ -54,77 +58,124 @@ func NewStorageProvider(contractAddr common.Address) (*StorageProvider, error) {
 	return provider, nil
 }
 
+// EnableCache enables the cache
+func (p *StorageProvider) EnableCache() {
+	// Invalidate constants and clean cache to ensure we get fresh data
+	p.InvalidateConstants()
+	p.CleanCache()
+
+	p.withCache.Store(true)
+}
+
+// DisableCache disables the cache
+func (p *StorageProvider) DisableCache() {
+	p.withCache.Store(false)
+	p.InvalidateConstants()
+	p.CleanCache()
+}
+
+// CleanCache cleans the cache
+func (p *StorageProvider) CleanCache() {
+	p.lock.Lock()
+	p.configCache = make(map[common.Address]types.FeeMarketConfig)
+	p.lock.Unlock()
+}
+
 // GetDenominator reads the denominator from storage
-func (p *StorageProvider) GetDenominator(state FeeMarketStateReader) uint64 {
-	cachedDenominator := p.denominator.Load()
-	if cachedDenominator != 0 {
-		return cachedDenominator
+func (p *StorageProvider) GetDenominator(state FeeMarketStateReader) (denominator uint64) {
+	if p.withCache.Load() {
+		cachedDenominator := p.denominator.Load()
+		if cachedDenominator != 0 {
+			return cachedDenominator
+		}
+
+		defer func() {
+			p.denominator.Store(denominator)
+		}()
 	}
 
 	denominatorSlot := common.BigToHash(big.NewInt(DENOMINATOR_STORAGE_SLOT))
 	denominatorBytes := state.GetState(p.contractAddr, denominatorSlot)
-	denominator := new(uint256.Int).SetBytes(denominatorBytes[:]).Uint64()
-	p.denominator.Store(denominator)
-	return denominator
+	return new(uint256.Int).SetBytes(denominatorBytes[:]).Uint64()
 }
 
 // GetMaxRewards reads the max rewards from storage
-func (p *StorageProvider) GetMaxRewards(state FeeMarketStateReader) uint64 {
-	cachedMaxRewards := p.maxRewards.Load()
-	if cachedMaxRewards != 0 {
-		return cachedMaxRewards
+func (p *StorageProvider) GetMaxRewards(state FeeMarketStateReader) (maxRewards uint64) {
+	if p.withCache.Load() {
+		cachedMaxRewards := p.maxRewards.Load()
+		if cachedMaxRewards != 0 {
+			return cachedMaxRewards
+		}
+
+		defer func() {
+			p.maxRewards.Store(maxRewards)
+		}()
 	}
 
 	maxRewardsSlot := common.BigToHash(big.NewInt(MAX_REWARDS_STORAGE_SLOT))
 	maxRewardsBytes := state.GetState(p.contractAddr, maxRewardsSlot)
-	maxRewards := new(uint256.Int).SetBytes(maxRewardsBytes[:]).Uint64()
-	p.maxRewards.Store(maxRewards)
-	return maxRewards
+	return new(uint256.Int).SetBytes(maxRewardsBytes[:]).Uint64()
 }
 
 // GetMaxGas reads the max gas from storage
-func (p *StorageProvider) GetMaxGas(state FeeMarketStateReader) uint64 {
-	cachedMaxGas := p.maxGas.Load()
-	if cachedMaxGas != 0 {
-		return cachedMaxGas
+func (p *StorageProvider) GetMaxGas(state FeeMarketStateReader) (maxGas uint64) {
+	if p.withCache.Load() {
+		cachedMaxGas := p.maxGas.Load()
+		if cachedMaxGas != 0 {
+			return cachedMaxGas
+		}
+
+		defer func() {
+			p.maxGas.Store(maxGas)
+		}()
 	}
 
 	maxGasSlot := common.BigToHash(big.NewInt(MAX_GAS_STORAGE_SLOT))
 	maxGasBytes := state.GetState(p.contractAddr, maxGasSlot)
-	maxGas := new(uint256.Int).SetBytes(maxGasBytes[:]).Uint64()
-	p.maxGas.Store(maxGas)
-	return maxGas
+	return new(uint256.Int).SetBytes(maxGasBytes[:]).Uint64()
 }
 
 // GetMaxEvents reads the max events from storage
-func (p *StorageProvider) GetMaxEvents(state FeeMarketStateReader) uint64 {
-	cachedMaxEvents := p.maxEvents.Load()
-	if cachedMaxEvents != 0 {
-		return cachedMaxEvents
+func (p *StorageProvider) GetMaxEvents(state FeeMarketStateReader) (maxEvents uint64) {
+	if p.withCache.Load() {
+		cachedMaxEvents := p.maxEvents.Load()
+		if cachedMaxEvents != 0 {
+			return cachedMaxEvents
+		}
+
+		defer func() {
+			p.maxEvents.Store(maxEvents)
+		}()
 	}
 
 	maxEventsSlot := common.BigToHash(big.NewInt(MAX_EVENTS_STORAGE_SLOT))
 	maxEventsBytes := state.GetState(p.contractAddr, maxEventsSlot)
-	maxEvents := new(uint256.Int).SetBytes(maxEventsBytes[:]).Uint64()
+	maxEvents = new(uint256.Int).SetBytes(maxEventsBytes[:]).Uint64()
 	if maxEvents > math.MaxUint8 {
 		maxEvents = math.MaxUint8
-		// or should we panic?
 	}
-	p.maxEvents.Store(maxEvents)
 	return maxEvents
 }
 
 // GetMaxFunctionSignatures reads the max function signatures from storage
-func (p *StorageProvider) GetMaxFunctionSignatures(state FeeMarketStateReader) uint64 {
-	cachedMaxFunctionSignatures := p.maxFunctionSignatures.Load()
-	if cachedMaxFunctionSignatures != 0 {
-		return cachedMaxFunctionSignatures
+func (p *StorageProvider) GetMaxFunctionSignatures(state FeeMarketStateReader) (maxFunctionSignatures uint64) {
+	if p.withCache.Load() {
+		cachedMaxFunctionSignatures := p.maxFunctionSignatures.Load()
+		if cachedMaxFunctionSignatures != 0 {
+			return cachedMaxFunctionSignatures
+		}
+
+		defer func() {
+			p.maxFunctionSignatures.Store(maxFunctionSignatures)
+		}()
 	}
 
 	maxFunctionSignaturesSlot := common.BigToHash(big.NewInt(MAX_FUNCTION_SIGNATURES_STORAGE_SLOT))
 	maxFunctionSignaturesBytes := state.GetState(p.contractAddr, maxFunctionSignaturesSlot)
-	maxFunctionSignatures := new(uint256.Int).SetBytes(maxFunctionSignaturesBytes[:]).Uint64()
-	p.maxFunctionSignatures.Store(maxFunctionSignatures)
+	maxFunctionSignatures = new(uint256.Int).SetBytes(maxFunctionSignaturesBytes[:]).Uint64()
+	if maxFunctionSignatures > math.MaxUint8 {
+		maxFunctionSignatures = math.MaxUint8
+	}
 	return maxFunctionSignatures
 }
 
@@ -137,37 +188,37 @@ func (p *StorageProvider) InvalidateConstants() {
 	p.maxFunctionSignatures.Store(0)
 }
 
-// GetConfig returns a config for an address, with caching
-func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketStateReader) (types.FeeMarketConfig, bool) {
-	// Load config from cache, if found
-	p.lock.RLock()
-	config, found := p.configCache[address]
-	if found {
-		p.lock.RUnlock()
-		return config, true
-	}
-	p.lock.RUnlock()
-
-	// all := readAllConfigAddresses(state)
-	// if address in all{
-	// }
-
+// GetConfig returns configuration for a specific address
+func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketStateReader) (config types.FeeMarketConfig, found bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, false
 	}
 
+	// If cache is enabled, read and write to cache
+	if p.withCache.Load() {
+		p.lock.RLock()
+		config, found := p.configCache[address]
+		p.lock.RUnlock()
+		if found {
+			return config, true
+		}
+
+		defer func() {
+			if found {
+				// Cache the config
+				p.lock.Lock()
+				p.configCache[address] = config
+				p.lock.Unlock()
+			}
+		}()
+	}
+
+	// Not found in cache, try to find it in storage
 	config, found = p.findConfigForAddress(address, state)
-	if !config.IsValidConfig(p.GetDenominator(state), p.GetMaxGas(state), p.GetMaxEvents(state), p.GetMaxRewards(state)) {
+	if !found || !config.IsValidConfig(p.GetDenominator(state), p.GetMaxGas(state), p.GetMaxEvents(state), p.GetMaxRewards(state)) {
 		return types.FeeMarketConfig{}, false
 	}
-
-	if found {
-		p.lock.Lock()
-		p.configCache[address] = config // set in cache
-		p.lock.Unlock()
-	}
-
-	return config, found
+	return config, true
 }
 
 // InvalidateConfig removes a specific address from the cache
@@ -177,24 +228,16 @@ func (p *StorageProvider) InvalidateConfig(address common.Address) {
 	p.lock.Unlock()
 }
 
-// CleanCache cleans the cache
-func (p *StorageProvider) CleanCache() {
-	p.lock.Lock()
-	p.configCache = make(map[common.Address]types.FeeMarketConfig)
-	p.lock.Unlock()
-}
-
 // loadAllConfigs reloads all configs from storage (must be called with lock held)
 func (p *StorageProvider) loadAllConfigs(state FeeMarketStateReader) {
-	if state == nil {
+	if state == nil || !p.withCache.Load() {
 		return
 	}
 
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	// Clear the cache
+	p.lock.Lock()
 	p.configCache = make(map[common.Address]types.FeeMarketConfig)
+	p.lock.Unlock()
 
 	configsLength, err := p.readConfigsLength(state)
 	if err != nil {
@@ -215,7 +258,9 @@ func (p *StorageProvider) loadAllConfigs(state FeeMarketStateReader) {
 			continue
 		}
 
+		p.lock.Lock()
 		p.configCache[config.ConfigAddress] = config
+		p.lock.Unlock()
 	}
 }
 
@@ -283,12 +328,15 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 	isActive := packedData[11]&0x01 == 1
 	configAddr := common.BytesToAddress(packedData[12:32])
 
-	// short circuit if config is already in cache, so as to avoid reading from storage
-	p.lock.RLock()
-	config, found := p.configCache[configAddr]
-	p.lock.RUnlock()
-	if found {
-		return config, nil
+	// Short circuit if config is already in cache, so as to avoid reading from storage
+	// Take care of the lock here, to not be blocked by the parent function
+	if p.withCache.Load() {
+		p.lock.RLock()
+		config, found := p.configCache[configAddr]
+		p.lock.RUnlock()
+		if found {
+			return config, nil
+		}
 	}
 
 	// Read events array length (right-aligned)
