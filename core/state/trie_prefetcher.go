@@ -41,13 +41,6 @@ var (
 	errTerminated = errors.New("fetcher is already terminated")
 )
 
-type prefetchMsg struct {
-	owner common.Hash
-	root  common.Hash
-	addr  common.Address
-	keys  [][]byte
-}
-
 // triePrefetcher is an active prefetcher, which receives accounts or storage
 // items and does trie-loading of them. The goal is to get as much useful content
 // into the caches as possible.
