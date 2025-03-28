@@ -18,6 +18,7 @@ package core
 
 import (
 	"math/big"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -79,7 +80,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:    header.GasLimit,
 		Random:      random,
 	}
-	if chain != nil && chain.FeeMarket() != nil {
+	if !reflect.ValueOf(chain).IsNil() && chain.FeeMarket() != nil {
 		blockContext.FeeMarket = chain.FeeMarket()
 	}
 	return blockContext
