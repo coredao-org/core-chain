@@ -467,83 +467,85 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			}
 
 			feeMarket := st.evm.Context.FeeMarket
-			feeMarketDenominator := feeMarket.GetDenominator(st.state, st.evm.Config.EnableFeeMarketCache)
 
-			if len(logs) > 0 && feeMarket != nil && feeMarketDenominator > 0 {
-				for _, eventLog := range logs {
-					if eventLog.Removed {
-						continue
-					}
-
-					// Handle cache invalidation events
-					if feeMarket.HandleCacheInvalidationEvent(eventLog) {
-						continue
-					}
-
-					// Get configuration from fee market
-					config, found := feeMarket.GetConfig(eventLog.Address, st.state, st.evm.Config.EnableFeeMarketCache)
-					if !found || !config.IsActive {
-						continue
-					}
-
-					var feeMarketEvent types.FeeMarketEvent
-					for _, event := range config.Events {
-						if event.EventSignature != eventLog.Topics[0] {
+			if len(logs) > 0 && feeMarket != nil {
+				feeMarketDenominator := feeMarket.GetDenominator(st.state, st.evm.Config.EnableFeeMarketCache)
+				if feeMarketDenominator > 0 {
+					for _, eventLog := range logs {
+						if eventLog.Removed {
 							continue
 						}
 
-						feeMarketEvent = event
-					}
-					if len(feeMarketEvent.Rewards) == 0 {
-						continue
-					}
-
-					for _, reward := range feeMarketEvent.Rewards {
-						// Gas to reward for this specific address
-						rewardGas := (feeMarketEvent.Gas * reward.RewardPercentage) / feeMarketDenominator
-
-						// Reward amount for this specific address
-						rewardAmount := new(uint256.Int).SetUint64(rewardGas)
-						rewardAmount.Mul(rewardAmount, effectiveTipU256)
-
-						log.Info("Add fee to issuer", "address", reward.RewardAddress, "rewardGas", rewardGas, "rewardAmount", rewardAmount)
-
-						st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
-
-						// Add the computational gas for fees distributions for the AddBalance call
-						feeMarketComputationalGas += params.FeeMarketDistributeGas
-
-						// add the pumped gas for the actual fees
-						ghostGas += rewardGas
-					}
-
-					if st.gasRemaining < ghostGas+feeMarketComputationalGas {
-						feeMarketErr := fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+ghostGas+feeMarketComputationalGas)
-
-						// Using NoBaseFee as estimation indicator
-						isEstimate := st.evm.Config.NoBaseFee
-						if isEstimate {
-							return nil, feeMarketErr // Return error for eth_estimateGas
+						// Handle cache invalidation events
+						if feeMarket.HandleCacheInvalidationEvent(eventLog) {
+							continue
 						}
 
-						// For consensus flow, consume all gas and return execution result
-						st.gasRemaining = 0
-						vmerr = feeMarketErr
-					} else {
-						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
-							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
+						// Get configuration from fee market
+						config, found := feeMarket.GetConfig(eventLog.Address, st.state, st.evm.Config.EnableFeeMarketCache)
+						if !found || !config.IsActive {
+							continue
 						}
 
-						// Remove the ghost gas for fees distributions (this is the pumped gas for the fees)
-						st.gasRemaining -= ghostGas
+						var feeMarketEvent types.FeeMarketEvent
+						for _, event := range config.Events {
+							if event.EventSignature != eventLog.Topics[0] {
+								continue
+							}
 
-						// Remove the computational gas for fees distributions (mostly for the AddBalance calls)
-						st.gasRemaining -= feeMarketComputationalGas
+							feeMarketEvent = event
+						}
+						if len(feeMarketEvent.Rewards) == 0 {
+							continue
+						}
 
-						// Also return ghost gas to the block gas counter so it is
-						// available for the next transaction.
-						if ghostGas > 0 {
-							st.gp.AddGas(ghostGas)
+						for _, reward := range feeMarketEvent.Rewards {
+							// Gas to reward for this specific address
+							rewardGas := (feeMarketEvent.Gas * reward.RewardPercentage) / feeMarketDenominator
+
+							// Reward amount for this specific address
+							rewardAmount := new(uint256.Int).SetUint64(rewardGas)
+							rewardAmount.Mul(rewardAmount, effectiveTipU256)
+
+							log.Info("Add fee to issuer", "address", reward.RewardAddress, "rewardGas", rewardGas, "rewardAmount", rewardAmount)
+
+							st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
+
+							// Add the computational gas for fees distributions for the AddBalance call
+							feeMarketComputationalGas += params.FeeMarketDistributeGas
+
+							// add the pumped gas for the actual fees
+							ghostGas += rewardGas
+						}
+
+						if st.gasRemaining < ghostGas+feeMarketComputationalGas {
+							feeMarketErr := fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+ghostGas+feeMarketComputationalGas)
+
+							// Using NoBaseFee as estimation indicator
+							isEstimate := st.evm.Config.NoBaseFee
+							if isEstimate {
+								return nil, feeMarketErr // Return error for eth_estimateGas
+							}
+
+							// For consensus flow, consume all gas and return execution result
+							st.gasRemaining = 0
+							vmerr = feeMarketErr
+						} else {
+							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
+							}
+
+							// Remove the ghost gas for fees distributions (this is the pumped gas for the fees)
+							st.gasRemaining -= ghostGas
+
+							// Remove the computational gas for fees distributions (mostly for the AddBalance calls)
+							st.gasRemaining -= feeMarketComputationalGas
+
+							// Also return ghost gas to the block gas counter so it is
+							// available for the next transaction.
+							if ghostGas > 0 {
+								st.gp.AddGas(ghostGas)
+							}
 						}
 					}
 				}
