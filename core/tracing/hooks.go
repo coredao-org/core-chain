@@ -334,6 +334,8 @@ const (
 // once per transaction, while those that start with `GasChangeCall` are emitted on a call basis.
 type GasChangeReason byte
 
+//go:generate stringer -type=GasChangeReason -output gen_gas_change_reason_stringer.go
+
 const (
 	GasChangeUnspecified GasChangeReason = 0
 
@@ -391,6 +393,8 @@ const (
 
 // NonceChangeReason is used to indicate the reason for a nonce change.
 type NonceChangeReason byte
+
+//go:generate stringer -type=NonceChangeReason -output gen_nonce_change_reason_stringer.go
 
 const (
 	NonceChangeUnspecified NonceChangeReason = 0
