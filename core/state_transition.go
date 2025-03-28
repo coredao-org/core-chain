@@ -464,7 +464,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 		// Check if is a contract call
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
-
 			var logs []*types.Log
 
 			if st.evm.TxContext.LogsContext.TxHash != (common.Hash{}) && st.evm.TxContext.LogsContext.BlockNumber != nil && st.evm.TxContext.LogsContext.BlockHash != (common.Hash{}) {
@@ -475,9 +474,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			feeMarketDenominator := feeMarket.GetDenominator(st.state)
 
 			if len(logs) > 0 && feeMarket != nil && feeMarketDenominator > 0 {
-
 				for _, eventLog := range logs {
-
 					if eventLog.Removed {
 						continue
 					}
@@ -551,7 +548,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						st.gasRemaining = 0
 						vmerr = feeMarketErr
 					} else {
-
 						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
 							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
 						}
