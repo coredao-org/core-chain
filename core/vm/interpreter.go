@@ -40,6 +40,7 @@ type Config struct {
 	NoRecursion             bool           // Disables call, callcode, delegate call and create
 	EnablePreimageRecording bool           // Enables recording of SHA3/keccak preimages
 	ExtraEips               []int          // Additional EIPS that are to be enabled
+	EnableFeeMarketCache    bool           // Enables fee market caching of configurations, this is an optimisation and is suggested to use it only for mining
 }
 
 // ScopeContext contains the things that are per-call, such as stack and memory,

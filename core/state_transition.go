@@ -24,11 +24,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -457,8 +455,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
 	if st.evm.ChainConfig().Satoshi != nil {
-		// TODO: handle EIP-7702
-
 		feeMarketComputationalGas := uint64(0)
 		ghostGas := uint64(0)
 
@@ -471,7 +467,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			}
 
 			feeMarket := st.evm.Context.FeeMarket
-			feeMarketDenominator := feeMarket.GetDenominator(st.state)
+			feeMarketDenominator := feeMarket.GetDenominator(st.state, st.evm.Config.EnableFeeMarketCache)
 
 			if len(logs) > 0 && feeMarket != nil && feeMarketDenominator > 0 {
 				for _, eventLog := range logs {
@@ -479,27 +475,13 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						continue
 					}
 
-					// move this into feemarket
-					if eventLog.Address == common.HexToAddress(systemcontracts.FeeMarketContract) {
-						// feeMarket.InvalidateConfig(addr)
-						id := common.BytesToHash(crypto.Keccak256([]byte("ConfigUpdated(address,uint256,uint256)")))
-						if eventLog.Topics[0] == id && len(eventLog.Topics) > 1 {
-							// get config address from event.topics[1]
-							configAddress := common.HexToAddress(eventLog.Topics[1].Hex())
-							// invalidate the config for the address
-							feeMarket.InvalidateConfig(configAddress)
-						}
-
-						id = common.BytesToHash(crypto.Keccak256([]byte("ConstantUpdated()")))
-						if eventLog.Topics[0] == id {
-							feeMarket.InvalidateConstants()
-						}
-
+					// Handle cache invalidation events
+					if feeMarket.HandleCacheInvalidationEvent(eventLog) {
 						continue
 					}
 
 					// Get configuration from fee market
-					config, found := feeMarket.GetConfig(eventLog.Address, st.state)
+					config, found := feeMarket.GetConfig(eventLog.Address, st.state, st.evm.Config.EnableFeeMarketCache)
 					if !found || !config.IsActive {
 						continue
 					}

@@ -537,11 +537,6 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td, ttd *
 	d.committed.Store(true)
 	if mode == SnapSync && pivot.Number.Uint64() != 0 {
 		d.committed.Store(false)
-
-		// Disable caching in the fee market provider during snap sync
-		if d.blockchain.FeeMarket() != nil {
-			d.blockchain.FeeMarket().DisableCache()
-		}
 	}
 	if mode == SnapSync {
 		// Set the ancient data limitation. If we are running snap sync, all block
@@ -1639,12 +1634,6 @@ func (d *Downloader) commitPivotBlock(result *fetchResult) error {
 		return err
 	}
 	d.committed.Store(true)
-
-	// Enable caching in the fee market provider as we're transitioning to full sync
-	if d.blockchain.FeeMarket() != nil {
-		d.blockchain.FeeMarket().EnableCache()
-	}
-
 	return nil
 }
 

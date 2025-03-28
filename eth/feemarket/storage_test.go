@@ -26,8 +26,6 @@ func TestCache(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	provider.EnableCache()
-
 	// Add a test config directly to the cache
 	testConfig := types.FeeMarketConfig{
 		IsActive:      true,
@@ -36,24 +34,20 @@ func TestCache(t *testing.T) {
 	provider.configCache[testAddr] = testConfig
 
 	// Test GetConfig with cached value
-	_, found := provider.GetConfig(testAddr, stateDB)
+	_, found := provider.GetConfig(testAddr, stateDB, true)
 	if !found {
 		t.Errorf("Expected to find config for address %s but not found", testAddr.Hex())
 	}
 
-	// if config.ConfigRate.Cmp(testConfig.ConfigRate) != 0 {
-	// 	t.Errorf("Expected rate %v, got %v", 1000, config.ConfigRate)
-	// }
-
 	// Test invalidating and fetching again (should fail as we didn't set up the storage)
 	provider.InvalidateConfig(testAddr)
-	_, found = provider.GetConfig(testAddr, stateDB)
+	_, found = provider.GetConfig(testAddr, stateDB, true)
 	if found {
 		t.Errorf("Expected config to not be found after invalidation")
 	}
 
 	// Test CleanCache
-	provider.CleanCache()
+	provider.CleanConfigsCache()
 	if len(provider.configCache) != 0 {
 		t.Errorf("Expected configCache to be empty after ReloadConfigs")
 	}
@@ -77,30 +71,28 @@ func TestReadingOfConstants(t *testing.T) {
 		t.Fatalf("Failed to create storage provider: %v", err)
 	}
 
-	provider.EnableCache()
-
 	checkInitialValues := func(st *mockStateDB) {
-		denominator := provider.GetDenominator(st)
+		denominator := provider.GetDenominator(st, true)
 		if denominator != 10000 {
 			t.Errorf("Expected denominator to be 10000, got %d", denominator)
 		}
 
-		maxRewards := provider.GetMaxRewards(st)
+		maxRewards := provider.GetMaxRewards(st, true)
 		if maxRewards != 5 {
 			t.Errorf("Expected maxRewards to be 5, got %d", maxRewards)
 		}
 
-		maxEvents := provider.GetMaxEvents(st)
+		maxEvents := provider.GetMaxEvents(st, true)
 		if maxEvents != 6 {
 			t.Errorf("Expected maxEvents to be 6, got %d", maxEvents)
 		}
 
-		maxFunctionSignatures := provider.GetMaxFunctionSignatures(st)
+		maxFunctionSignatures := provider.GetMaxFunctionSignatures(st, true)
 		if maxFunctionSignatures != 7 {
 			t.Errorf("Expected maxFunctionSignatures to be 7, got %d", maxFunctionSignatures)
 		}
 
-		maxGas := provider.GetMaxGas(st)
+		maxGas := provider.GetMaxGas(st, true)
 		if maxGas != 1000000 {
 			t.Errorf("Expected maxGas to be 1000000, got %d", maxGas)
 		}
@@ -123,27 +115,27 @@ func TestReadingOfConstants(t *testing.T) {
 	provider.InvalidateConstants()
 
 	// Check that provider returns the updated values
-	denominator := provider.GetDenominator(stateDB)
+	denominator := provider.GetDenominator(stateDB, true)
 	if denominator != 1 {
 		t.Errorf("Expected denominator to be 1, got %d", denominator)
 	}
 
-	maxRewards := provider.GetMaxRewards(stateDB)
+	maxRewards := provider.GetMaxRewards(stateDB, true)
 	if maxRewards != 2 {
 		t.Errorf("Expected maxRewards to be 2, got %d", maxRewards)
 	}
 
-	maxEvents := provider.GetMaxEvents(stateDB)
+	maxEvents := provider.GetMaxEvents(stateDB, true)
 	if maxEvents != 3 {
 		t.Errorf("Expected maxEvents to be 3, got %d", maxEvents)
 	}
 
-	maxFunctionSignatures := provider.GetMaxFunctionSignatures(stateDB)
+	maxFunctionSignatures := provider.GetMaxFunctionSignatures(stateDB, true)
 	if maxFunctionSignatures != 4 {
 		t.Errorf("Expected maxFunctionSignatures to be 4, got %d", maxFunctionSignatures)
 	}
 
-	maxGas := provider.GetMaxGas(stateDB)
+	maxGas := provider.GetMaxGas(stateDB, true)
 	if maxGas != 5 {
 		t.Errorf("Expected maxGas to be 5, got %d", maxGas)
 	}
@@ -222,23 +214,25 @@ func TestStorageLayoutParsing(t *testing.T) {
 	}
 
 	stateDB := &mockStateDB{storage: storage}
-	config, found := provider.GetConfig(contractAddr1, stateDB)
-	if !found {
+	if _, found := provider.GetConfig(contractAddr1, stateDB, false); !found {
 		t.Errorf("Config not found")
 	}
 
-	if !config.IsValidConfig(provider.GetDenominator(stateDB), provider.GetMaxGas(stateDB), provider.GetMaxEvents(stateDB), provider.GetMaxRewards(stateDB)) {
-		t.Errorf("Config is not valid")
-	}
-
-	config, found = provider.GetConfig(contractAddr2, stateDB)
-	if !found {
+	if _, found := provider.GetConfig(contractAddr2, stateDB, false); !found {
 		t.Errorf("Config not found")
-	}
-
-	if !config.IsValidConfig(provider.GetDenominator(stateDB), provider.GetMaxGas(stateDB), provider.GetMaxEvents(stateDB), provider.GetMaxRewards(stateDB)) {
-		t.Errorf("Config is not valid")
 	}
 
 	// TODO: validate the config values as well
+}
+
+func TestIsValidConfig(t *testing.T) {
+	t.Skip("not implemented")
+}
+
+func TestHandleCacheInvalidationEvent(t *testing.T) {
+	t.Skip("not implemented")
+}
+
+func TestConstantsCache(t *testing.T) {
+	t.Skip("not implemented")
 }

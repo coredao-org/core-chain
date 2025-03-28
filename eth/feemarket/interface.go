@@ -9,10 +9,10 @@ import (
 // Provider defines the interface for fee monetization services
 type Provider interface {
 	// GetDenominator returns the denominator used for percentages
-	GetDenominator(state FeeMarketStateReader) uint64
+	GetDenominator(state FeeMarketStateReader, withCache bool) uint64
 
 	// GetConfig returns configuration for a specific address
-	GetConfig(address common.Address, state FeeMarketStateReader) (types.FeeMarketConfig, bool)
+	GetConfig(address common.Address, state FeeMarketStateReader, withCache bool) (types.FeeMarketConfig, bool)
 
 	// InvalidateConfig invalidates the cache for a specific address
 	InvalidateConfig(address common.Address)
@@ -20,14 +20,8 @@ type Provider interface {
 	// InvalidateConstants invalidates the cache for the constants
 	InvalidateConstants()
 
-	// EnableCache enables the cache
-	EnableCache()
-
-	// DisableCache disables the cache
-	DisableCache()
-
 	// CleanCache cleans the cache
-	CleanCache()
+	CleanConfigsCache()
 }
 
 // FeeMarketStateReader defines the interface for reading the state of the fee market

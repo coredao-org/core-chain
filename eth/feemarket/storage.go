@@ -37,9 +37,6 @@ type StorageProvider struct {
 	// configCache is a cache of configs by address
 	configCache map[common.Address]types.FeeMarketConfig
 
-	// withCache is used in order to skip cache during snap sync, cache can be used only in full sync
-	withCache atomic.Bool
-
 	lock sync.RWMutex // Protects the cache access
 }
 
@@ -51,26 +48,8 @@ func NewStorageProvider(contractAddr common.Address) (*StorageProvider, error) {
 	}, nil
 }
 
-// EnableCache enables the cache
-func (p *StorageProvider) EnableCache() {
-	// Invalidate constants and clean cache to ensure we get fresh data
-	p.InvalidateConstants()
-	p.CleanCache()
-
-	p.withCache.Store(true)
-	log.Debug("Enabled fee market cache")
-}
-
-// DisableCache disables the cache
-func (p *StorageProvider) DisableCache() {
-	p.withCache.Store(false)
-	log.Debug("Disabled fee market cache")
-	p.InvalidateConstants()
-	p.CleanCache()
-}
-
 // CleanCache cleans the cache
-func (p *StorageProvider) CleanCache() {
+func (p *StorageProvider) CleanConfigsCache() {
 	p.lock.Lock()
 	log.Debug("Cleaned fee market cache", "entries", len(p.configCache))
 	p.configCache = make(map[common.Address]types.FeeMarketConfig)
@@ -88,8 +67,8 @@ func (p *StorageProvider) InvalidateConstants() {
 }
 
 // GetDenominator reads the denominator from storage
-func (p *StorageProvider) GetDenominator(state FeeMarketStateReader) (denominator uint64) {
-	if p.withCache.Load() {
+func (p *StorageProvider) GetDenominator(state FeeMarketStateReader, withCache bool) (denominator uint64) {
+	if withCache {
 		cachedDenominator := p.denominator.Load()
 		if cachedDenominator != 0 {
 			return cachedDenominator
@@ -106,8 +85,8 @@ func (p *StorageProvider) GetDenominator(state FeeMarketStateReader) (denominato
 }
 
 // GetMaxRewards reads the max rewards from storage
-func (p *StorageProvider) GetMaxRewards(state FeeMarketStateReader) (maxRewards uint64) {
-	if p.withCache.Load() {
+func (p *StorageProvider) GetMaxRewards(state FeeMarketStateReader, withCache bool) (maxRewards uint64) {
+	if withCache {
 		cachedMaxRewards := p.maxRewards.Load()
 		if cachedMaxRewards != 0 {
 			return cachedMaxRewards
@@ -124,8 +103,8 @@ func (p *StorageProvider) GetMaxRewards(state FeeMarketStateReader) (maxRewards 
 }
 
 // GetMaxGas reads the max gas from storage
-func (p *StorageProvider) GetMaxGas(state FeeMarketStateReader) (maxGas uint64) {
-	if p.withCache.Load() {
+func (p *StorageProvider) GetMaxGas(state FeeMarketStateReader, withCache bool) (maxGas uint64) {
+	if withCache {
 		cachedMaxGas := p.maxGas.Load()
 		if cachedMaxGas != 0 {
 			return cachedMaxGas
@@ -142,8 +121,8 @@ func (p *StorageProvider) GetMaxGas(state FeeMarketStateReader) (maxGas uint64) 
 }
 
 // GetMaxEvents reads the max events from storage
-func (p *StorageProvider) GetMaxEvents(state FeeMarketStateReader) (maxEvents uint64) {
-	if p.withCache.Load() {
+func (p *StorageProvider) GetMaxEvents(state FeeMarketStateReader, withCache bool) (maxEvents uint64) {
+	if withCache {
 		cachedMaxEvents := p.maxEvents.Load()
 		if cachedMaxEvents != 0 {
 			return cachedMaxEvents
@@ -164,8 +143,8 @@ func (p *StorageProvider) GetMaxEvents(state FeeMarketStateReader) (maxEvents ui
 }
 
 // GetMaxFunctionSignatures reads the max function signatures from storage
-func (p *StorageProvider) GetMaxFunctionSignatures(state FeeMarketStateReader) (maxFunctionSignatures uint64) {
-	if p.withCache.Load() {
+func (p *StorageProvider) GetMaxFunctionSignatures(state FeeMarketStateReader, withCache bool) (maxFunctionSignatures uint64) {
+	if withCache {
 		cachedMaxFunctionSignatures := p.maxFunctionSignatures.Load()
 		if cachedMaxFunctionSignatures != 0 {
 			return cachedMaxFunctionSignatures
@@ -186,13 +165,13 @@ func (p *StorageProvider) GetMaxFunctionSignatures(state FeeMarketStateReader) (
 }
 
 // GetConfig returns configuration for a specific address
-func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketStateReader) (config types.FeeMarketConfig, found bool) {
+func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketStateReader, withCache bool) (config types.FeeMarketConfig, found bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, false
 	}
 
 	// If cache is enabled, read and write to cache
-	if p.withCache.Load() {
+	if withCache {
 		p.lock.RLock()
 		config, found := p.configCache[address]
 		p.lock.RUnlock()
@@ -202,8 +181,8 @@ func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketState
 	}
 
 	// Not found in cache, try to find it in storage
-	config, found = p.findConfigForAddress(address, state)
-	if !found || !config.IsValidConfig(p.GetDenominator(state), p.GetMaxGas(state), p.GetMaxEvents(state), p.GetMaxRewards(state)) {
+	config, found = p.findConfigForAddress(address, state, withCache)
+	if !found || !config.IsValidConfig(p.GetDenominator(state, withCache), p.GetMaxGas(state, withCache), p.GetMaxEvents(state, withCache), p.GetMaxRewards(state, withCache)) {
 		return types.FeeMarketConfig{}, false
 	}
 	return config, true
@@ -217,7 +196,7 @@ func (p *StorageProvider) InvalidateConfig(address common.Address) {
 }
 
 // findConfigForAddress finds a config for an address by scanning all configs
-func (p *StorageProvider) findConfigForAddress(address common.Address, state FeeMarketStateReader) (types.FeeMarketConfig, bool) {
+func (p *StorageProvider) findConfigForAddress(address common.Address, state FeeMarketStateReader, withCache bool) (types.FeeMarketConfig, bool) {
 	configsLength, err := p.readConfigsLength(state)
 	if err != nil {
 		log.Error("Failed to read configs length", "err", err)
@@ -226,20 +205,20 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Fee
 
 	// Scan all configs to find one with matching address
 	for i := uint64(0); i < configsLength; i++ {
-		config, err := p.readConfigAtIndex(i, state)
+		config, err := p.readConfigAtIndex(i, state, withCache)
 		if err != nil {
 			log.Debug("Failed to read config for FeeMarket configuration", "index", i, "err", err)
 			continue
 		}
 
-		if !config.IsValidConfig(p.GetDenominator(state), p.GetMaxGas(state), p.GetMaxEvents(state), p.GetMaxRewards(state)) {
+		if !config.IsValidConfig(p.GetDenominator(state, withCache), p.GetMaxGas(state, withCache), p.GetMaxEvents(state, withCache), p.GetMaxRewards(state, withCache)) {
 			log.Debug("Invalid config found in storage", "index", i, "config", config)
 			continue
 		}
 
 		// Small optimization that caches valid configs, even if they are not for the address we are looking for
 		// This way next time we can skip reading whole storage for each config
-		if p.withCache.Load() {
+		if withCache {
 			p.lock.Lock()
 			p.configCache[address] = config
 			p.lock.Unlock()
@@ -262,7 +241,7 @@ func (p *StorageProvider) readConfigsLength(state FeeMarketStateReader) (uint64,
 }
 
 // readConfigAtIndex reads a config from storage at a specific index
-func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateReader) (config types.FeeMarketConfig, err error) {
+func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateReader, withCache bool) (config types.FeeMarketConfig, err error) {
 	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
 
 	// Calculate base slot for configs array
@@ -293,7 +272,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 
 	// Short circuit optimisation if config is already in cache, so as to avoid reading from storage the rest slots for this config.
 	// Take care of the lock here, to not be blocked by the parent function.
-	if p.withCache.Load() {
+	if withCache {
 		p.lock.RLock()
 		config, found := p.configCache[configAddr]
 		p.lock.RUnlock()

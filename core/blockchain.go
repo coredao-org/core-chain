@@ -1048,12 +1048,6 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	}
 	defer bc.chainmu.Unlock()
 
-	// Disable fee market cache during rewind
-	if bc.feeMarket != nil {
-		bc.feeMarket.DisableCache()
-		defer bc.feeMarket.EnableCache()
-	}
-
 	var (
 		// Track the block number of the requested root hash
 		rootNumber uint64 // (no root == always 0)
@@ -1180,6 +1174,11 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	bc.blockCache.Purge()
 	bc.txLookupCache.Purge()
 	bc.futureBlocks.Purge()
+
+	// Clean fee market cache during rewind
+	if bc.feeMarket != nil {
+		bc.feeMarket.CleanCache()
+	}
 
 	if finalized := bc.CurrentFinalBlock(); finalized != nil && head < finalized.Number.Uint64() {
 		log.Error("SetHead invalidated finalized block")
@@ -1512,12 +1511,6 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 	bc.wg.Add(1)
 	defer bc.wg.Done()
 
-	// Disable fee market cache during rewind
-	if bc.feeMarket != nil {
-		bc.feeMarket.DisableCache()
-		defer bc.feeMarket.EnableCache()
-	}
-
 	var (
 		ancientBlocks, liveBlocks     types.Blocks
 		ancientReceipts, liveReceipts []types.Receipts
@@ -1738,6 +1731,12 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 		}
 		updateHead(blockChain[len(blockChain)-1])
 		return 0, nil
+	}
+
+	// Invalidate the fee market cache
+	// TODO(ziogaschr): check if this is needed
+	if bc.feeMarket != nil {
+		defer bc.feeMarket.CleanCache()
 	}
 
 	// Write downloaded chain data and corresponding receipt chain data
@@ -2010,10 +2009,6 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 		}
 	} else {
 		bc.chainSideFeed.Send(ChainSideEvent{Block: block})
-		// Clean fee market cache
-		if bc.feeMarket != nil {
-			bc.feeMarket.CleanCache()
-		}
 	}
 	return status, nil
 }
@@ -2649,6 +2644,11 @@ func (bc *BlockChain) recoverAncestors(block *types.Block) (common.Hash, error) 
 		numbers []uint64
 		parent  = block
 	)
+	// Invalidate the fee market cache
+	// TODO(ziogaschr): check if this is needed
+	if bc.feeMarket != nil {
+		defer bc.feeMarket.CleanCache()
+	}
 	for parent != nil && !bc.HasState(parent.Root()) {
 		if bc.stateRecoverable(parent.Root()) {
 			if err := bc.triedb.Recover(parent.Root()); err != nil {
@@ -2735,13 +2735,6 @@ func (bc *BlockChain) reorg(oldHead *types.Header, newHead *types.Block) error {
 		return errors.New("current head block missing")
 	}
 	newBlock := newHead
-
-	// Disable fee market cache during reorg
-	if bc.feeMarket != nil {
-		bc.feeMarket.DisableCache()
-		defer bc.feeMarket.EnableCache()
-	}
-
 	// Reduce the longer chain to the same number as the shorter one
 	if oldBlock.NumberU64() > newBlock.NumberU64() {
 		// Old chain is longer, gather all transactions and logs as deleted ones
@@ -2925,12 +2918,6 @@ func (bc *BlockChain) SetCanonical(head *types.Block) (common.Hash, error) {
 	}
 	defer bc.chainmu.Unlock()
 
-	// Disable fee market cache during reorg
-	if bc.feeMarket != nil {
-		bc.feeMarket.DisableCache()
-		defer bc.feeMarket.EnableCache()
-	}
-
 	// Re-execute the reorged chain in case the head state is missing.
 	if !bc.HasState(head.Root()) {
 		if latestValidHash, err := bc.recoverAncestors(head); err != nil {
@@ -3080,7 +3067,7 @@ func (bc *BlockChain) startDoubleSignMonitor() {
 
 // setupFeeMarketCacheCleaner subscribes to chain side events (reorgs) and cleans the fee market cache
 func (bc *BlockChain) setupFeeMarketCacheCleaner() {
-	sideEvents := make(chan ChainSideEvent, 5)
+	sideEvents := make(chan ChainSideEvent, 10)
 	sideEventSub := bc.SubscribeChainSideEvent(sideEvents)
 	defer func() {
 		sideEventSub.Unsubscribe()
