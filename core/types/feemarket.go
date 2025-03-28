@@ -59,7 +59,7 @@ func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxReward
 			return false
 		}
 
-		if event.Rewards == nil || len(event.Rewards) > int(maxRewards) {
+		if len(event.Rewards) == 0 || len(event.Rewards) > int(maxRewards) {
 			return false
 		}
 
