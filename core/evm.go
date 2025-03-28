@@ -66,7 +66,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	if header.Difficulty.Cmp(common.Big0) == 0 {
 		random = &header.MixDigest
 	}
-	return vm.BlockContext{
+	blockContext := vm.BlockContext{
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
 		GetHash:     GetHashFn(header, chain),
@@ -78,8 +78,11 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		BlobBaseFee: blobBaseFee,
 		GasLimit:    header.GasLimit,
 		Random:      random,
-		FeeMarket:   chain.FeeMarket(),
 	}
+	if chain != nil && chain.FeeMarket() != nil {
+		blockContext.FeeMarket = chain.FeeMarket()
+	}
+	return blockContext
 }
 
 // NewEVMTxContext creates a new transaction context for a single transaction.
