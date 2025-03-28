@@ -852,8 +852,6 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 			return errMismatchingEpochValidators
 		}
 	}
-	vmConfig := vm.Config{Tracer: tracer}
-
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	cx := chainContext{Chain: chain, satoshi: p}
 	if header.Number.Cmp(common.Big1) == 0 {
@@ -1597,22 +1595,15 @@ func applyMessage(
 	chainConfig *params.ChainConfig,
 	chainContext core.ChainContext,
 ) (uint64, error) {
-	// TODO(Nathan): state.Prepare should be called here, now accessList related EIP not affect systemtxs
-	// 		 EIP1153 may cause a critical issue in the future
-	// Create a new context to be used in the EVM environment
-	context := core.NewEVMBlockContext(header, chainContext, nil)
-	// Create a new environment which holds all relevant information
-	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, state, chainConfig, vm.Config{})
-	// Apply the transaction to the current state (included in the env)
 	// Increment the nonce for the next transaction
-	state.SetNonce(msg.From(), state.GetNonce(msg.From())+1)
-	ret, returnGas, err := vmenv.Call(
-		vm.AccountRef(msg.From()),
-		*msg.To(),
-		msg.Data(),
-		msg.Gas(),
-		uint256.MustFromBig(msg.Value()),
+	state.SetNonce(msg.From, state.GetNonce(msg.From)+1, tracing.NonceChangeEoACall)
+
+	ret, returnGas, err := evm.Call(
+		vm.AccountRef(msg.From),
+		*msg.To,
+		msg.Data,
+		msg.GasLimit,
+		uint256.MustFromBig(msg.Value),
 	)
 	if err != nil {
 		log.Error("apply message failed", "msg", string(ret), "err", err)
