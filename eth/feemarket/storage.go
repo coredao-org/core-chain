@@ -183,7 +183,11 @@ func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketState
 
 	// Not found in cache, try to find it in storage
 	config, found = p.findConfigForAddress(address, state, withCache)
-	if !found || !config.IsValidConfig(p.GetDenominator(state, withCache), p.GetMaxGas(state, withCache), p.GetMaxEvents(state, withCache), p.GetMaxRewards(state, withCache)) {
+	if !found {
+		return types.FeeMarketConfig{}, false
+	}
+	if valid, err := config.IsValidConfig(p.GetDenominator(state, withCache), p.GetMaxGas(state, withCache), p.GetMaxEvents(state, withCache), p.GetMaxRewards(state, withCache)); !valid || err != nil {
+		log.Debug("Invalid config found in storage", "config", config, "err", err)
 		return types.FeeMarketConfig{}, false
 	}
 	return config, true
@@ -216,8 +220,8 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Fee
 			continue
 		}
 
-		if !config.IsValidConfig(p.GetDenominator(state, withCache), p.GetMaxGas(state, withCache), p.GetMaxEvents(state, withCache), p.GetMaxRewards(state, withCache)) {
-			log.Debug("Invalid config found in storage", "index", i, "config", config)
+		if valid, err := config.IsValidConfig(p.GetDenominator(state, withCache), p.GetMaxGas(state, withCache), p.GetMaxEvents(state, withCache), p.GetMaxRewards(state, withCache)); !valid || err != nil {
+			log.Debug("Invalid config found in storage", "index", i, "config", config, "err", err)
 			continue
 		}
 

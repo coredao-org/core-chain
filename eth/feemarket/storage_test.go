@@ -233,12 +233,15 @@ func TestIsValidConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := tc.config.IsValidConfig(
+			result, err := tc.config.IsValidConfig(
 				provider.GetDenominator(stateDB, false),
 				provider.GetMaxGas(stateDB, false),
 				provider.GetMaxEvents(stateDB, false),
 				provider.GetMaxRewards(stateDB, false),
 			)
+			if err != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
 			if result != tc.expected {
 				t.Errorf("Expected IsValidConfig to return %v, got %v", tc.expected, result)
 			}

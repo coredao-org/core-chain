@@ -1,6 +1,9 @@
 package types
 
 import (
+	"errors"
+	"strconv"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -33,54 +36,54 @@ type FeeMarketConfig struct {
 }
 
 // IsValidConfig checks if a config is valid
-func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxRewards uint64) bool {
+func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxRewards uint64) (valid bool, err error) {
 	if denominator == 0 || maxGas == 0 || maxEvents == 0 || maxRewards == 0 {
-		return false
+		return false, errors.New("invalid config constants")
 	}
 
 	if !c.IsActive {
-		return false
+		return false, errors.New("config is not active")
 	}
 
 	if c.ConfigAddress == (common.Address{}) {
-		return false
+		return false, errors.New("config address is not set")
 	}
 
 	if c.Events == nil || len(c.Events) > int(maxEvents) {
-		return false
+		return false, errors.New("invalid events length")
 	}
 
 	for _, event := range c.Events {
 		if event.Gas == 0 || event.Gas > maxGas {
-			return false
+			return false, errors.New("invalid gas for event " + event.EventSignature.String())
 		}
 
 		if event.EventSignature == (common.Hash{}) {
-			return false
+			return false, errors.New("invalid event signature")
 		}
 
 		if len(event.Rewards) == 0 || len(event.Rewards) > int(maxRewards) {
-			return false
+			return false, errors.New("invalid rewards length")
 		}
 
 		totalRewardPercentage := uint64(0)
-		for _, reward := range event.Rewards {
+		for i, reward := range event.Rewards {
 			if reward.RewardAddress == (common.Address{}) {
-				return false
+				return false, errors.New("invalid reward address for reward at index " + strconv.Itoa(i))
 			}
 
 			if reward.RewardPercentage == 0 || reward.RewardPercentage > denominator {
-				return false
+				return false, errors.New("invalid reward percentage for reward at index " + strconv.Itoa(i))
 			}
 
 			totalRewardPercentage += reward.RewardPercentage
 		}
 
 		if totalRewardPercentage != denominator {
-			return false
+			return false, errors.New("invalid total reward percentage, should be 100%")
 		}
 	}
 
 	// on a later version, we will handle function signatures as well
-	return true
+	return true, nil
 }
