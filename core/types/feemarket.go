@@ -2,7 +2,6 @@ package types
 
 import (
 	"errors"
-	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -55,7 +54,7 @@ func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxReward
 
 	for _, event := range c.Events {
 		if event.Gas == 0 || event.Gas > maxGas {
-			return false, errors.New("invalid gas for event " + event.EventSignature.String())
+			return false, errors.New("invalid event gas")
 		}
 
 		if event.EventSignature == (common.Hash{}) {
@@ -67,20 +66,20 @@ func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxReward
 		}
 
 		totalRewardPercentage := uint64(0)
-		for i, reward := range event.Rewards {
+		for _, reward := range event.Rewards {
 			if reward.RewardAddress == (common.Address{}) {
-				return false, errors.New("invalid reward address for reward at index " + strconv.Itoa(i))
+				return false, errors.New("invalid reward address")
 			}
 
 			if reward.RewardPercentage == 0 || reward.RewardPercentage > denominator {
-				return false, errors.New("invalid reward percentage for reward at index " + strconv.Itoa(i))
+				return false, errors.New("invalid reward percentage")
 			}
 
 			totalRewardPercentage += reward.RewardPercentage
 		}
 
 		if totalRewardPercentage != denominator {
-			return false, errors.New("invalid total reward percentage, should be 100%")
+			return false, errors.New("invalid total rewards percentage")
 		}
 	}
 

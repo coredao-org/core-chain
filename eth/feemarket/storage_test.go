@@ -2,8 +2,11 @@ package feemarket
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/big"
+	"math/rand"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -20,6 +23,7 @@ func (m *mockStateDB) GetState(addr common.Address, key common.Hash) common.Hash
 	return m.storage[key]
 }
 
+// TestStorageLayoutParsing tests the storage layout parsing, it uses actual data as stored by the contract in the storage
 func TestStorageLayoutParsing(t *testing.T) {
 	configurationContractAddr := common.HexToAddress("0x0000000000000000000000000000000000001016")
 	contractAddr1 := common.HexToAddress("0xe452e78f45ed9542be008308ebdb7d13e786884b")
@@ -121,9 +125,10 @@ func TestIsValidConfig(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name     string
-		config   types.FeeMarketConfig
-		expected bool
+		name        string
+		config      types.FeeMarketConfig
+		expected    bool
+		expectedErr error
 	}{
 		{
 			name: "Valid config",
@@ -143,7 +148,17 @@ func TestIsValidConfig(t *testing.T) {
 					},
 				},
 			},
-			expected: true,
+			expected:    true,
+			expectedErr: nil,
+		},
+		{
+			name: "Invalid - Inactive config",
+			config: types.FeeMarketConfig{
+				IsActive:      false,
+				ConfigAddress: common.HexToAddress("0x1234"),
+			},
+			expected:    false,
+			expectedErr: errors.New("config is not active"),
 		},
 		{
 			name: "Invalid - Too many events",
@@ -183,7 +198,8 @@ func TestIsValidConfig(t *testing.T) {
 					},
 				},
 			},
-			expected: false,
+			expected:    false,
+			expectedErr: errors.New("invalid events length"),
 		},
 		{
 			name: "Invalid - Gas too high",
@@ -203,7 +219,8 @@ func TestIsValidConfig(t *testing.T) {
 					},
 				},
 			},
-			expected: false,
+			expected:    false,
+			expectedErr: errors.New("invalid event gas"),
 		},
 		{
 			name: "Invalid - Total percentage over denominator",
@@ -227,7 +244,8 @@ func TestIsValidConfig(t *testing.T) {
 					},
 				},
 			},
-			expected: false,
+			expected:    false,
+			expectedErr: errors.New("invalid total rewards percentage"),
 		},
 	}
 
@@ -239,11 +257,11 @@ func TestIsValidConfig(t *testing.T) {
 				provider.GetMaxEvents(stateDB, false),
 				provider.GetMaxRewards(stateDB, false),
 			)
-			if err != nil {
-				t.Errorf("Expected no error, got %v", err)
-			}
 			if result != tc.expected {
 				t.Errorf("Expected IsValidConfig to return %v, got %v", tc.expected, result)
+			}
+			if tc.expectedErr != nil && err.Error() != tc.expectedErr.Error() {
+				t.Errorf("Expected error \"%v\", got \"%v\"", tc.expectedErr, err)
 			}
 		})
 	}
@@ -374,6 +392,132 @@ func TestConstantsCache(t *testing.T) {
 	}
 }
 
+// writeRandomConfiguration writes a random config for the given address at the given index
+func writeRandomConfiguration(storage map[common.Hash]common.Hash, index uint64, addr common.Address, maxGas, maxEvents, maxRewards uint64) types.FeeMarketConfig {
+	numEvents := uint64(rand.Intn(int(maxEvents))) + 1
+	numRewards := uint64(rand.Intn(int(maxRewards))) + 1
+	return writeConfiguration(storage, index, addr, maxGas, numEvents, numRewards)
+}
+
+func writeConfiguration(storage map[common.Hash]common.Hash, index uint64, addr common.Address, maxGas, numEvents, numRewards uint64) types.FeeMarketConfig {
+	// Update configs length if necessary
+	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
+	currentLength := new(big.Int).SetBytes(storage[configsSlot].Bytes()).Uint64()
+	if index >= currentLength {
+		storage[configsSlot] = common.BigToHash(big.NewInt(int64(index + 1)))
+	}
+
+	// Calculate base slot for configs array
+	configsBaseSlotBytes := crypto.Keccak256(configsSlot[:])
+	configsBaseSlot := common.BytesToHash(configsBaseSlotBytes)
+
+	// Each Config takes 3 slots (packed fields, events.length, functionSignatures.length)
+	configSizeInSlots := uint64(3)
+
+	// Calculate this config's starting slot
+	indexOffset := new(big.Int).Mul(
+		big.NewInt(int64(configSizeInSlots)),
+		big.NewInt(int64(index)),
+	)
+	configSlot := common.BigToHash(new(big.Int).Add(
+		new(big.Int).SetBytes(configsBaseSlot[:]),
+		indexOffset,
+	))
+
+	// Set up config data (isActive + address)
+	packedData := make([]byte, 32)
+	packedData[11] = 0x01 // isActive = true
+	copy(packedData[12:32], addr.Bytes())
+	storage[configSlot] = common.BytesToHash(packedData)
+
+	// Set events length at slot+1
+	eventsLengthSlot := incrementHash(configSlot)
+	eventsLength := numEvents
+	storage[eventsLengthSlot] = common.BigToHash(big.NewInt(int64(eventsLength)))
+
+	// Set up events data
+	eventsBaseSlot := common.BytesToHash(crypto.Keccak256(eventsLengthSlot[:]))
+	events := make([]types.FeeMarketEvent, eventsLength)
+
+	// Create multiple events
+	for eventIdx := uint64(0); eventIdx < eventsLength; eventIdx++ {
+		eventSlot := common.BigToHash(new(big.Int).Add(
+			new(big.Int).SetBytes(eventsBaseSlot.Bytes()),
+			new(big.Int).Mul(big.NewInt(3), big.NewInt(int64(eventIdx))), // Each event takes 3 slots
+		))
+
+		// Generate random event data
+		eventSig := common.Hash{byte(rand.Intn(255) + 1)} // Random signature
+		gas := uint64(rand.Intn(int(maxGas-1000))) + 1000 // Random gas between 1000 and maxGas
+
+		// Each Event takes 3 slots (eventSignature, gas, rewards.length)
+		eventSigSlot := eventSlot
+		gasSlot := incrementHash(eventSigSlot)
+		rewardsLengthSlot := incrementHash(gasSlot)
+
+		// Set event data
+		storage[eventSigSlot] = eventSig
+		storage[gasSlot] = common.BigToHash(big.NewInt(int64(gas)))
+
+		// Generate number of rewards
+		rewards := make([]types.FeeMarketReward, numRewards)
+		storage[rewardsLengthSlot] = common.BigToHash(big.NewInt(int64(numRewards)))
+
+		// Set up reward data
+		rewardsBaseSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
+
+		// Track total percentage to ensure it adds up to 10000
+		remainingPercentage := uint64(10000)
+
+		for i := uint64(0); i < numRewards; i++ {
+			rewardSlot := common.BigToHash(new(big.Int).Add(
+				new(big.Int).SetBytes(rewardsBaseSlot.Bytes()),
+				big.NewInt(int64(i)),
+			))
+
+			// Generate random reward data
+			rewardAddr := common.BytesToAddress(crypto.Keccak256(append(addr.Bytes(), byte(i)))) // Unique per index
+
+			var percentage uint64
+			if i == numRewards-1 {
+				percentage = remainingPercentage // Last reward gets remainder
+			} else {
+				maxPercent := remainingPercentage - (numRewards - i - 1) // Leave room for remaining rewards
+				if maxPercent > 1 {
+					percentage = uint64(rand.Intn(int(maxPercent-1))) + 1
+				} else {
+					percentage = 1
+				}
+				remainingPercentage -= percentage
+			}
+
+			// Set reward data (packed address + percentage)
+			rewardData := make([]byte, 32)
+			copy(rewardData[12:32], rewardAddr.Bytes())
+			binary.BigEndian.PutUint16(rewardData[10:12], uint16(percentage))
+			storage[rewardSlot] = common.BytesToHash(rewardData)
+
+			rewards[i] = types.FeeMarketReward{
+				RewardAddress:    rewardAddr,
+				RewardPercentage: percentage,
+			}
+		}
+
+		events[eventIdx] = types.FeeMarketEvent{
+			EventSignature: eventSig,
+			Gas:            gas,
+			Rewards:        rewards,
+		}
+	}
+
+	// Return the written config for verification
+	return types.FeeMarketConfig{
+		IsActive:      true,
+		ConfigAddress: addr,
+		Events:        events,
+	}
+}
+
 // TestConcurrentAccess tests the concurrent access to the storage
 func TestConcurrentAccess(t *testing.T) {
 	configurationContractAddr := common.HexToAddress("0x0000000000000000000000000000000000001016")
@@ -385,6 +529,8 @@ func TestConcurrentAccess(t *testing.T) {
 	MAX_GAS_VALUE := uint64(1000000)
 	MAX_FUNCTION_SIGNATURES_VALUE := uint64(20)
 
+	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
+
 	// -- Setup storage with valid config and constants
 	storage := map[common.Hash]common.Hash{
 		// Constants
@@ -393,76 +539,11 @@ func TestConcurrentAccess(t *testing.T) {
 		common.BigToHash(big.NewInt(MAX_EVENTS_STORAGE_SLOT)):              common.BigToHash(big.NewInt(int64(MAX_EVENTS_VALUE))),
 		common.BigToHash(big.NewInt(MAX_GAS_STORAGE_SLOT)):                 common.BigToHash(big.NewInt(int64(MAX_GAS_VALUE))),
 		common.BigToHash(big.NewInt(MAX_FUNCTION_SIGNATURES_STORAGE_SLOT)): common.BigToHash(big.NewInt(int64(MAX_FUNCTION_SIGNATURES_VALUE))),
+		configsSlot: common.BigToHash(big.NewInt(0)),
 	}
 
-	// Setup a valid config in storage
-	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
-	storage[configsSlot] = common.BigToHash(big.NewInt(1)) // One config
-
-	// Calculate base slot for configs array
-	configsBaseSlotBytes := crypto.Keccak256(configsSlot[:])
-	configsBaseSlot := common.BytesToHash(configsBaseSlotBytes)
-
-	// Each Config takes 3 slots (packed fields, events.length, functionSignatures.length)
-	configSizeInSlots := uint64(3)
-
-	// Calculate this config's starting slot (index 0)
-	indexOffset := new(big.Int).Mul(
-		big.NewInt(int64(configSizeInSlots)),
-		big.NewInt(0), // index 0
-	)
-	configSlot := common.BigToHash(new(big.Int).Add(
-		new(big.Int).SetBytes(configsBaseSlot[:]),
-		indexOffset,
-	))
-
-	// Set up config data (isActive + address)
-	packedData := make([]byte, 32)
-	packedData[11] = 0x01 // isActive = true
-	copy(packedData[12:32], testAddr.Bytes())
-	storage[configSlot] = common.BytesToHash(packedData)
-
-	// Set events length at slot+1
-	eventsLengthSlot := incrementHash(configSlot)
-	storage[eventsLengthSlot] = common.BigToHash(big.NewInt(1))
-
-	// Set up event data
-	eventsBaseSlot := common.BytesToHash(crypto.Keccak256(eventsLengthSlot[:]))
-	eventSlot := common.BigToHash(new(big.Int).Add(
-		new(big.Int).SetBytes(eventsBaseSlot.Bytes()),
-		big.NewInt(0), // index 0
-	))
-
-	// Each Event takes 3 slots (eventSignature, gas, rewards.length)
-	eventSigSlot := eventSlot
-	gasSlot := incrementHash(eventSigSlot)
-	rewardsLengthSlot := incrementHash(gasSlot)
-
-	// Set event data
-	storage[eventSigSlot] = common.Hash{1}                       // Some event signature
-	storage[gasSlot] = common.BigToHash(big.NewInt(100000))      // Gas limit
-	storage[rewardsLengthSlot] = common.BigToHash(big.NewInt(1)) // One reward
-
-	// Set up reward data
-	rewardsBaseSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
-	rewardSlot := common.BigToHash(new(big.Int).Add(
-		new(big.Int).SetBytes(rewardsBaseSlot.Bytes()),
-		big.NewInt(0), // index 0
-	))
-
-	// Set reward data (packed address + percentage)
-	rewardData := make([]byte, 32)
-	rewardAddr := common.HexToAddress("0x5678")
-	copy(rewardData[12:32], rewardAddr.Bytes())
-	rewardData[10] = 0x27 // 10000 in uint16
-	rewardData[11] = 0x10
-	storage[rewardSlot] = common.BytesToHash(rewardData)
-
-	t.Logf("Storage setup verification:")
-	t.Logf("Contract address: %s", configurationContractAddr.Hex())
-	t.Logf("Test address: %s", testAddr.Hex())
-	t.Logf("Config slot: %s", configSlot.Hex())
-	t.Logf("Events length slot: %s", eventsLengthSlot.Hex())
+	// Write initial config
+	initialConfig := writeRandomConfiguration(storage, 0, testAddr, MAX_GAS_VALUE, MAX_EVENTS_VALUE, MAX_REWARDS_VALUE)
 
 	// -- Start testing
 	stateDB := &mockStateDB{storage: storage}
@@ -471,45 +552,32 @@ func TestConcurrentAccess(t *testing.T) {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	// Verify constants are read correctly
-	denominator := provider.GetDenominator(stateDB, true)
-	if denominator != DENOMINATOR_VALUE {
-		t.Errorf("Invalid denominator: got %d, want %d", denominator, DENOMINATOR_VALUE)
-	}
-	maxRewards := provider.GetMaxRewards(stateDB, true)
-	if maxRewards != MAX_REWARDS_VALUE {
-		t.Errorf("Invalid maxRewards: got %d, want %d", maxRewards, MAX_REWARDS_VALUE)
-	}
-	maxEvents := provider.GetMaxEvents(stateDB, true)
-	if maxEvents != MAX_EVENTS_VALUE {
-		t.Errorf("Invalid maxEvents: got %d, want %d", maxEvents, MAX_EVENTS_VALUE)
-	}
-	maxGas := provider.GetMaxGas(stateDB, true)
-	if maxGas != MAX_GAS_VALUE {
-		t.Errorf("Invalid maxGas: got %d, want %d", maxGas, MAX_GAS_VALUE)
-	}
-	maxFunctionSignatures := provider.GetMaxFunctionSignatures(stateDB, true)
-	if maxFunctionSignatures != MAX_FUNCTION_SIGNATURES_VALUE {
-		t.Errorf("Invalid maxFunctionSignatures: got %d, want %d", maxFunctionSignatures, MAX_FUNCTION_SIGNATURES_VALUE)
-	}
-
-	// Try to read the config directly first
+	// Verify initial config can be read correctly
 	config, found := provider.GetConfig(testAddr, stateDB, true)
 	if !found {
-		t.Log("Direct config read failed")
+		t.Fatal("Initial config not found")
+	}
+	if !reflect.DeepEqual(config, initialConfig) {
+		t.Errorf("Invalid initial config state: active=%v, addr=%s, expected addr=%s",
+			config.IsActive, config.ConfigAddress.Hex(), initialConfig.ConfigAddress.Hex())
 	}
 
 	// Setup concurrent access test
 	var wg sync.WaitGroup
-	errorChan := make(chan error, 200) // Buffer for 100 readers + 100 writers
-	concurrentAccesses := 100
+	errorChan := make(chan error, 100) // Buffer for 50 readers + 50 writers
+	concurrentAccesses := 50
+
+	// Mutex to protect storage map during concurrent writes
+	var storageMu sync.RWMutex
 
 	// Start readers
 	for i := 0; i < concurrentAccesses; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			storageMu.RLock()
 			config, found := provider.GetConfig(testAddr, stateDB, true)
+			storageMu.RUnlock()
 			if !found {
 				errorChan <- fmt.Errorf("config not found")
 				return
@@ -522,18 +590,37 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 
 	// Start writers
+	var lastConfig types.FeeMarketConfig
+	var lastConfigMu sync.Mutex
 	for i := 0; i < concurrentAccesses; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
+			// Lock storage for the full duration of write, invalidate cache and read back config.
+			// This is actual what happens in a transaction.
+			storageMu.Lock()
+			defer storageMu.Unlock()
+
+			// Write new random config
+			newConfig := writeRandomConfiguration(storage, 0, testAddr, MAX_GAS_VALUE, MAX_EVENTS_VALUE, MAX_REWARDS_VALUE)
+
+			// Store last written config for verification
+			lastConfigMu.Lock()
+			lastConfig = newConfig
+			lastConfigMu.Unlock()
+
+			// Invalidate cache
 			provider.InvalidateConfig(testAddr)
+
+			// Verify config can be read back
 			config, found := provider.GetConfig(testAddr, stateDB, true)
 			if !found {
-				errorChan <- fmt.Errorf("config not found")
+				errorChan <- fmt.Errorf("config not found after write")
 				return
 			}
-			if config.ConfigAddress != testAddr {
-				errorChan <- fmt.Errorf("wrong address after invalidation, got %s, want %s", config.ConfigAddress.Hex(), testAddr.Hex())
+			if !reflect.DeepEqual(config, newConfig) {
+				errorChan <- fmt.Errorf("Invalid config state after write: have %+v, want %+v", config, newConfig)
 				return
 			}
 		}()
@@ -545,16 +632,21 @@ func TestConcurrentAccess(t *testing.T) {
 
 	// Check for any errors
 	for err := range errorChan {
-		t.Error(err)
+		t.Errorf("Error: %v", err)
 	}
 
-	// Final verification
+	// Final verification - should match last written config
 	config, found = provider.GetConfig(testAddr, stateDB, true)
 	if !found {
 		t.Error("Config should be found after concurrent operations")
-	} else if !config.IsActive || config.ConfigAddress != testAddr {
-		t.Errorf("Invalid final config state: active=%v, addr=%s", config.IsActive, config.ConfigAddress.Hex())
 	}
+	// Verify the config matches the last written one
+	lastConfigMu.Lock()
+	if !reflect.DeepEqual(config, lastConfig) {
+		t.Errorf("Invalid final config state: active=%v, addr=%s, expected addr=%s",
+			config.IsActive, config.ConfigAddress.Hex(), lastConfig.ConfigAddress.Hex())
+	}
+	lastConfigMu.Unlock()
 }
 
 // TestIncrementHash tests the incrementHash function
