@@ -1,6 +1,7 @@
 package feemarket
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"sync"
@@ -197,6 +198,10 @@ func (p *StorageProvider) InvalidateConfig(address common.Address) {
 
 // findConfigForAddress finds a config for an address by scanning all configs
 func (p *StorageProvider) findConfigForAddress(address common.Address, state FeeMarketStateReader, withCache bool) (types.FeeMarketConfig, bool) {
+	if state == nil {
+		return types.FeeMarketConfig{}, false
+	}
+
 	configsLength, err := p.readConfigsLength(state)
 	if err != nil {
 		log.Error("Failed to read configs length", "err", err)
@@ -286,6 +291,11 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 	eventsLengthData := state.GetState(p.contractAddr, eventsLengthSlot)
 	eventsLength := new(uint256.Int).SetBytes(eventsLengthData.Bytes()).Uint64()
 
+	if eventsLength > p.GetMaxEvents(state, withCache) {
+		log.Error("Events length is greater than max events", "eventsLength", eventsLength, "maxEvents", p.GetMaxEvents(state, withCache))
+		return types.FeeMarketConfig{}, fmt.Errorf("events length is greater than max events")
+	}
+
 	// Read events
 	eventsBaseSlot := common.BytesToHash(crypto.Keccak256(eventsLengthSlot[:]))
 	events := make([]types.FeeMarketEvent, eventsLength)
@@ -304,6 +314,11 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 		rewardsLength := new(uint256.Int).SetBytes(
 			state.GetState(p.contractAddr, rewardsLengthSlot).Bytes(),
 		).Uint64()
+		if rewardsLength > p.GetMaxRewards(state, withCache) {
+			log.Error("Rewards length is greater than max rewards", "rewardsLength", rewardsLength, "maxRewards", p.GetMaxRewards(state, withCache))
+			return types.FeeMarketConfig{}, fmt.Errorf("rewards length is greater than max rewards")
+		}
+
 		rewards := readRewards(p.contractAddr, rewardsLengthSlot, rewardsLength, state)
 
 		events[i] = types.FeeMarketEvent{
