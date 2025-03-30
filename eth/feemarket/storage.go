@@ -220,7 +220,7 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Fee
 		// This way next time we can skip reading whole storage for each config
 		if withCache {
 			p.lock.Lock()
-			p.configCache[address] = config
+			p.configCache[config.ConfigAddress] = config
 			p.lock.Unlock()
 		}
 
