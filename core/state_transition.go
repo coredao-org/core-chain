@@ -454,7 +454,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
-	if st.evm.ChainConfig().Satoshi != nil {
+	if vmerr == nil && st.evm.ChainConfig().Satoshi != nil {
+		snapshot := st.evm.StateDB.Snapshot()
 		feeMarketComputationalGas := uint64(0)
 		ghostGas := uint64(0)
 
@@ -468,6 +469,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			if len(logs) > 0 && feeMarket != nil {
 				feeMarketDenominator := feeMarket.GetDenominator(st.state, st.evm.Config.EnableFeeMarketCache)
 				if feeMarketDenominator > 0 {
+				EVENTS_LOOP:
 					for _, eventLog := range logs {
 						if eventLog.Removed {
 							continue
@@ -489,7 +491,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							if event.EventSignature != eventLog.Topics[0] {
 								continue
 							}
-
 							feeMarketEvent = event
 						}
 						if len(feeMarketEvent.Rewards) == 0 {
@@ -524,9 +525,16 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 								return nil, feeMarketErr // Return error for eth_estimateGas
 							}
 
+							st.evm.StateDB.RevertToSnapshot(snapshot)
+							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, 0, tracing.GasChangeFeeMarketRewardRefunded)
+							}
+
 							// For consensus flow, consume all gas and return execution result
 							st.gasRemaining = 0
 							vmerr = feeMarketErr
+
+							break EVENTS_LOOP
 						} else {
 							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
 								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
