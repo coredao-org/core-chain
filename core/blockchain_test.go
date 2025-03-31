@@ -4513,7 +4513,8 @@ func getFeeMarketGenesisAlloc(maxRewards, maxEvents, maxGas uint64) (accountAddr
 func TestSatoshiFeeMarket(t *testing.T) {
 	config := params.SatoshiTestChainConfig
 	gspec := &Genesis{
-		Config: config,
+		Config:   config,
+		GasLimit: 630_000,
 		Alloc: types.GenesisAlloc{
 			testAddr: {Balance: new(big.Int).SetUint64(10 * params.Ether)},
 		},
@@ -4568,7 +4569,7 @@ func TestSatoshiFeeMarket(t *testing.T) {
 		tx, _ := types.SignNewTx(testKey, signer, &types.LegacyTx{
 			Nonce:    nonce,
 			GasPrice: new(big.Int).Set(fee),
-			Gas:      500000,
+			Gas:      150000,
 			Data:     counterBIN,
 		})
 		counterContractAddress = crypto.CreateAddress(testAddr, nonce)
@@ -4587,7 +4588,7 @@ func TestSatoshiFeeMarket(t *testing.T) {
 		tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
 			Nonce:    nonce,
 			GasPrice: new(big.Int).Set(fee),
-			Gas:      500000,
+			Gas:      350000,
 			To:       &feeMarketAddress,
 			Data:     common.Hex2Bytes(configurationAddConfig),
 		})
@@ -4599,11 +4600,21 @@ func TestSatoshiFeeMarket(t *testing.T) {
 		tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
 			Nonce:    nonce,
 			GasPrice: new(big.Int).Set(fee),
-			Gas:      500000,
+			Gas:      150000,
 			To:       &counterContractAddress,
 			Data:     data,
 		})
 		b.AddTxWithChain(chain, tx)
+		nonce++
+
+		tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
+			Nonce:    nonce,
+			GasPrice: new(big.Int).Set(fee),
+			Gas:      21000,
+			To:       &common.Address{123},
+			Value:    big.NewInt(100000),
+		})
+		b.AddTx(tx)
 		nonce++
 	})
 
@@ -4620,15 +4631,20 @@ func TestSatoshiFeeMarket(t *testing.T) {
 		txGasUsed := uint64(0)
 		receipts := chain.GetReceiptsByHash(block.Hash())
 		for _, receipt := range receipts {
+			fmt.Println("receipt:", receipt.GasUsed, receipt.ContractAddress)
 			txGasUsed += receipt.GasUsed
 		}
 
 		fmt.Println("txGasUsed:", txGasUsed, block.GasUsed())
+
+		// Move this to another test for ghost gas
+		if gspec.GasLimit > txGasUsed {
+			t.Fatalf("block gas limit %d doesn't fit txGasUsed %d, with ghost gas", gspec.GasLimit, txGasUsed)
+		}
 	}
 
 	// Check balance of configured reward recipient
 	expect := big.NewInt(90000)
 	actual := stateDB.GetBalance(rewardRecipient)
 	require.Equal(t, expect.Uint64(), actual.Uint64())
-	t.Fail()
 }
