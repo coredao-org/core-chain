@@ -178,12 +178,6 @@ func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPo
 
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
-	// Set the LogsContext for fetching the transaction logs for the fee market distribution.
-	txContext.LogsContext = vm.TxLogsContext{
-		TxHash:      tx.Hash(),
-		BlockHash:   blockHash,
-		BlockNumber: blockNumber,
-	}
 	evm.SetTxContext(txContext)
 
 	// Apply the transaction to the current state (included in the env).

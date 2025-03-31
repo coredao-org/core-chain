@@ -460,11 +460,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 		// Check if is a contract call
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
-			var logs []*types.Log
-
-			if st.evm.TxContext.LogsContext.TxHash != (common.Hash{}) && st.evm.TxContext.LogsContext.BlockNumber != nil && st.evm.TxContext.LogsContext.BlockHash != (common.Hash{}) {
-				logs = st.state.GetLogs(st.evm.TxContext.LogsContext.TxHash, st.evm.TxContext.LogsContext.BlockNumber.Uint64(), st.evm.TxContext.LogsContext.BlockHash)
-			}
+			// Get all logs from current execution
+			logs := st.state.Logs()
 
 			feeMarket := st.evm.Context.FeeMarket
 

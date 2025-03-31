@@ -91,6 +91,7 @@ type StateDB interface {
 
 	AddLog(*types.Log)
 	GetLogs(hash common.Hash, blockNumber uint64, blockHash common.Hash) []*types.Log
+	Logs() []*types.Log
 	AddPreimage(common.Hash, []byte)
 
 	// Finalise must be invoked at the end of a transaction

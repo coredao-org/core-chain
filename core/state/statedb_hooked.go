@@ -258,6 +258,10 @@ func (s *hookedStateDB) GetLogs(hash common.Hash, blockNumber uint64, blockHash 
 	return s.inner.GetLogs(hash, blockNumber, blockHash)
 }
 
+func (s *hookedStateDB) Logs() []*types.Log {
+	return s.inner.Logs()
+}
+
 func (s *hookedStateDB) Finalise(deleteEmptyObjects bool) {
 	defer s.inner.Finalise(deleteEmptyObjects)
 	if s.hooks.OnBalanceChange == nil {
