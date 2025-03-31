@@ -333,18 +333,18 @@ func TestConstantsCache(t *testing.T) {
 			getter:      (*StorageProvider).GetMaxEvents,
 		},
 		{
-			name:        "MaxGas",
-			initialVal:  1000000,
-			newVal:      2000000,
-			storageSlot: common.BigToHash(big.NewInt(MAX_GAS_STORAGE_SLOT)),
-			getter:      (*StorageProvider).GetMaxGas,
-		},
-		{
 			name:        "MaxFunctionSignatures",
 			initialVal:  7,
 			newVal:      14,
 			storageSlot: common.BigToHash(big.NewInt(MAX_FUNCTION_SIGNATURES_STORAGE_SLOT)),
 			getter:      (*StorageProvider).GetMaxFunctionSignatures,
+		},
+		{
+			name:        "MaxGas",
+			initialVal:  1000000,
+			newVal:      2000000,
+			storageSlot: common.BigToHash(big.NewInt(MAX_GAS_STORAGE_SLOT)),
+			getter:      (*StorageProvider).GetMaxGas,
 		},
 	}
 
