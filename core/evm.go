@@ -80,8 +80,10 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:    header.GasLimit,
 		Random:      random,
 	}
-	if !reflect.ValueOf(chain).IsNil() && chain.FeeMarket() != nil {
-		blockContext.FeeMarket = chain.FeeMarket()
+	if c := reflect.ValueOf(chain); c.Kind() == reflect.Ptr && !c.IsNil() {
+		if feemarket := chain.FeeMarket(); feemarket != nil {
+			blockContext.FeeMarket = feemarket
+		}
 	}
 	return blockContext
 }
