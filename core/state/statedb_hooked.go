@@ -143,6 +143,10 @@ func (s *hookedStateDB) SetTxContext(thash common.Hash, ti int) {
 	s.inner.SetTxContext(thash, ti)
 }
 
+func (s *hookedStateDB) TxHash() common.Hash {
+	return s.inner.TxHash()
+}
+
 func (s *hookedStateDB) TxIndex() int {
 	return s.inner.TxIndex()
 }

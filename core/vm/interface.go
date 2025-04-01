@@ -84,6 +84,7 @@ type StateDB interface {
 
 	Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList)
 	SetTxContext(thash common.Hash, ti int)
+	TxHash() common.Hash
 	TxIndex() int
 
 	RevertToSnapshot(int)

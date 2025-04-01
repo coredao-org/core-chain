@@ -461,8 +461,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 		// Check if is a contract call
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
-			// Get all logs from current execution
-			logs := st.state.Logs()
+			// Get tx logs. Only tx hash is used to get logs, the blockNumber and blockHash
+			// are only being filled in the logs, we can ignore them in this specific use case.
+			logs := st.state.GetLogs(st.evm.StateDB.TxHash(), st.evm.Context.BlockNumber.Uint64(), common.Hash{})
 
 			feeMarket := st.evm.Context.FeeMarket
 
