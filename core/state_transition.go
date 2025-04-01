@@ -501,12 +501,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						for _, reward := range feeMarketEvent.Rewards {
 							// Gas to reward for this specific address
 							rewardGas := (feeMarketEvent.Gas * reward.RewardPercentage) / feeMarketDenominator
-
 							// Reward amount for this specific address
 							rewardAmount := new(uint256.Int).SetUint64(rewardGas)
 							rewardAmount.Mul(rewardAmount, effectiveTipU256)
-
-							log.Info("Add fee to issuer", "address", reward.RewardAddress, "rewardGas", rewardGas, "rewardAmount", rewardAmount)
 
 							st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
 
@@ -536,22 +533,29 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							vmerr = feeMarketErr
 
 							break EVENTS_LOOP
-						} else {
-							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
-								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
-							}
+						}
 
-							// Remove the ghost gas for fees distributions (this is the pumped gas for the fees)
-							st.gasRemaining -= ghostGas
+						distributedAmount := new(uint256.Int).SetUint64(feeMarketEvent.Gas)
+						distributedAmount.Mul(distributedAmount, effectiveTipU256)
+						log.Debug("FeeMarket distributed fees", "contract", eventLog.Address, "eventSig", feeMarketEvent.EventSignature, "feesInEther", new(uint256.Int).Div(distributedAmount, uint256.NewInt(params.Ether)))
+					}
 
-							// Remove the computational gas for fees distributions (mostly for the AddBalance calls)
-							st.gasRemaining -= feeMarketComputationalGas
+					// If no error, remove the ghost gas and computational gas from the gas remaining and add the ghost gas to the gas pool
+					if vmerr == nil {
+						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
+						}
 
-							// Also return ghost gas to the block gas counter so it is
-							// available for the next transaction.
-							if ghostGas > 0 {
-								st.gp.AddGas(ghostGas)
-							}
+						// Remove the ghost gas for fees distributions (this is the pumped gas for the fees)
+						st.gasRemaining -= ghostGas
+
+						// Remove the computational gas for fees distributions (mostly for the AddBalance calls)
+						st.gasRemaining -= feeMarketComputationalGas
+
+						// Also return ghost gas to the block gas counter so it is
+						// available for the next transaction.
+						if ghostGas > 0 {
+							st.gp.AddGas(ghostGas)
 						}
 					}
 				}
