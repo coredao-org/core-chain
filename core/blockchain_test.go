@@ -4629,13 +4629,14 @@ func TestSatoshiFeeMarket(t *testing.T) {
 
 	for _, block := range bs {
 		txGasUsed := uint64(0)
+		txs := block.Transactions()
 		receipts := chain.GetReceiptsByHash(block.Hash())
-		for _, receipt := range receipts {
-			fmt.Println("receipt:", receipt.GasUsed, receipt.ContractAddress)
+		for idx, receipt := range receipts {
+			tx := txs[idx]
+			fmt.Println("receipt:", "txhash:", tx.Hash(), "gasUsed:", receipt.GasUsed, "status:", receipt.Status, "logs:", len(receipt.Logs), "toAddr:", tx.To(), "contractAddr:", receipt.ContractAddress)
 			txGasUsed += receipt.GasUsed
 		}
 
-		fmt.Println("txGasUsed:", txGasUsed, block.GasUsed())
 
 		// Move this to another test for ghost gas
 		if gspec.GasLimit > txGasUsed {
