@@ -52,7 +52,7 @@ func NewStorageProvider(contractAddr common.Address) (*StorageProvider, error) {
 // CleanCache cleans the cache
 func (p *StorageProvider) CleanConfigsCache() {
 	p.lock.Lock()
-	log.Debug("Cleaned fee market cache", "entries", len(p.configCache))
+	log.Debug("FeeMarket config cache cleaned", "entries", len(p.configCache))
 	p.configCache = make(map[common.Address]types.FeeMarketConfig)
 	p.lock.Unlock()
 }
@@ -64,7 +64,7 @@ func (p *StorageProvider) InvalidateConstants() {
 	p.maxGas.Store(0)
 	p.maxEvents.Store(0)
 	p.maxFunctionSignatures.Store(0)
-	log.Debug("Invalidated fee market constants")
+	log.Debug("FeeMarket constants invalidated")
 }
 
 // GetDenominator reads the denominator from storage
@@ -187,7 +187,7 @@ func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketState
 		return types.FeeMarketConfig{}, false
 	}
 	if valid, err := config.IsValidConfig(p.GetDenominator(state, withCache), p.GetMaxGas(state, withCache), p.GetMaxEvents(state, withCache), p.GetMaxRewards(state, withCache)); !valid || err != nil {
-		log.Debug("Invalid config found in storage", "config", config, "err", err)
+		log.Debug("FeeMarket invalid config found in storage", "config", config, "err", err)
 		return types.FeeMarketConfig{}, false
 	}
 	return config, true
@@ -198,6 +198,7 @@ func (p *StorageProvider) InvalidateConfig(address common.Address) {
 	p.lock.Lock()
 	delete(p.configCache, address)
 	p.lock.Unlock()
+	log.Debug("FeeMarket config invalidated", "address", address)
 }
 
 // findConfigForAddress finds a config for an address by scanning all configs
@@ -208,7 +209,7 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Fee
 
 	configsLength, err := p.readConfigsLength(state)
 	if err != nil {
-		log.Error("Failed to read configs length", "err", err)
+		log.Error("FeeMarket failed to read configs length", "err", err)
 		return types.FeeMarketConfig{}, false
 	}
 
@@ -216,12 +217,12 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Fee
 	for i := uint64(0); i < configsLength; i++ {
 		config, err := p.readConfigAtIndex(i, state, withCache)
 		if err != nil {
-			log.Debug("Failed to read config for FeeMarket configuration", "index", i, "err", err)
+			log.Debug("FeeMarket failed to read configuration", "index", i, "err", err)
 			continue
 		}
 
 		if valid, err := config.IsValidConfig(p.GetDenominator(state, withCache), p.GetMaxGas(state, withCache), p.GetMaxEvents(state, withCache), p.GetMaxRewards(state, withCache)); !valid || err != nil {
-			log.Debug("Invalid config found in storage", "index", i, "config", config, "err", err)
+			log.Debug("FeeMarket invalid config loaded from storage", "index", i, "config", config, "err", err)
 			continue
 		}
 
@@ -296,7 +297,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 	eventsLength := new(uint256.Int).SetBytes(eventsLengthData.Bytes()).Uint64()
 
 	if eventsLength > p.GetMaxEvents(state, withCache) {
-		log.Error("Events length is greater than max events", "eventsLength", eventsLength, "maxEvents", p.GetMaxEvents(state, withCache))
+		log.Error("FeeMarket events length is greater than max events", "index", index, "eventsLength", eventsLength, "maxEvents", p.GetMaxEvents(state, withCache))
 		return types.FeeMarketConfig{}, fmt.Errorf("events length is greater than max events")
 	}
 
@@ -319,7 +320,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 			state.GetState(p.contractAddr, rewardsLengthSlot).Bytes(),
 		).Uint64()
 		if rewardsLength > p.GetMaxRewards(state, withCache) {
-			log.Error("Rewards length is greater than max rewards", "rewardsLength", rewardsLength, "maxRewards", p.GetMaxRewards(state, withCache))
+			log.Error("FeeMarket rewards length is greater than max rewards", "index", index, "rewardsLength", rewardsLength, "maxRewards", p.GetMaxRewards(state, withCache))
 			return types.FeeMarketConfig{}, fmt.Errorf("rewards length is greater than max rewards")
 		}
 
