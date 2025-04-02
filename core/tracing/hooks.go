@@ -320,8 +320,10 @@ const (
 	// BalanceIncreaseCoreDistributeReward is a balance change that increases the block validator's balance and
 	// happens when Core is distributing rewards to validator.
 	BalanceIncreaseCoreDistributeReward BalanceChangeReason = 181
-	// BalanceIncreaseRewardTransactionFee is the reward for a transaction.
+	// BalanceIncreaseFeeMarketReward is the fee market reward for a transaction.
 	BalanceIncreaseFeeMarketReward BalanceChangeReason = 182
+	// BalanceIncreaseFeeMarketGasReturnOnFailure is ether returned for ghost gas on a failed tx at the end of execution.
+	BalanceIncreaseFeeMarketGasReturnOnFailure BalanceChangeReason = 183
 )
 
 // GasChangeReason is used to indicate the reason for a gas change, useful
@@ -381,10 +383,12 @@ const (
 	// GasChangeCallFailedExecution is the burning of the remaining gas when the execution failed without a revert.
 	GasChangeCallFailedExecution GasChangeReason = 14
 
-	// GasChangeFeeMarketRewardAllocated is the pre-allocated gas for the fee market reward. It will be refunded to the user if not used.
-	GasChangeFeeMarketRewardAllocated GasChangeReason = 180
-	// GasChangeFeeMarketRewardRefunded is the refunded gas back to the userfor the fee market reward.
-	GasChangeFeeMarketRewardRefunded GasChangeReason = 181
+	// GasChangeFeeMarketComputationalGas is the computational gas used for distributing the fee market rewards.
+	GasChangeFeeMarketComputationalGas GasChangeReason = 180
+	// GasChangeFeeMarketDistributedGas is the gas distributed as fee market rewards.
+	GasChangeFeeMarketDistributedGas GasChangeReason = 181
+	// GasChangeFeeMarketDistributedGasRefunded is the refunded gas to the user on failed transaction for the fee market reward.
+	GasChangeFeeMarketDistributedGasRefunded GasChangeReason = 182
 
 	// GasChangeIgnored is a special value that can be used to indicate that the gas change should be ignored as
 	// it will be "manually" tracked by a direct emit of the gas change event.

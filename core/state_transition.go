@@ -457,7 +457,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if vmerr == nil && st.evm.ChainConfig().Satoshi != nil {
 		snapshot := st.evm.StateDB.Snapshot()
 		feeMarketComputationalGas := uint64(0)
-		ghostGas := uint64(0)
+		distributedGas := uint64(0)
 
 		// Check if is a contract call
 		if st.msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0 {
@@ -470,7 +470,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			if len(logs) > 0 && feeMarket != nil {
 				feeMarketDenominator := feeMarket.GetDenominator(st.state, st.evm.Config.EnableFeeMarketCache)
 				if feeMarketDenominator > 0 {
-				EVENTS_LOOP:
 					for _, eventLog := range logs {
 						if eventLog.Removed {
 							continue
@@ -510,53 +509,78 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							// Add the computational gas for fees distributions for the AddBalance call
 							feeMarketComputationalGas += params.FeeMarketDistributeGas
 
-							// add the pumped gas for the actual fees
-							ghostGas += rewardGas
+							// Add the pumped gas for the actual fees
+							distributedGas += rewardGas
 						}
 
-						if st.gasRemaining < ghostGas+feeMarketComputationalGas {
-							feeMarketErr := fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+ghostGas+feeMarketComputationalGas)
+						if st.gasRemaining < distributedGas+feeMarketComputationalGas {
+							// Mark transaction as failed
+							vmerr = fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+distributedGas+feeMarketComputationalGas)
 
-							// Using NoBaseFee as estimation indicator
-							isEstimate := st.evm.Config.NoBaseFee
-							if isEstimate {
-								return nil, feeMarketErr // Return error for eth_estimateGas
-							}
-
-							st.evm.StateDB.RevertToSnapshot(snapshot)
-							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
-								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, 0, tracing.GasChangeFeeMarketRewardRefunded)
-							}
-
-							// For consensus flow, consume all gas and return execution result
-							st.gasRemaining = 0
-							vmerr = feeMarketErr
-
-							break EVENTS_LOOP
+						} else {
+							distributedAmount := new(uint256.Int).SetUint64(feeMarketEvent.Gas)
+							distributedAmount.Mul(distributedAmount, effectiveTipU256)
+							log.Debug("FeeMarket distributed fees for event", "eventSig", feeMarketEvent.EventSignature, "contractAddr", eventLog.Address, "feesInEther", new(uint256.Int).Div(distributedAmount, uint256.NewInt(params.Ether)))
 						}
-
-						distributedAmount := new(uint256.Int).SetUint64(feeMarketEvent.Gas)
-						distributedAmount.Mul(distributedAmount, effectiveTipU256)
-						log.Debug("FeeMarket distributed fees", "contract", eventLog.Address, "eventSig", feeMarketEvent.EventSignature, "feesInEther", new(uint256.Int).Div(distributedAmount, uint256.NewInt(params.Ether)))
 					}
 
-					// If no error, remove the ghost gas and computational gas from the gas remaining and add the ghost gas to the gas pool
+					// If no error, remove the distributed gas and computational gas from the gas remaining
 					if vmerr == nil {
-						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
-							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining+ghostGas+feeMarketComputationalGas, tracing.GasChangeFeeMarketRewardRefunded)
+						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && feeMarketComputationalGas > 0 {
+							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-feeMarketComputationalGas, tracing.GasChangeFeeMarketComputationalGas)
 						}
-
-						// Remove the ghost gas for fees distributions (this is the pumped gas for the fees)
-						st.gasRemaining -= ghostGas
 
 						// Remove the computational gas for fees distributions (mostly for the AddBalance calls)
 						st.gasRemaining -= feeMarketComputationalGas
 
-						// Also return ghost gas to the block gas counter so it is
-						// available for the next transaction.
-						if ghostGas > 0 {
-							st.gp.AddGas(ghostGas)
+						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && distributedGas > 0 {
+							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-distributedGas, tracing.GasChangeFeeMarketDistributedGas)
 						}
+
+						// Remove the distributed gas for fees distributions (this is the pumped gas for the fees)
+						st.gasRemaining -= distributedGas
+
+						// On error, revert the state
+					} else {
+						// Using NoBaseFee as estimation indicator
+						isEstimate := st.evm.Config.NoBaseFee
+						if isEstimate {
+							return nil, vmerr // Return error for eth_estimateGas
+						}
+
+						// Revert the state in case of error in the fee market distributions
+						st.evm.StateDB.RevertToSnapshot(snapshot)
+
+						// Return ETH for distributed gas to the user, exchanged at the original rate.
+						if distributedGas > 0 && distributedGas < st.initialGas && st.gasRemaining < distributedGas {
+							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-distributedGas, tracing.GasChangeFeeMarketDistributedGasRefunded)
+							}
+
+							// Remove the distributed gas as it will be refunded back to the user
+							st.gasRemaining -= distributedGas
+
+							// TODO(ziogaschr): verify this is applied and is not affected by the RevertToSnapshot() outer call.
+							// Add the distributed gas to the user's balance.
+							// IMPORTANT: keep this after the RevertToSnapshot() call.
+							distributedGasU256 := uint256.NewInt(distributedGas)
+							distributedGasU256 = distributedGasU256.Mul(distributedGasU256, uint256.MustFromBig(st.msg.GasPrice))
+							st.state.AddBalance(st.msg.From, distributedGasU256, tracing.BalanceIncreaseFeeMarketGasReturnOnFailure)
+						}
+
+						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, 0, tracing.GasChangeCallFailedExecution)
+						}
+
+						// For consensus flow, consume all remaining gas
+						st.gasRemaining = 0
+					}
+
+					// Also return distributed gas to the block gas counter so it is
+					// available for the next transaction.
+					if distributedGas > 0 {
+						// fmt.Println("💨 distributedGas:", distributedGas)
+						st.gp.AddGas(distributedGas)
 					}
 				}
 			}
