@@ -713,7 +713,7 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 		state:    state,
 		coinbase: coinbase,
 		header:   header,
-		evm:      vm.NewEVM(core.NewEVMBlockContext(header, w.chain, &coinbase), state, w.chainConfig, vm.Config{EnableFeeMarketCache: true}),
+		evm:      vm.NewEVM(core.NewEVMBlockContext(header, w.chain, &coinbase), state, w.chainConfig, vm.Config{EnableFeeMarketCache: false}),
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
