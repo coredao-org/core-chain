@@ -549,6 +549,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						}
 
 						// Revert the state in case of error in the fee market distributions
+						// IMPORTANT: keep this above any state changes that we want to persisted, like the distributed fees refund to the user.
 						st.evm.StateDB.RevertToSnapshot(snapshot)
 
 						// Return ETH for distributed gas to the user, exchanged at the original rate.
