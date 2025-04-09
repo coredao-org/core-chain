@@ -553,7 +553,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						st.evm.StateDB.RevertToSnapshot(snapshot)
 
 						// Return ETH for distributed gas to the user, exchanged at the original rate.
-						if distributedGas > 0 && distributedGas < st.initialGas && st.gasRemaining < distributedGas {
+						if distributedGas > 0 && distributedGas < st.initialGas && st.gasRemaining >= distributedGas {
 							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
 								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-distributedGas, tracing.GasChangeFeeMarketDistributedGasRefunded)
 							}
