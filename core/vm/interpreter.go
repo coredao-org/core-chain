@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/holiman/uint256"
 )
@@ -33,14 +34,21 @@ var EVMInterpreterPool = sync.Pool{
 	},
 }
 
+type FeeMarketConfig struct {
+	// EnableCache enables fee market caching of configurations, this is an optimisation and is suggested to use it only for mining
+	EnableCache bool
+	// WorkID for the current mining operation, multiple works can be mined in parallel for same block
+	WorkID *feemarket.MiningWorkID
+}
+
 // Config are the configuration options for the Interpreter
 type Config struct {
-	Tracer                  *tracing.Hooks // Opcode logger
-	NoBaseFee               bool           // Forces the EIP-1559 baseFee to 0 (needed for 0 price calls)
-	NoRecursion             bool           // Disables call, callcode, delegate call and create
-	EnablePreimageRecording bool           // Enables recording of SHA3/keccak preimages
-	ExtraEips               []int          // Additional EIPS that are to be enabled
-	EnableFeeMarketCache    bool           // Enables fee market caching of configurations, this is an optimisation and is suggested to use it only for mining
+	Tracer                  *tracing.Hooks  // Opcode logger
+	NoBaseFee               bool            // Forces the EIP-1559 baseFee to 0 (needed for 0 price calls)
+	NoRecursion             bool            // Disables call, callcode, delegate call and create
+	EnablePreimageRecording bool            // Enables recording of SHA3/keccak preimages
+	ExtraEips               []int           // Additional EIPS that are to be enabled
+	FeeMarketConfig         FeeMarketConfig // Fee market configuration for EVM
 }
 
 // ScopeContext contains the things that are per-call, such as stack and memory,

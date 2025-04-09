@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -707,13 +708,20 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 		state.TransferPrefetcher(prevEnv.state)
 	}
 
+	vmConfig := vm.Config{}
+	if w.chainConfig.Satoshi != nil {
+		vmConfig.FeeMarketConfig = vm.FeeMarketConfig{
+			EnableCache: true,
+		}
+	}
+
 	// Note the passed coinbase may be different with header.Coinbase.
 	env := &environment{
 		signer:   types.MakeSigner(w.chainConfig, header.Number, header.Time),
 		state:    state,
 		coinbase: coinbase,
 		header:   header,
-		evm:      vm.NewEVM(core.NewEVMBlockContext(header, w.chain, &coinbase), state, w.chainConfig, vm.Config{EnableFeeMarketCache: true}),
+		evm:      vm.NewEVM(core.NewEVMBlockContext(header, w.chain, &coinbase), state, w.chainConfig, vmConfig),
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -1215,6 +1223,7 @@ func (w *worker) commitWork(interruptCh chan int32, timestamp int64) {
 		}
 	}()
 
+	workAttempt := uint64(0)
 LOOP:
 	for {
 		work, err := w.prepareWork(&generateParams{
@@ -1225,6 +1234,16 @@ LOOP:
 		if err != nil {
 			return
 		}
+
+		// Begin mining for this work attempt with unique WorkID
+		if w.chainConfig.Satoshi != nil {
+			if feemarket := w.chain.FeeMarket(); feemarket != nil {
+				id := feemarket.BeginMining(work.header.ParentHash, uint64(timestamp), workAttempt)
+				work.evm.Config.FeeMarketConfig.WorkID = &id
+				workAttempt++
+			}
+		}
+
 		prevWork = work
 		workList = append(workList, work)
 
@@ -1432,6 +1451,14 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		if w.chainConfig.IsCancun(env.header.Number, env.header.Time) && env.sidecars == nil {
 			env.sidecars = make(types.BlobSidecars, 0)
 		}
+
+		var feeMarketWorkID *feemarket.MiningWorkID
+		if w.chainConfig.Satoshi != nil {
+			if feeMarketConfig := env.evm.Config.FeeMarketConfig; feeMarketConfig.WorkID != nil {
+				feeMarketWorkID = feeMarketConfig.WorkID
+			}
+		}
+
 		// Create a local environment copy, avoid the data race with snapshot state.
 		// https://github.com/ethereum/go-ethereum/issues/24299
 		env := env.copy()
@@ -1442,10 +1469,21 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		if !w.isTTDReached(block.Header()) {
 			select {
 			case w.taskCh <- &task{receipts: receipts, state: env.state, block: block, createdAt: time.Now()}:
+				// Commit the best work's fee market cache
+				if w.chainConfig.Satoshi != nil && feeMarketWorkID != nil {
+					if feemarket := w.chain.FeeMarket(); feemarket != nil {
+						feemarket.CommitMining(*feeMarketWorkID)
+					}
+				}
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"txs", env.tcount, "blobs", env.blobs, "gas", block.GasUsed(), "fees", feesInEther, "elapsed", common.PrettyDuration(time.Since(start)))
 
 			case <-w.exitCh:
+				if w.chainConfig.Satoshi != nil {
+					if feemarket := w.chain.FeeMarket(); feemarket != nil {
+						feemarket.AbortMining()
+					}
+				}
 				log.Info("Worker has exited")
 			}
 		}

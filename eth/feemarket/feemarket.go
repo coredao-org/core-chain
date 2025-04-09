@@ -18,9 +18,9 @@ type FeeMarket struct {
 }
 
 // NewFeeMarket creates a new fee market integration using storage access
-func NewFeeMarket() (*FeeMarket, error) {
+func NewFeeMarket(bc BlockChain) (*FeeMarket, error) {
 	feeMarketContractAddress := common.HexToAddress(systemcontracts.FeeMarketContract)
-	provider, err := NewStorageProvider(feeMarketContractAddress)
+	provider, err := NewStorageProvider(feeMarketContractAddress, bc)
 	if err != nil {
 		return nil, err
 	}
@@ -31,13 +31,17 @@ func NewFeeMarket() (*FeeMarket, error) {
 	}, nil
 }
 
+func (fm *FeeMarket) Close() error {
+	return fm.provider.Close()
+}
+
 // GetConfig gets the fee market config for an address
-func (fm *FeeMarket) GetConfig(address common.Address, state FeeMarketStateReader, withCache bool) (types.FeeMarketConfig, bool) {
-	return fm.provider.GetConfig(address, state, withCache)
+func (fm *FeeMarket) GetConfig(address common.Address, state FeeMarketStateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
+	return fm.provider.GetConfig(address, state, withCache, workID)
 }
 
 // HandleCacheInvalidationEvent handles cache invalidation events
-func (fm *FeeMarket) HandleCacheInvalidationEvent(eventLog *types.Log) bool {
+func (fm *FeeMarket) HandleCacheInvalidationEvent(eventLog *types.Log, workID *MiningWorkID) bool {
 	// If the event is from the FeeMarketContract
 	if eventLog.Address == fm.contractAddress {
 		// Check if the event is a ConfigUpdated event
@@ -46,14 +50,14 @@ func (fm *FeeMarket) HandleCacheInvalidationEvent(eventLog *types.Log) bool {
 			// Get config address from event.topics[1]
 			configAddress := common.HexToAddress(eventLog.Topics[1].Hex())
 			// Invalidate the config for the address
-			fm.provider.InvalidateConfig(configAddress)
+			fm.provider.InvalidateConfig(configAddress, workID)
 			return true
 		}
 
 		// Check if the event is a ConstantUpdated event
 		id = common.BytesToHash(crypto.Keccak256([]byte("ConstantUpdated()")))
 		if eventLog.Topics[0] == id {
-			fm.provider.InvalidateConstants()
+			fm.provider.InvalidateConstants(workID)
 			return true
 		}
 	}
@@ -61,12 +65,17 @@ func (fm *FeeMarket) HandleCacheInvalidationEvent(eventLog *types.Log) bool {
 }
 
 // GetDenominator returns the denominator used for percentages
-func (fm *FeeMarket) GetDenominator(state FeeMarketStateReader, withCache bool) uint64 {
-	return fm.provider.GetDenominator(state, withCache)
+func (fm *FeeMarket) GetDenominator(state FeeMarketStateReader, withCache bool, workID *MiningWorkID) uint64 {
+	return fm.provider.GetConstants(state, withCache, workID).Denominator
 }
 
 // CleanCache cleans the cache
-func (fm *FeeMarket) CleanCache() {
-	fm.provider.InvalidateConstants()
-	fm.provider.CleanConfigsCache()
+func (fm *FeeMarket) BeginMining(parent common.Hash, timestamp, attemptNum uint64) MiningWorkID {
+	return fm.provider.BeginMining(parent, timestamp, attemptNum)
+}
+func (fm *FeeMarket) CommitMining(workID MiningWorkID) {
+	fm.provider.CommitMining(workID)
+}
+func (fm *FeeMarket) AbortMining() {
+	fm.provider.AbortMining()
 }

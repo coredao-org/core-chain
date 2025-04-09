@@ -466,9 +466,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			logs := st.state.GetLogs(st.evm.StateDB.TxHash(), st.evm.Context.BlockNumber.Uint64(), common.Hash{})
 
 			feeMarket := st.evm.Context.FeeMarket
+			feeMarketConfig := st.evm.Config.FeeMarketConfig
 
 			if len(logs) > 0 && feeMarket != nil {
-				feeMarketDenominator := feeMarket.GetDenominator(st.state, st.evm.Config.EnableFeeMarketCache)
+				feeMarketDenominator := feeMarket.GetDenominator(st.state, feeMarketConfig.EnableCache, feeMarketConfig.WorkID)
 				if feeMarketDenominator > 0 {
 					for _, eventLog := range logs {
 						if eventLog.Removed {
@@ -476,12 +477,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						}
 
 						// Handle cache invalidation events
-						if feeMarket.HandleCacheInvalidationEvent(eventLog) {
+						if feeMarket.HandleCacheInvalidationEvent(eventLog, feeMarketConfig.WorkID) {
 							continue
 						}
 
 						// Get configuration from fee market
-						config, found := feeMarket.GetConfig(eventLog.Address, st.state, st.evm.Config.EnableFeeMarketCache)
+						config, found := feeMarket.GetConfig(eventLog.Address, st.state, feeMarketConfig.EnableCache, feeMarketConfig.WorkID)
 						if !found || !config.IsActive {
 							continue
 						}
