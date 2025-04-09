@@ -33,41 +33,24 @@ type StorageProvider struct {
 
 // NewStorageProvider creates a new provider that reads directly from storage
 func NewStorageProvider(contractAddr common.Address, reader BlockChain) (*StorageProvider, error) {
-	return &StorageProvider{
+	p := &StorageProvider{
 		contractAddr: contractAddr,
 		chainReader:  reader,
-		configCache:  NewFeeMarketCache(reader),
-	}, nil
-}
+	}
 
-// InvalidateConstants invalidates the constants in the cache
-func (p *StorageProvider) InvalidateConstants(workID *MiningWorkID) {
-	p.configCache.InvalidateConstants(workID)
-	log.Debug("FeeMarket constants invalidated")
-}
-
-func (p *StorageProvider) Close() error {
-	return p.configCache.Close()
-}
-
-// BeginMining maintains a temporary cache used for mining operations
-func (p *StorageProvider) BeginMining(parent common.Hash, timestamp, attemptNum uint64) MiningWorkID {
-	return p.configCache.BeginMining(parent, timestamp, attemptNum)
-}
-
-// CommitMining commits the temporary cache used for mining operations
-func (p *StorageProvider) CommitMining(workID MiningWorkID) {
-	p.configCache.CommitMining(workID)
-}
-
-// AbortMining cleans the temporary cache used for mining operations
-func (p *StorageProvider) AbortMining() {
-	p.configCache.AbortMining()
+	// Initialize the cache, if is supported
+	cache, err := NewFeeMarketCache(reader)
+	if err != nil {
+		log.Info("FeeMarket cache not supported", "err", err)
+	} else {
+		p.configCache = cache
+	}
+	return p, nil
 }
 
 // GetConstants reads the constants from the cache
-func (p *StorageProvider) GetConstants(state FeeMarketStateReader, withCache bool, workID *MiningWorkID) (constants types.FeeMarketConstants) {
-	if withCache {
+func (p *StorageProvider) GetConstants(state StateReader, withCache bool, workID *MiningWorkID) (constants types.FeeMarketConstants) {
+	if withCache && p.configCache != nil {
 		if cached := p.configCache.GetConstants(workID); cached != nil {
 			return *cached
 		}
@@ -112,13 +95,13 @@ func (p *StorageProvider) GetConstants(state FeeMarketStateReader, withCache boo
 }
 
 // GetConfig returns configuration for a specific address
-func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketStateReader, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, found bool) {
+func (p *StorageProvider) GetConfig(address common.Address, state StateReader, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, found bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, false
 	}
 
 	// If cache is enabled, read and write to cache
-	if withCache {
+	if withCache && p.configCache != nil {
 		if config, found := p.configCache.GetConfig(address, workID); found {
 			return config, true
 		}
@@ -136,20 +119,15 @@ func (p *StorageProvider) GetConfig(address common.Address, state FeeMarketState
 		return types.FeeMarketConfig{}, false
 	}
 	// Cache the valid config
-	if withCache {
+	if withCache && p.configCache != nil {
 		currentHeader := p.chainReader.CurrentHeader()
 		p.configCache.SetConfig(address, config, currentHeader.Number.Uint64(), currentHeader.Hash(), workID)
 	}
 	return config, true
 }
 
-// InvalidateConfig removes a specific address from the cache
-func (p *StorageProvider) InvalidateConfig(address common.Address, workID *MiningWorkID) {
-	p.configCache.InvalidateConfig(address, workID)
-}
-
 // findConfigForAddress finds a config for an address by scanning all configs
-func (p *StorageProvider) findConfigForAddress(address common.Address, state FeeMarketStateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
+func (p *StorageProvider) findConfigForAddress(address common.Address, state StateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, false
 	}
@@ -178,7 +156,7 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Fee
 
 		// Small optimization that caches valid configs, even if they are not for the address we are looking for
 		// This way next time we can skip reading whole storage for each config
-		if withCache {
+		if withCache && p.configCache != nil {
 			currentHeader := p.chainReader.CurrentHeader()
 			p.configCache.SetConfig(config.ConfigAddress, config, currentHeader.Number.Uint64(), currentHeader.Hash(), workID)
 		}
@@ -192,7 +170,7 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Fee
 }
 
 // readConfigsLength reads the length of the configs array from storage
-func (p *StorageProvider) readConfigsLength(state FeeMarketStateReader) (uint64, error) {
+func (p *StorageProvider) readConfigsLength(state StateReader) (uint64, error) {
 	// In Solidity, the length of a public array is stored at the array's slot
 	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
 	lengthBytes := state.GetState(p.contractAddr, configsSlot)
@@ -200,7 +178,7 @@ func (p *StorageProvider) readConfigsLength(state FeeMarketStateReader) (uint64,
 }
 
 // readConfigAtIndex reads a config from storage at a specific index
-func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateReader, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, err error) {
+func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, err error) {
 	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
 
 	// Calculate base slot for configs array
@@ -231,7 +209,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 
 	// Short circuit optimisation if config is already in cache, so as to avoid reading from storage the rest slots for this config.
 	// Take care of the lock here, to not be blocked by the parent function.
-	if withCache {
+	if withCache && p.configCache != nil {
 		if config, found := p.configCache.GetConfig(configAddr, workID); found {
 			return config, nil
 		}
@@ -292,7 +270,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state FeeMarketStateRe
 }
 
 // Helper function to read rewards array
-func readRewards(contractAddr common.Address, rewardsLengthSlot common.Hash, rewardsLength uint64, state FeeMarketStateReader) []types.FeeMarketReward {
+func readRewards(contractAddr common.Address, rewardsLengthSlot common.Hash, rewardsLength uint64, state StateReader) []types.FeeMarketReward {
 	rewardsBaseSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
 	rewards := make([]types.FeeMarketReward, rewardsLength)
 
@@ -324,4 +302,54 @@ func incrementHash(h common.Hash) common.Hash {
 		new(big.Int).SetBytes(h[:]),
 		big.NewInt(1),
 	))
+}
+
+// InvalidateConstants invalidates the constants in the cache
+func (p *StorageProvider) InvalidateConstants(workID *MiningWorkID) {
+	if p.configCache == nil {
+		return
+	}
+
+	p.configCache.InvalidateConstants(workID)
+	log.Debug("FeeMarket constants invalidated")
+}
+
+// InvalidateConfig removes a specific address from the cache
+func (p *StorageProvider) InvalidateConfig(address common.Address, workID *MiningWorkID) {
+	if p.configCache == nil {
+		return
+	}
+	p.configCache.InvalidateConfig(address, workID)
+}
+
+// BeginMining begins a new mining session,
+// multiple mining sessions can be active at the same time for the same block
+func (p *StorageProvider) BeginMining(parent common.Hash, timestamp, attemptNum uint64) MiningWorkID {
+	if p.configCache == nil {
+		return MiningWorkID{}
+	}
+	return p.configCache.BeginMining(parent, timestamp, attemptNum)
+}
+
+// CommitMining commits the only the winning mining session entries
+func (p *StorageProvider) CommitMining(workID MiningWorkID) {
+	if p.configCache == nil {
+		return
+	}
+	p.configCache.CommitMining(workID)
+}
+
+// AbortMining cleans up all temp caches for this mining block
+func (p *StorageProvider) AbortMining() {
+	if p.configCache == nil {
+		return
+	}
+	p.configCache.AbortMining()
+}
+
+func (p *StorageProvider) Close() error {
+	if p.configCache == nil {
+		return nil
+	}
+	return p.configCache.Close()
 }

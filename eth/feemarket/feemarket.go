@@ -31,13 +31,14 @@ func NewFeeMarket(bc BlockChain) (*FeeMarket, error) {
 	}, nil
 }
 
-func (fm *FeeMarket) Close() error {
-	return fm.provider.Close()
+// GetConfig gets the fee market config for an address
+func (fm *FeeMarket) GetConfig(address common.Address, state StateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
+	return fm.provider.GetConfig(address, state, withCache, workID)
 }
 
-// GetConfig gets the fee market config for an address
-func (fm *FeeMarket) GetConfig(address common.Address, state FeeMarketStateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
-	return fm.provider.GetConfig(address, state, withCache, workID)
+// GetDenominator returns the denominator used for percentages
+func (fm *FeeMarket) GetDenominator(state StateReader, withCache bool, workID *MiningWorkID) uint64 {
+	return fm.provider.GetConstants(state, withCache, workID).Denominator
 }
 
 // HandleCacheInvalidationEvent handles cache invalidation events
@@ -64,18 +65,23 @@ func (fm *FeeMarket) HandleCacheInvalidationEvent(eventLog *types.Log, workID *M
 	return false
 }
 
-// GetDenominator returns the denominator used for percentages
-func (fm *FeeMarket) GetDenominator(state FeeMarketStateReader, withCache bool, workID *MiningWorkID) uint64 {
-	return fm.provider.GetConstants(state, withCache, workID).Denominator
-}
-
-// CleanCache cleans the cache
+// BeginMining begins a new mining session,
+// multiple mining sessions can be active at the same time for the same block
 func (fm *FeeMarket) BeginMining(parent common.Hash, timestamp, attemptNum uint64) MiningWorkID {
 	return fm.provider.BeginMining(parent, timestamp, attemptNum)
 }
+
+// CommitMining commits the only the winning mining session entries
 func (fm *FeeMarket) CommitMining(workID MiningWorkID) {
 	fm.provider.CommitMining(workID)
 }
+
+// AbortMining cleans up all temp caches for this mining block
 func (fm *FeeMarket) AbortMining() {
 	fm.provider.AbortMining()
+}
+
+// Close closes the cache manager
+func (fm *FeeMarket) Close() error {
+	return fm.provider.Close()
 }

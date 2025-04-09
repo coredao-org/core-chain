@@ -1,6 +1,7 @@
 package feemarket
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -64,33 +65,38 @@ type MiningConfigsCache struct {
 
 // FeeMarketCache is a cache for fee market configs
 type FeeMarketCache struct {
-	constants        *ConstantsEntry
-	tempConstantsMap map[MiningWorkID]*MiningConstantsCache
+	constants        *ConstantsEntry                        // main cache for constants
+	tempConstantsMap map[MiningWorkID]*MiningConstantsCache // temp constants cache for mining
 
-	entries        map[common.Address]*ConfigEntry
-	tempEntriesMap map[MiningWorkID]*MiningConfigsCache
+	entries        map[common.Address]*ConfigEntry      // main cache for configs
+	tempEntriesMap map[MiningWorkID]*MiningConfigsCache // temp configs cache for mining
 
-	head       common.Hash
-	headHeight uint64
-	parentHash common.Hash
+	head       common.Hash // current head hash
+	headHeight uint64      // current head height
+	parentHash common.Hash // current head parent hash
 
-	chainSub event.Subscription
-	chainCh  chan ChainEvent
-	closeCh  chan struct{}
+	chainSub event.Subscription // chain subscription
+	chainCh  chan ChainEvent    // chain channel
+	closeCh  chan struct{}      // close channel
 
 	lock sync.RWMutex
 }
 
-func NewFeeMarketCache(reader BlockChain) *FeeMarketCache {
+func NewFeeMarketCache(reader BlockChain) (*FeeMarketCache, error) {
+	if reader == nil {
+		return nil, errors.New("blockchain reader is not provided")
+	}
+
 	currentHeader := reader.CurrentHeader()
 
 	c := &FeeMarketCache{
 		tempConstantsMap: make(map[MiningWorkID]*MiningConstantsCache),
 		entries:          make(map[common.Address]*ConfigEntry),
 		tempEntriesMap:   make(map[MiningWorkID]*MiningConfigsCache),
-		head:             currentHeader.Hash(),
-		headHeight:       currentHeader.Number.Uint64(),
-		parentHash:       currentHeader.ParentHash,
+
+		head:       currentHeader.Hash(),
+		headHeight: currentHeader.Number.Uint64(),
+		parentHash: currentHeader.ParentHash,
 
 		chainCh: make(chan ChainEvent, ChainHeadChanSize),
 		closeCh: make(chan struct{}),
@@ -102,7 +108,7 @@ func NewFeeMarketCache(reader BlockChain) *FeeMarketCache {
 	go c.loop()
 	go c.removeStaleEntries()
 
-	return c
+	return c, nil
 }
 
 // loop is the main loop for the storage provider
@@ -169,8 +175,9 @@ func (c *FeeMarketCache) Close() error {
 
 // SetConstants sets the constants in the cache
 func (c *FeeMarketCache) SetConstants(constants types.FeeMarketConstants, blockNum uint64, blockHash common.Hash, workID *MiningWorkID) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	// TODO: remove this for release
+	log.Debug("FeeMarket constants set", "blockNum", blockNum, "blockHash", blockHash)
+
 	entry := &ConstantsEntry{
 		constants: constants,
 		CacheMetadata: CacheMetadata{
@@ -179,6 +186,9 @@ func (c *FeeMarketCache) SetConstants(constants types.FeeMarketConstants, blockN
 			modified:  time.Now(),
 		},
 	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	// If we're mining and have a workID, write to specific temp entries
 	if workID != nil {
@@ -219,18 +229,22 @@ func (c *FeeMarketCache) GetConstants(workID *MiningWorkID) *types.FeeMarketCons
 
 // InvalidateConstants invalidates the constants in the cache
 func (c *FeeMarketCache) InvalidateConstants(workID *MiningWorkID) {
+	log.Debug("FeeMarket constants invalidated", "forMiningWork", workID != nil)
+
 	c.lock.Lock()
+	defer c.lock.Unlock()
 	if workID != nil {
 		delete(c.tempConstantsMap, *workID)
 	} else {
 		c.constants = nil
 	}
-	c.lock.Unlock()
-	log.Debug("FeeMarket constants invalidated", "forMiningWork", workID != nil)
 }
 
 // SetConfig sets a fee market config in the cache
 func (c *FeeMarketCache) SetConfig(addr common.Address, config types.FeeMarketConfig, blockNum uint64, blockHash common.Hash, workID *MiningWorkID) {
+	// TODO: remove this for release
+	log.Debug("FeeMarket config set", "address", addr, "blockNum", blockNum, "blockHash", blockHash)
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -279,7 +293,10 @@ func (c *FeeMarketCache) GetConfig(addr common.Address, workID *MiningWorkID) (t
 
 // InvalidateConfig invalidates a fee market config in the cache
 func (c *FeeMarketCache) InvalidateConfig(addr common.Address, workID *MiningWorkID) {
+	log.Debug("FeeMarket config invalidated", "address", addr, "forMiningWork", workID != nil)
+
 	c.lock.Lock()
+	defer c.lock.Unlock()
 	if workID != nil {
 		if tempCache, exists := c.tempEntriesMap[*workID]; exists {
 			delete(tempCache.entries, addr)
@@ -287,8 +304,6 @@ func (c *FeeMarketCache) InvalidateConfig(addr common.Address, workID *MiningWor
 	} else {
 		delete(c.entries, addr)
 	}
-	c.lock.Unlock()
-	log.Debug("FeeMarket config invalidated", "address", addr, "forMiningWork", workID != nil)
 }
 
 // removeStaleEntries removes stale entries from the cache
@@ -305,14 +320,20 @@ func (c *FeeMarketCache) removeStaleEntries() {
 			// Remove stale entries and only keep the last 256 blocks to prevent memory bloat
 			if now.Sub(entry.modified) > cacheEntryExpiration || entry.blockNum < threshold {
 				delete(c.entries, addr)
+				// TODO: remove this for release
+				log.Debug("FeeMarket cache stale entry removed", "address", addr, "blockNum", entry.blockNum)
 			}
 		}
 		c.lock.Unlock()
 	}
 }
 
-// BeginMining starts a new mining work, supports multiple works
+// BeginMining begins a new mining session,
+// multiple mining sessions can be active at the same time for the same block
 func (c *FeeMarketCache) BeginMining(parent common.Hash, timestamp, attemptNum uint64) MiningWorkID {
+	// TODO: remove this for release
+	log.Debug("FeeMarket mining started", "parent", parent, "attemptNum", attemptNum, "timestamp", timestamp)
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -350,6 +371,8 @@ func (c *FeeMarketCache) CommitMining(workID MiningWorkID) {
 	if exists && tempCache.workID.ParentHash == c.head {
 		for addr, entry := range tempCache.entries {
 			c.entries[addr] = entry
+			// TODO: remove this for release
+			log.Debug("FeeMarket cache mining entry committed", "address", addr, "blockNum", entry.blockNum, "attemptNum", tempCache.workID.AttemptNum)
 		}
 	}
 
@@ -360,6 +383,9 @@ func (c *FeeMarketCache) CommitMining(workID MiningWorkID) {
 
 // AbortMining cleans up all temp caches
 func (c *FeeMarketCache) AbortMining() {
+	// TODO: remove this for release
+	log.Debug("FeeMarket cache block mining aborted")
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.tempConstantsMap = make(map[MiningWorkID]*MiningConstantsCache)

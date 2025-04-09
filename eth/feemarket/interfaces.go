@@ -9,30 +9,41 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 )
 
-// Provider defines the interface for fee monetization services
-type Provider interface {
-	// GetConstants returns the constants used for fee monetization
-	GetConstants(state FeeMarketStateReader, withCache bool, workID *MiningWorkID) types.FeeMarketConstants
-
-	// GetConfig returns configuration for a specific address
-	GetConfig(address common.Address, state FeeMarketStateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool)
-
+// ProviderCache defines the interface for handling caching of fee market data
+type ProviderCache interface {
 	// InvalidateConfig invalidates the cache for a specific address
 	InvalidateConfig(address common.Address, workID *MiningWorkID)
 
 	// InvalidateConstants invalidates the cache for the constants
 	InvalidateConstants(workID *MiningWorkID)
 
+	// BeginMining begins a new mining session,
+	// multiple mining sessions can be active at the same time for the same block
 	BeginMining(parent common.Hash, timestamp, attemptNum uint64) MiningWorkID
+
+	// CommitMining commits the only the winning mining session entries
 	CommitMining(workID MiningWorkID)
+
+	// AbortMining cleans up all temp caches for this mining block
 	AbortMining()
 
-	// Close closes the provider
+	// Close closes the cache manager
 	Close() error
 }
 
-// FeeMarketStateReader defines the interface for reading the state of the fee market
-type FeeMarketStateReader interface {
+// Provider defines the interface for fee monetization services
+type Provider interface {
+	ProviderCache
+
+	// GetConstants returns the constants used for fee monetization
+	GetConstants(state StateReader, withCache bool, workID *MiningWorkID) types.FeeMarketConstants
+
+	// GetConfig returns configuration for a specific address
+	GetConfig(address common.Address, state StateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool)
+}
+
+// StateReader defines the interface for reading the state of the fee market
+type StateReader interface {
 	// GetState returns the state of the fee market for an address
 	GetState(addr common.Address, hash common.Hash) common.Hash
 }
@@ -41,10 +52,8 @@ type FeeMarketStateReader interface {
 type BlockChain interface {
 	CurrentHeader() *types.Header
 	GetHeader(hash common.Hash, number uint64) *types.Header
-	// }
 
-	// // ChainEventSubscriber provides chain event subscription capabilities
-	// type ChainEventSubscriber interface {
+	// FeeMarketSubscribeChainEvent provides chain event subscription capabilities
 	FeeMarketSubscribeChainEvent(ch chan<- ChainEvent) event.Subscription
 }
 

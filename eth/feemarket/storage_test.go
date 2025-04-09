@@ -307,7 +307,7 @@ func TestConstantsCache(t *testing.T) {
 		initialVal  uint64
 		newVal      uint64
 		storageSlot common.Hash
-		getter      func(*StorageProvider, FeeMarketStateReader, bool) uint64
+		getter      func(*StorageProvider, StateReader, bool) uint64
 	}
 
 	testCases := []testCase{
