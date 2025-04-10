@@ -110,12 +110,10 @@ func (p *StorageProvider) GetConfig(address common.Address, state StateReader, b
 	// Not found in cache, try to find it in storage
 	config, found = p.findConfigForAddress(address, state, blockNumber, withCache, workID)
 	if !found {
-		return types.FeeMarketConfig{}, false
-	}
-
-	constants := p.GetConstants(state, blockNumber, withCache, workID)
-	if valid, err := config.IsValidConfig(constants); !valid || err != nil {
-		log.Debug("FeeMarket invalid config found in storage", "config", config, "err", err)
+		// Cache not found configs as empty so as to not loop the storage each time (optimisation)
+		if withCache && p.configCache != nil {
+			p.configCache.SetConfig(address, types.FeeMarketConfig{}, blockNumber, workID)
+		}
 		return types.FeeMarketConfig{}, false
 	}
 
@@ -143,7 +141,14 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Sta
 			continue
 		}
 
-		// TODO: test this, as it also writes invalid configs to cache in order to not loop the storage each time, we have to ensure that it's not a problem
+		// Validate config, invalid configs should not be cached either with wrong values.
+		// TIP: In GetConfig, we will cache the invalid config as empty, but not as invalid
+		constants := p.GetConstants(state, blockNumber, withCache, workID)
+		if valid, err := config.IsValidConfig(constants); !valid || err != nil {
+			log.Debug("FeeMarket invalid config found in storage", "config", config, "err", err)
+			return types.FeeMarketConfig{}, false
+		}
+
 		// Small optimization that caches valid configs, even if they are not for the address we are looking for
 		// This way next time we can skip reading whole storage for each config
 		if !foundInCache && withCache && p.configCache != nil {

@@ -34,9 +34,8 @@ type MiningWorkID struct {
 
 // CacheMetadata is a cache entry base struct
 type CacheMetadata struct {
-	blockNum  uint64
-	blockHash common.Hash
-	modified  time.Time
+	blockNum uint64
+	modified time.Time
 }
 
 // ConstantsEntry keeps track of the constants
