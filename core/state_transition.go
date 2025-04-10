@@ -548,7 +548,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					} else {
 						// Using NoBaseFee as estimation indicator
 						isEstimate := st.evm.Config.NoBaseFee
-						if isEstimate {
+						if isEstimate && st.evm.Config.Tracer == nil {
 							return nil, vmerr // Return error for eth_estimateGas
 						}
 
