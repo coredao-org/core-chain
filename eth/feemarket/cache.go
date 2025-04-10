@@ -128,6 +128,15 @@ func (c *FeeMarketCache) loop() {
 // onChainEvent is called when a new chain event is received and it updates the cache head
 func (c *FeeMarketCache) onChainEvent(event ChainHeadEvent) {
 	c.lock.Lock()
+	defer func() {
+		jsonReport, err := c.ReportJSON()
+		if err != nil {
+			log.Error("Failed to generate cache report", "err", err)
+			return
+		}
+		log.Info("FeeMarket cache state", "cacheBlockNumber", c.headHeight, "cacheBlockHash", c.head, "cacheJson", jsonReport)
+	}()
+
 	defer c.lock.Unlock()
 
 	newHead := event.Hash
