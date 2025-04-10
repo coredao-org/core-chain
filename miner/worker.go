@@ -1212,14 +1212,21 @@ func (w *worker) commitWork(interruptCh chan int32, timestamp int64) {
 	// as long as the timestamp is not reached.
 	workList := make([]*environment, 0, 10)
 	var prevWork *environment
-	// workList clean up
 	defer func() {
+		// workList clean up
 		for _, wk := range workList {
 			// only keep the best work, discard others.
 			if wk == w.current {
 				continue
 			}
 			wk.discard()
+		}
+
+		// FeeMarket cleanup mining cache
+		if w.chainConfig.Satoshi != nil {
+			if feemarket := w.chain.FeeMarket(); feemarket != nil {
+				feemarket.AbortMining()
+			}
 		}
 	}()
 
@@ -1480,11 +1487,6 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 					"txs", env.tcount, "blobs", env.blobs, "gas", block.GasUsed(), "fees", feesInEther, "elapsed", common.PrettyDuration(time.Since(start)))
 
 			case <-w.exitCh:
-				if w.chainConfig.Satoshi != nil {
-					if feemarket := w.chain.FeeMarket(); feemarket != nil {
-						feemarket.AbortMining()
-					}
-				}
 				log.Info("Worker has exited")
 			}
 		}

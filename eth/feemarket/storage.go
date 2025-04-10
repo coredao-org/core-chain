@@ -26,16 +26,13 @@ const (
 type StorageProvider struct {
 	// contractAddr is the address of the fee market contract
 	contractAddr common.Address
-
-	chainReader BlockChain
-	configCache *FeeMarketCache
+	configCache  *FeeMarketCache
 }
 
 // NewStorageProvider creates a new provider that reads directly from storage
 func NewStorageProvider(contractAddr common.Address, reader BlockChain) (*StorageProvider, error) {
 	p := &StorageProvider{
 		contractAddr: contractAddr,
-		chainReader:  reader,
 	}
 
 	// Initialize the cache, if is supported
@@ -56,7 +53,10 @@ func (p *StorageProvider) GetConstants(state StateReader, blockNumber uint64, wi
 		}
 
 		defer func() {
-			// currentHeader := p.chainReader.CurrentHeader()
+			if constants.Denominator == 0 || constants.MaxRewards == 0 || constants.MaxGas == 0 || constants.MaxEvents == 0 {
+				log.Error("FeeMarket invalid constants loaded from storage", "constants", constants)
+				return
+			}
 			p.configCache.SetConstants(constants, blockNumber, workID)
 		}()
 	}
@@ -118,10 +118,8 @@ func (p *StorageProvider) GetConfig(address common.Address, state StateReader, b
 		log.Debug("FeeMarket invalid config found in storage", "config", config, "err", err)
 		return types.FeeMarketConfig{}, false
 	}
-	// Cache the valid config
-	if withCache && p.configCache != nil {
-		p.configCache.SetConfig(address, config, blockNumber, workID)
-	}
+
+	// Cache storage happens in findConfigForAddress
 	return config, true
 }
 
@@ -139,23 +137,16 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Sta
 
 	// Scan all configs to find one with matching address
 	for i := uint64(0); i < configsLength; i++ {
-		config, err := p.readConfigAtIndex(i, state, blockNumber, withCache, workID)
+		config, foundInCache, err := p.readConfigAtIndex(i, state, blockNumber, withCache, workID)
 		if err != nil {
 			log.Debug("FeeMarket failed to read configuration", "index", i, "err", err)
 			continue
 		}
 
-		// TODO: consider writing empty configs
-
-		constants := p.GetConstants(state, blockNumber, withCache, workID)
-		if valid, err := config.IsValidConfig(constants); !valid || err != nil {
-			log.Debug("FeeMarket invalid config loaded from storage", "index", i, "config", config, "err", err)
-			continue
-		}
-
+		// TODO: test this, as it also writes invalid configs to cache in order to not loop the storage each time, we have to ensure that it's not a problem
 		// Small optimization that caches valid configs, even if they are not for the address we are looking for
 		// This way next time we can skip reading whole storage for each config
-		if withCache && p.configCache != nil {
+		if !foundInCache && withCache && p.configCache != nil {
 			p.configCache.SetConfig(config.ConfigAddress, config, blockNumber, workID)
 		}
 
@@ -176,7 +167,7 @@ func (p *StorageProvider) readConfigsLength(state StateReader) (uint64, error) {
 }
 
 // readConfigAtIndex reads a config from storage at a specific index
-func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, err error) {
+func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, foundInCache bool, err error) {
 	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
 
 	// Calculate base slot for configs array
@@ -205,11 +196,12 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, blo
 	isActive := packedData[11]&0x01 == 1
 	configAddr := common.BytesToAddress(packedData[12:32])
 
-	// Short circuit optimisation if config is already in cache, so as to avoid reading from storage the rest slots for this config.
+	// Short circuit optimisation if config is already in cache, so as to avoid reading from storage
+	// the rest slots for this config. Invalid configs are cached as well, so we don't loop the storage.
 	// Take care of the lock here, to not be blocked by the parent function.
 	if withCache && p.configCache != nil {
 		if config, found := p.configCache.GetConfig(configAddr, blockNumber, workID); found {
-			return config, nil
+			return config, true, nil
 		}
 	}
 
@@ -221,7 +213,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, blo
 	constants := p.GetConstants(state, blockNumber, withCache, workID)
 	if eventsLength > constants.MaxEvents {
 		log.Error("FeeMarket events length is greater than max events", "index", index, "eventsLength", eventsLength, "maxEvents", constants.MaxEvents)
-		return types.FeeMarketConfig{}, fmt.Errorf("events length is greater than max events")
+		return types.FeeMarketConfig{}, false, fmt.Errorf("events length is greater than max events")
 	}
 
 	// Read events
@@ -244,7 +236,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, blo
 		).Uint64()
 		if rewardsLength > constants.MaxRewards {
 			log.Error("FeeMarket rewards length is greater than max rewards", "index", index, "rewardsLength", rewardsLength, "maxRewards", constants.MaxRewards)
-			return types.FeeMarketConfig{}, fmt.Errorf("rewards length is greater than max rewards")
+			return types.FeeMarketConfig{}, false, fmt.Errorf("rewards length is greater than max rewards")
 		}
 
 		rewards := readRewards(p.contractAddr, rewardsLengthSlot, rewardsLength, state)
@@ -264,7 +256,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, blo
 		Events:        events,
 	}
 
-	return config, nil
+	return config, false, nil
 }
 
 // Helper function to read rewards array

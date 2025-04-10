@@ -469,7 +469,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			feeMarketConfig := st.evm.Config.FeeMarketConfig
 
 			if len(logs) > 0 && feeMarket != nil {
-				feeMarketDenominator := feeMarket.GetDenominator(st.state, feeMarketConfig.EnableCache, feeMarketConfig.WorkID)
+				feeMarketDenominator := feeMarket.GetDenominator(st.state, st.evm.Context.BlockNumber.Uint64(), feeMarketConfig.EnableCache, feeMarketConfig.WorkID)
 				if feeMarketDenominator > 0 {
 					for _, eventLog := range logs {
 						if eventLog.Removed {
@@ -482,7 +482,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						}
 
 						// Get configuration from fee market
-						config, found := feeMarket.GetConfig(eventLog.Address, st.state, feeMarketConfig.EnableCache, feeMarketConfig.WorkID)
+						config, found := feeMarket.GetConfig(eventLog.Address, st.state, st.evm.Context.BlockNumber.Uint64(), feeMarketConfig.EnableCache, feeMarketConfig.WorkID)
 						if !found || !config.IsActive {
 							continue
 						}
@@ -521,9 +521,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						} else {
 							distributedAmount := new(uint256.Int).SetUint64(feeMarketEvent.Gas)
 							distributedAmount.Mul(distributedAmount, effectiveTipU256)
-							log.Debug("FeeMarket distributed fees for event", "eventSig", feeMarketEvent.EventSignature, "contractAddr", eventLog.Address, "feesInEther", new(uint256.Int).Div(distributedAmount, uint256.NewInt(params.Ether)))
+							log.Debug("FeeMarket will distribute fees for event", "eventSig", feeMarketEvent.EventSignature, "contractAddr", eventLog.Address, "feesInEther", new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.Ether)))
 						}
 					}
+
+					// This is the final available distributed gas to be refunded to the user and returned to the block gas counter, it's copied here as it might be modified on error logic.
+					availableDistributedGas := distributedGas
 
 					// If no error, remove the distributed gas and computational gas from the gas remaining
 					if vmerr == nil {
