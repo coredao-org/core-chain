@@ -75,9 +75,9 @@ type FeeMarketCache struct {
 	headHeight uint64      // current head height
 	parentHash common.Hash // current head parent hash
 
-	chainSub event.Subscription // chain subscription
-	chainCh  chan ChainEvent    // chain channel
-	closeCh  chan struct{}      // close channel
+	chainSub event.Subscription  // chain subscription
+	chainCh  chan ChainHeadEvent // chain channel
+	closeCh  chan struct{}       // close channel
 
 	lock sync.RWMutex
 }
@@ -98,12 +98,12 @@ func NewFeeMarketCache(reader BlockChain) (*FeeMarketCache, error) {
 		headHeight: currentHeader.Number.Uint64(),
 		parentHash: currentHeader.ParentHash,
 
-		chainCh: make(chan ChainEvent, ChainHeadChanSize),
+		chainCh: make(chan ChainHeadEvent, ChainHeadChanSize),
 		closeCh: make(chan struct{}),
 	}
 
 	// Subscribe to chain events
-	c.chainSub = reader.FeeMarketSubscribeChainEvent(c.chainCh)
+	c.chainSub = reader.FeeMarketSubscribeChainHeadEvent(c.chainCh)
 
 	go c.loop()
 	go c.removeStaleEntries()
@@ -126,7 +126,7 @@ func (c *FeeMarketCache) loop() {
 }
 
 // onChainEvent is called when a new chain event is received and it updates the cache head
-func (c *FeeMarketCache) onChainEvent(event ChainEvent) {
+func (c *FeeMarketCache) onChainEvent(event ChainHeadEvent) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -174,16 +174,15 @@ func (c *FeeMarketCache) Close() error {
 }
 
 // SetConstants sets the constants in the cache
-func (c *FeeMarketCache) SetConstants(constants types.FeeMarketConstants, blockNum uint64, blockHash common.Hash, workID *MiningWorkID) {
+func (c *FeeMarketCache) SetConstants(constants types.FeeMarketConstants, blockNum uint64, workID *MiningWorkID) {
 	// TODO: remove this for release
-	log.Debug("FeeMarket constants set", "blockNum", blockNum, "blockHash", blockHash)
+	log.Debug("FeeMarket constants set", "blockNum", blockNum)
 
 	entry := &ConstantsEntry{
 		constants: constants,
 		CacheMetadata: CacheMetadata{
-			blockNum:  blockNum,
-			blockHash: blockHash,
-			modified:  time.Now(),
+			blockNum: blockNum,
+			modified: time.Now(),
 		},
 	}
 
@@ -209,7 +208,7 @@ func (c *FeeMarketCache) SetConstants(constants types.FeeMarketConstants, blockN
 }
 
 // GetConstants gets the constants from the cache
-func (c *FeeMarketCache) GetConstants(workID *MiningWorkID) *types.FeeMarketConstants {
+func (c *FeeMarketCache) GetConstants(blockNumber uint64, workID *MiningWorkID) *types.FeeMarketConstants {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
@@ -221,7 +220,9 @@ func (c *FeeMarketCache) GetConstants(workID *MiningWorkID) *types.FeeMarketCons
 	}
 
 	// Then check main cache
-	if c.constants != nil && (c.constants.blockNum <= c.headHeight || (c.constants.blockNum == c.headHeight && c.constants.blockHash == c.head)) {
+	// TODO: the blockHash == c.head will probably never happen on mining, shall we remove it?
+	// We can also skip writing to cache if c.constants.blockNum == blockNumber, except if it's through BeginMining
+	if c.constants != nil && (c.constants.blockNum < blockNumber || (c.constants.blockNum == blockNumber && c.constants.blockHash == c.head)) {
 		return &c.constants.constants
 	}
 	return nil
@@ -241,9 +242,9 @@ func (c *FeeMarketCache) InvalidateConstants(workID *MiningWorkID) {
 }
 
 // SetConfig sets a fee market config in the cache
-func (c *FeeMarketCache) SetConfig(addr common.Address, config types.FeeMarketConfig, blockNum uint64, blockHash common.Hash, workID *MiningWorkID) {
+func (c *FeeMarketCache) SetConfig(addr common.Address, config types.FeeMarketConfig, blockNum uint64, workID *MiningWorkID) {
 	// TODO: remove this for release
-	log.Debug("FeeMarket config set", "address", addr, "blockNum", blockNum, "blockHash", blockHash)
+	log.Debug("FeeMarket config set", "address", addr, "blockNum", blockNum)
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -251,9 +252,8 @@ func (c *FeeMarketCache) SetConfig(addr common.Address, config types.FeeMarketCo
 	entry := &ConfigEntry{
 		config: config,
 		CacheMetadata: CacheMetadata{
-			blockNum:  blockNum,
-			blockHash: blockHash,
-			modified:  time.Now(),
+			blockNum: blockNum,
+			modified: time.Now(),
 		},
 	}
 
@@ -270,7 +270,7 @@ func (c *FeeMarketCache) SetConfig(addr common.Address, config types.FeeMarketCo
 }
 
 // GetConfig gets a fee market config from the cache
-func (c *FeeMarketCache) GetConfig(addr common.Address, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
+func (c *FeeMarketCache) GetConfig(addr common.Address, blockNumber uint64, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
@@ -285,7 +285,9 @@ func (c *FeeMarketCache) GetConfig(addr common.Address, workID *MiningWorkID) (t
 
 	// Then check main cache
 	entry, exists := c.entries[addr]
-	if exists && (entry.blockNum <= c.headHeight || (entry.blockNum == c.headHeight && entry.blockHash == c.head)) {
+	// TODO: the blockHash == c.head will probably never happen on mining, shall we remove it?
+	// We can also skip writing to cache if c.constants.blockNum == blockNumber, except if it's through BeginMining
+	if exists && (entry.blockNum < blockNumber || (entry.blockNum == blockNumber && entry.blockHash == c.head)) {
 		return entry.config, true
 	}
 	return types.FeeMarketConfig{}, false
@@ -363,7 +365,9 @@ func (c *FeeMarketCache) CommitMining(workID MiningWorkID) {
 
 	// Commit constants if they exist
 	if tempConstants, exists := c.tempConstantsMap[workID]; exists && tempConstants.entry != nil {
-		c.constants = tempConstants.entry
+		if tempConstants.workID.ParentHash == c.head {
+			c.constants = tempConstants.entry
+		}
 	}
 
 	// Commit only the winning work's entries

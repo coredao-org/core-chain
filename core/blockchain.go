@@ -344,6 +344,12 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		return nil, genesisErr
 	}
 	systemcontracts.GenesisHash = genesisHash
+
+	if chainConfig.Satoshi != nil {
+		// Enable the fee market cache for chain inserts
+		vmConfig.FeeMarketConfig.EnableCache = true
+	}
+
 	log.Info("Initialised chain configuration", "config", chainConfig)
 	// Description of chainConfig is empty now
 	/*
@@ -3040,8 +3046,8 @@ func (bc *BlockChain) startDoubleSignMonitor() {
 	}
 }
 
-// FeeMarketSubscribeChainEvent subscribes to chain side events (reorgs) and cleans the fee market cache
-func (bc *BlockChain) FeeMarketSubscribeChainEvent(ch chan<- feemarket.ChainEvent) (chainEventSub event.Subscription) {
+// FeeMarketSubscribeChainHeadEvent subscribes to chain side events (reorgs) and cleans the fee market cache
+func (bc *BlockChain) FeeMarketSubscribeChainHeadEvent(ch chan<- feemarket.ChainHeadEvent) (chainEventSub event.Subscription) {
 	bc.wg.Add(1)
 
 	chainEvents := make(chan ChainHeadEvent, feemarket.ChainHeadChanSize)
@@ -3056,21 +3062,23 @@ func (bc *BlockChain) FeeMarketSubscribeChainEvent(ch chan<- feemarket.ChainEven
 
 		for {
 			select {
-			case <-chainEventSub.Err():
-				return
 			case ev := <-chainEvents:
-				select {
-				case ch <- feemarket.ChainEvent{
+				fmEvent := feemarket.ChainHeadEvent{
 					Block: &feemarket.Header{
 						Number:     ev.Block.Number(),
 						Hash:       ev.Block.Hash(),
 						ParentHash: ev.Block.ParentHash(),
 					},
 					Hash: ev.Block.Hash(),
-				}:
+				}
+				select {
+				case ch <- fmEvent:
 				case <-bc.quit:
 					return
 				}
+			// TODO: check if we should re-subscribe the chain event
+			case <-chainEventSub.Err():
+				return
 			case <-bc.quit:
 				return
 			}

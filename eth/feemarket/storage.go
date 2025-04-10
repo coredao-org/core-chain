@@ -49,15 +49,15 @@ func NewStorageProvider(contractAddr common.Address, reader BlockChain) (*Storag
 }
 
 // GetConstants reads the constants from the cache
-func (p *StorageProvider) GetConstants(state StateReader, withCache bool, workID *MiningWorkID) (constants types.FeeMarketConstants) {
+func (p *StorageProvider) GetConstants(state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (constants types.FeeMarketConstants) {
 	if withCache && p.configCache != nil {
-		if cached := p.configCache.GetConstants(workID); cached != nil {
+		if cached := p.configCache.GetConstants(blockNumber, workID); cached != nil {
 			return *cached
 		}
 
 		defer func() {
-			currentHeader := p.chainReader.CurrentHeader()
-			p.configCache.SetConstants(constants, currentHeader.Number.Uint64(), currentHeader.Hash(), workID)
+			// currentHeader := p.chainReader.CurrentHeader()
+			p.configCache.SetConstants(constants, blockNumber, workID)
 		}()
 	}
 
@@ -95,39 +95,38 @@ func (p *StorageProvider) GetConstants(state StateReader, withCache bool, workID
 }
 
 // GetConfig returns configuration for a specific address
-func (p *StorageProvider) GetConfig(address common.Address, state StateReader, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, found bool) {
+func (p *StorageProvider) GetConfig(address common.Address, state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, found bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, false
 	}
 
 	// If cache is enabled, read and write to cache
 	if withCache && p.configCache != nil {
-		if config, found := p.configCache.GetConfig(address, workID); found {
+		if config, found := p.configCache.GetConfig(address, blockNumber, workID); found {
 			return config, true
 		}
 	}
 
 	// Not found in cache, try to find it in storage
-	config, found = p.findConfigForAddress(address, state, withCache, workID)
+	config, found = p.findConfigForAddress(address, state, blockNumber, withCache, workID)
 	if !found {
 		return types.FeeMarketConfig{}, false
 	}
 
-	constants := p.GetConstants(state, withCache, workID)
+	constants := p.GetConstants(state, blockNumber, withCache, workID)
 	if valid, err := config.IsValidConfig(constants); !valid || err != nil {
 		log.Debug("FeeMarket invalid config found in storage", "config", config, "err", err)
 		return types.FeeMarketConfig{}, false
 	}
 	// Cache the valid config
 	if withCache && p.configCache != nil {
-		currentHeader := p.chainReader.CurrentHeader()
-		p.configCache.SetConfig(address, config, currentHeader.Number.Uint64(), currentHeader.Hash(), workID)
+		p.configCache.SetConfig(address, config, blockNumber, workID)
 	}
 	return config, true
 }
 
 // findConfigForAddress finds a config for an address by scanning all configs
-func (p *StorageProvider) findConfigForAddress(address common.Address, state StateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
+func (p *StorageProvider) findConfigForAddress(address common.Address, state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, false
 	}
@@ -140,7 +139,7 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Sta
 
 	// Scan all configs to find one with matching address
 	for i := uint64(0); i < configsLength; i++ {
-		config, err := p.readConfigAtIndex(i, state, withCache, workID)
+		config, err := p.readConfigAtIndex(i, state, blockNumber, withCache, workID)
 		if err != nil {
 			log.Debug("FeeMarket failed to read configuration", "index", i, "err", err)
 			continue
@@ -148,7 +147,7 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Sta
 
 		// TODO: consider writing empty configs
 
-		constants := p.GetConstants(state, withCache, workID)
+		constants := p.GetConstants(state, blockNumber, withCache, workID)
 		if valid, err := config.IsValidConfig(constants); !valid || err != nil {
 			log.Debug("FeeMarket invalid config loaded from storage", "index", i, "config", config, "err", err)
 			continue
@@ -157,8 +156,7 @@ func (p *StorageProvider) findConfigForAddress(address common.Address, state Sta
 		// Small optimization that caches valid configs, even if they are not for the address we are looking for
 		// This way next time we can skip reading whole storage for each config
 		if withCache && p.configCache != nil {
-			currentHeader := p.chainReader.CurrentHeader()
-			p.configCache.SetConfig(config.ConfigAddress, config, currentHeader.Number.Uint64(), currentHeader.Hash(), workID)
+			p.configCache.SetConfig(config.ConfigAddress, config, blockNumber, workID)
 		}
 
 		if config.ConfigAddress == address {
@@ -178,7 +176,7 @@ func (p *StorageProvider) readConfigsLength(state StateReader) (uint64, error) {
 }
 
 // readConfigAtIndex reads a config from storage at a specific index
-func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, err error) {
+func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (config types.FeeMarketConfig, err error) {
 	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
 
 	// Calculate base slot for configs array
@@ -210,7 +208,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, wit
 	// Short circuit optimisation if config is already in cache, so as to avoid reading from storage the rest slots for this config.
 	// Take care of the lock here, to not be blocked by the parent function.
 	if withCache && p.configCache != nil {
-		if config, found := p.configCache.GetConfig(configAddr, workID); found {
+		if config, found := p.configCache.GetConfig(configAddr, blockNumber, workID); found {
 			return config, nil
 		}
 	}
@@ -220,7 +218,7 @@ func (p *StorageProvider) readConfigAtIndex(index uint64, state StateReader, wit
 	eventsLengthData := state.GetState(p.contractAddr, eventsLengthSlot)
 	eventsLength := new(uint256.Int).SetBytes(eventsLengthData.Bytes()).Uint64()
 
-	constants := p.GetConstants(state, withCache, workID)
+	constants := p.GetConstants(state, blockNumber, withCache, workID)
 	if eventsLength > constants.MaxEvents {
 		log.Error("FeeMarket events length is greater than max events", "index", index, "eventsLength", eventsLength, "maxEvents", constants.MaxEvents)
 		return types.FeeMarketConfig{}, fmt.Errorf("events length is greater than max events")

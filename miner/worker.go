@@ -1452,6 +1452,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 			env.sidecars = make(types.BlobSidecars, 0)
 		}
 
+		// Read the workID from the evm config, because env.Copy() will drop it
 		var feeMarketWorkID *feemarket.MiningWorkID
 		if w.chainConfig.Satoshi != nil {
 			if feeMarketConfig := env.evm.Config.FeeMarketConfig; feeMarketConfig.WorkID != nil {

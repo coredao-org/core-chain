@@ -554,18 +554,22 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						st.evm.StateDB.RevertToSnapshot(snapshot)
 
 						// Return ETH for distributed gas to the user, exchanged at the original rate.
-						if distributedGas > 0 && distributedGas < st.initialGas && st.gasRemaining >= distributedGas {
+						if distributedGas > 0 && distributedGas < st.initialGas {
+							if st.gasRemaining < distributedGas {
+								availableDistributedGas = st.gasRemaining
+							}
+
 							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
-								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-distributedGas, tracing.GasChangeFeeMarketDistributedGasRefunded)
+								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-availableDistributedGas, tracing.GasChangeFeeMarketDistributedGasRefunded)
 							}
 
 							// Remove the distributed gas as it will be refunded back to the user
-							st.gasRemaining -= distributedGas
+							st.gasRemaining -= availableDistributedGas
 
 							// TODO(ziogaschr): verify this is applied and is not affected by the RevertToSnapshot() outer call.
 							// Add the distributed gas to the user's balance.
 							// IMPORTANT: keep this after the RevertToSnapshot() call.
-							distributedGasU256 := uint256.NewInt(distributedGas)
+							distributedGasU256 := uint256.NewInt(availableDistributedGas)
 							distributedGasU256 = distributedGasU256.Mul(distributedGasU256, uint256.MustFromBig(st.msg.GasPrice))
 							st.state.AddBalance(st.msg.From, distributedGasU256, tracing.BalanceIncreaseFeeMarketGasReturnOnFailure)
 						}
@@ -580,9 +584,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 					// Also return distributed gas to the block gas counter so it is
 					// available for the next transaction.
-					if distributedGas > 0 {
-						// fmt.Println("💨 distributedGas:", distributedGas)
-						st.gp.AddGas(distributedGas)
+					if availableDistributedGas > 0 {
+						st.gp.AddGas(availableDistributedGas)
 					}
 				}
 			}

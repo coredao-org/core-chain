@@ -32,13 +32,13 @@ func NewFeeMarket(bc BlockChain) (*FeeMarket, error) {
 }
 
 // GetConfig gets the fee market config for an address
-func (fm *FeeMarket) GetConfig(address common.Address, state StateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
-	return fm.provider.GetConfig(address, state, withCache, workID)
+func (fm *FeeMarket) GetConfig(address common.Address, state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
+	return fm.provider.GetConfig(address, state, blockNumber, withCache, workID)
 }
 
 // GetDenominator returns the denominator used for percentages
-func (fm *FeeMarket) GetDenominator(state StateReader, withCache bool, workID *MiningWorkID) uint64 {
-	return fm.provider.GetConstants(state, withCache, workID).Denominator
+func (fm *FeeMarket) GetDenominator(state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) uint64 {
+	return fm.provider.GetConstants(state, blockNumber, withCache, workID).Denominator
 }
 
 // HandleCacheInvalidationEvent handles cache invalidation events

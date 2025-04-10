@@ -36,10 +36,10 @@ type Provider interface {
 	ProviderCache
 
 	// GetConstants returns the constants used for fee monetization
-	GetConstants(state StateReader, withCache bool, workID *MiningWorkID) types.FeeMarketConstants
+	GetConstants(state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) types.FeeMarketConstants
 
 	// GetConfig returns configuration for a specific address
-	GetConfig(address common.Address, state StateReader, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool)
+	GetConfig(address common.Address, state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool)
 }
 
 // StateReader defines the interface for reading the state of the fee market
@@ -53,8 +53,8 @@ type BlockChain interface {
 	CurrentHeader() *types.Header
 	GetHeader(hash common.Hash, number uint64) *types.Header
 
-	// FeeMarketSubscribeChainEvent provides chain event subscription capabilities
-	FeeMarketSubscribeChainEvent(ch chan<- ChainEvent) event.Subscription
+	// FeeMarketSubscribeChainHeadEvent provides chain event subscription capabilities
+	FeeMarketSubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
 }
 
 // Header contains only the fields needed by feemarket
@@ -65,7 +65,7 @@ type Header struct {
 }
 
 // ChainEvent is a simplified version of core.ChainEvent
-type ChainEvent struct {
+type ChainHeadEvent struct {
 	Block *Header
 	Hash  common.Hash
 }
