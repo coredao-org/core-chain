@@ -6,15 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// FeeMarketConstants represents the constants for the fee market
-type FeeMarketConstants struct {
-	Denominator           uint64
-	MaxRewards            uint64
-	MaxGas                uint64
-	MaxEvents             uint64
-	MaxFunctionSignatures uint64
-}
-
 // FeeMarketReward represents a reward address and percentage
 type FeeMarketReward struct {
 	RewardAddress    common.Address
@@ -44,8 +35,8 @@ type FeeMarketConfig struct {
 }
 
 // IsValidConfig checks if a config is valid
-func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants) (valid bool, err error) {
-	if constants.Denominator == 0 || constants.MaxGas == 0 || constants.MaxEvents == 0 || constants.MaxRewards == 0 {
+func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxRewards uint64) (valid bool, err error) {
+	if denominator == 0 || maxGas == 0 || maxEvents == 0 || maxRewards == 0 {
 		return false, errors.New("invalid config constants")
 	}
 
@@ -57,12 +48,12 @@ func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants) (valid bool
 		return false, errors.New("config address is not set")
 	}
 
-	if c.Events == nil || len(c.Events) > int(constants.MaxEvents) {
+	if c.Events == nil || len(c.Events) > int(maxEvents) {
 		return false, errors.New("invalid events length")
 	}
 
 	for _, event := range c.Events {
-		if event.Gas == 0 || event.Gas > constants.MaxGas {
+		if event.Gas == 0 || event.Gas > maxGas {
 			return false, errors.New("invalid event gas")
 		}
 
@@ -70,7 +61,7 @@ func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants) (valid bool
 			return false, errors.New("invalid event signature")
 		}
 
-		if len(event.Rewards) == 0 || len(event.Rewards) > int(constants.MaxRewards) {
+		if len(event.Rewards) == 0 || len(event.Rewards) > int(maxRewards) {
 			return false, errors.New("invalid rewards length")
 		}
 
@@ -80,14 +71,14 @@ func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants) (valid bool
 				return false, errors.New("invalid reward address")
 			}
 
-			if reward.RewardPercentage == 0 || reward.RewardPercentage > constants.Denominator {
+			if reward.RewardPercentage == 0 || reward.RewardPercentage > denominator {
 				return false, errors.New("invalid reward percentage")
 			}
 
 			totalRewardPercentage += reward.RewardPercentage
 		}
 
-		if totalRewardPercentage != constants.Denominator {
+		if totalRewardPercentage != denominator {
 			return false, errors.New("invalid total rewards percentage")
 		}
 	}
