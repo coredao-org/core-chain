@@ -89,25 +89,66 @@ func (fm *FeeMarket) GetConfig(address common.Address, state StateReader) (confi
 		return types.FeeMarketConfig{}, false
 	}
 
-	// Not found in cache, try to find it in storage
-	config, found = fm.findConfigForAddress(address, state)
+	config, found = fm.findConfigForAddressFromMap(address, state)
 	if !found {
 		return types.FeeMarketConfig{}, false
 	}
 
-	// Cache storage happens in findConfigForAddress
+	// Validate the config
+	denominator := fm.GetDenominator(state)
+	maxGas := fm.GetMaxGas(state)
+	maxEvents := fm.GetMaxEvents(state)
+	maxRewards := fm.GetMaxRewards(state)
+	if valid, err := config.IsValidConfig(denominator, maxGas, maxEvents, maxRewards); !valid || err != nil {
+		log.Debug("FeeMarket invalid config found in mapping", "address", address, "config", config, "err", err)
+		return types.FeeMarketConfig{}, false
+	}
+
 	return config, true
 }
 
-// findConfigForAddress finds a config for an address by scanning all configs
-func (fm *FeeMarket) findConfigForAddress(address common.Address, state StateReader) (types.FeeMarketConfig, bool) {
+// findConfigForAddressFromMap returns a configuration for a specific address using the mapping
+func (fm *FeeMarket) findConfigForAddressFromMap(address common.Address, state StateReader) (types.FeeMarketConfig, bool) {
+	// Calculate the storage slot for the mapping
+	configsMapSlot := common.BigToHash(big.NewInt(CONFIGS_MAP_STORAGE_SLOT))
+
+	// Prepare the input for keccak256: address (padded to 32 bytes) + slot
+	// In Solidity, addresses are left-padded in storage
+	addressBytes := common.LeftPadBytes(address.Bytes(), 32)
+	data := append(addressBytes, configsMapSlot.Bytes()...)
+
+	// Calculate the storage slot using keccak256
+	mappingSlot := common.BytesToHash(crypto.Keccak256(data))
+
+	// Get the index from the mapping
+	indexBytes := state.GetState(fm.contractAddress, mappingSlot)
+	index := new(uint256.Int).SetBytes(indexBytes[:]).Uint64()
+
+	// Read the config at the found index
+	config, err := fm.readConfigAtIndex(index, state)
+	if err != nil {
+		log.Debug("FeeMarket failed to read configuration", "index", index, "err", err)
+		return types.FeeMarketConfig{}, false
+	}
+
+	// Double-check that the config address matches the requested address
+	if config.ConfigAddress != address {
+		log.Debug("FeeMarket mapping returned wrong config", "requested", address, "found", config.ConfigAddress)
+		return types.FeeMarketConfig{}, false
+	}
+
+	return config, true
+}
+
+// findConfigForAddressFromArray finds a config for an address by scanning all configs
+func (fm *FeeMarket) findConfigForAddressFromArray(address common.Address, state StateReader) (types.FeeMarketConfig, bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, false
 	}
 
 	configsLength, err := fm.readConfigsLength(state)
 	if err != nil {
-		log.Error("FeeMarket failed to read configs length", "err", err)
+		log.Debug("FeeMarket failed to read configs length", "err", err)
 		return types.FeeMarketConfig{}, false
 	}
 
@@ -117,15 +158,6 @@ func (fm *FeeMarket) findConfigForAddress(address common.Address, state StateRea
 		if err != nil {
 			log.Debug("FeeMarket failed to read configuration", "index", i, "err", err)
 			continue
-		}
-
-		denominator := fm.GetDenominator(state)
-		maxGas := fm.GetMaxGas(state)
-		maxEvents := fm.GetMaxEvents(state)
-		maxRewards := fm.GetMaxRewards(state)
-		if valid, err := config.IsValidConfig(denominator, maxGas, maxEvents, maxRewards); !valid || err != nil {
-			log.Debug("FeeMarket invalid config found in storage", "config", config, "err", err)
-			return types.FeeMarketConfig{}, false
 		}
 
 		if config.ConfigAddress == address {
@@ -219,8 +251,7 @@ func (fm *FeeMarket) readConfigAtIndex(index uint64, state StateReader) (config 
 		}
 	}
 
-	// Function signatures will be handled later
-
+	// Function signatures will be handled in a later release.
 	config = types.FeeMarketConfig{
 		ConfigAddress: configAddr,
 		IsActive:      isActive,
