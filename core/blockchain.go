@@ -344,12 +344,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		return nil, genesisErr
 	}
 	systemcontracts.GenesisHash = genesisHash
-
-	if chainConfig.Satoshi != nil {
-		// Enable the fee market cache for chain inserts
-		vmConfig.FeeMarketConfig.EnableCache = true
-	}
-
 	log.Info("Initialised chain configuration", "config", chainConfig)
 	// Description of chainConfig is empty now
 	/*
@@ -409,6 +403,15 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	bc.currentSnapBlock.Store(nil)
 	bc.chasingHead.Store(nil)
 
+	// Initialize the fee market provider
+	if bc.chainConfig.Satoshi != nil {
+		feeMarket, err := feemarket.NewFeeMarket()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize fee market: %w", err)
+		}
+		bc.feeMarket = feeMarket
+	}
+
 	// Update chain info data metrics
 	chainInfoGauge.Update(metrics.GaugeInfoValue{"chain_id": bc.chainConfig.ChainID.String()})
 
@@ -421,14 +424,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	// Load blockchain states from disk
 	if err := bc.loadLastState(); err != nil {
 		return nil, err
-	}
-	// Initialize the fee market provider
-	if bc.chainConfig.Satoshi != nil {
-		feeMarket, err := feemarket.NewFeeMarket(bc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize fee market: %w", err)
-		}
-		bc.feeMarket = feeMarket
 	}
 	// Make sure the state associated with the block is available, or log out
 	// if there is no available state, waiting for state sync.
@@ -1365,9 +1360,6 @@ func (bc *BlockChain) stopWithoutSaving() {
 	// Signal shutdown tx indexer.
 	if bc.txIndexer != nil {
 		bc.txIndexer.close()
-	}
-	if bc.feeMarket != nil {
-		bc.feeMarket.Close()
 	}
 	// Unsubscribe all subscriptions registered from blockchain.
 	bc.scope.Close()
@@ -3044,48 +3036,6 @@ func (bc *BlockChain) startDoubleSignMonitor() {
 			return
 		}
 	}
-}
-
-// FeeMarketSubscribeChainHeadEvent subscribes to chain side events (reorgs) and cleans the fee market cache
-func (bc *BlockChain) FeeMarketSubscribeChainHeadEvent(ch chan<- feemarket.ChainHeadEvent) (chainEventSub event.Subscription) {
-	bc.wg.Add(1)
-
-	chainEvents := make(chan ChainHeadEvent, feemarket.ChainHeadChanSize)
-	chainEventSub = bc.SubscribeChainHeadEvent(chainEvents)
-
-	go func() {
-		defer func() {
-			chainEventSub.Unsubscribe()
-			close(chainEvents)
-			bc.wg.Done()
-		}()
-
-		for {
-			select {
-			case ev := <-chainEvents:
-				fmEvent := feemarket.ChainHeadEvent{
-					Block: &feemarket.Header{
-						Number:     ev.Block.Number(),
-						Hash:       ev.Block.Hash(),
-						ParentHash: ev.Block.ParentHash(),
-					},
-					Hash: ev.Block.Hash(),
-				}
-				select {
-				case ch <- fmEvent:
-				case <-bc.quit:
-					return
-				}
-			// TODO: check if we should re-subscribe the chain event
-			case <-chainEventSub.Err():
-				return
-			case <-bc.quit:
-				return
-			}
-		}
-	}()
-
-	return chainEventSub
 }
 
 // skipBlock returns 'true', if the block being imported can be skipped over, meaning

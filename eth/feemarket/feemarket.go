@@ -5,7 +5,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // FeeMarket represents the fee market integration which is used to get the fee market config for an address.
@@ -18,9 +17,9 @@ type FeeMarket struct {
 }
 
 // NewFeeMarket creates a new fee market integration using storage access
-func NewFeeMarket(bc BlockChain) (*FeeMarket, error) {
+func NewFeeMarket() (*FeeMarket, error) {
 	feeMarketContractAddress := common.HexToAddress(systemcontracts.FeeMarketContract)
-	provider, err := NewStorageProvider(feeMarketContractAddress, bc)
+	provider, err := NewStorageProvider(feeMarketContractAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -32,56 +31,11 @@ func NewFeeMarket(bc BlockChain) (*FeeMarket, error) {
 }
 
 // GetConfig gets the fee market config for an address
-func (fm *FeeMarket) GetConfig(address common.Address, state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) (types.FeeMarketConfig, bool) {
-	return fm.provider.GetConfig(address, state, blockNumber, withCache, workID)
+func (fm *FeeMarket) GetConfig(address common.Address, state StateReader) (types.FeeMarketConfig, bool) {
+	return fm.provider.GetConfig(address, state)
 }
 
 // GetDenominator returns the denominator used for percentages
-func (fm *FeeMarket) GetDenominator(state StateReader, blockNumber uint64, withCache bool, workID *MiningWorkID) uint64 {
-	return fm.provider.GetConstants(state, blockNumber, withCache, workID).Denominator
-}
-
-// HandleCacheInvalidationEvent handles cache invalidation events
-func (fm *FeeMarket) HandleCacheInvalidationEvent(eventLog *types.Log, workID *MiningWorkID) bool {
-	// If the event is from the FeeMarketContract
-	if eventLog.Address == fm.contractAddress {
-		// Check if the event is a ConfigUpdated event
-		id := common.BytesToHash(crypto.Keccak256([]byte("ConfigUpdated(address,uint256,uint256)")))
-		if eventLog.Topics[0] == id && len(eventLog.Topics) > 1 {
-			// Get config address from event.topics[1]
-			configAddress := common.HexToAddress(eventLog.Topics[1].Hex())
-			// Invalidate the config for the address
-			fm.provider.InvalidateConfig(configAddress, workID)
-			return true
-		}
-
-		// Check if the event is a ConstantUpdated event
-		id = common.BytesToHash(crypto.Keccak256([]byte("ConstantUpdated()")))
-		if eventLog.Topics[0] == id {
-			fm.provider.InvalidateConstants(workID)
-			return true
-		}
-	}
-	return false
-}
-
-// BeginMining begins a new mining session,
-// multiple mining sessions can be active at the same time for the same block
-func (fm *FeeMarket) BeginMining(parent common.Hash, timestamp, attemptNum uint64) MiningWorkID {
-	return fm.provider.BeginMining(parent, timestamp, attemptNum)
-}
-
-// CommitMining commits the only the winning mining session entries
-func (fm *FeeMarket) CommitMining(workID MiningWorkID) {
-	fm.provider.CommitMining(workID)
-}
-
-// AbortMining cleans up all temp caches for this mining block
-func (fm *FeeMarket) AbortMining() {
-	fm.provider.AbortMining()
-}
-
-// Close closes the cache manager
-func (fm *FeeMarket) Close() error {
-	return fm.provider.Close()
+func (fm *FeeMarket) GetDenominator(state StateReader) uint64 {
+	return fm.provider.GetConstants(state).Denominator
 }
