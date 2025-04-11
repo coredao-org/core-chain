@@ -230,7 +230,7 @@ func (c *FeeMarketCache) GetConstants(blockNumber uint64, workID *MiningWorkID) 
 	// Then check main cache
 	// TODO: the blockHash == c.head will probably never happen on mining, shall we remove it?
 	// We can also skip writing to cache if c.constants.blockNum == blockNumber, except if it's through BeginMining
-	if c.constants != nil && (c.constants.blockNum < blockNumber || (c.constants.blockNum == blockNumber && c.constants.blockHash == c.head)) {
+	if c.constants != nil && (c.constants.blockNum < blockNumber || (c.constants.blockNum == blockNumber)) {
 		return &c.constants.constants
 	}
 	return nil
@@ -295,7 +295,7 @@ func (c *FeeMarketCache) GetConfig(addr common.Address, blockNumber uint64, work
 	entry, exists := c.entries[addr]
 	// TODO: the blockHash == c.head will probably never happen on mining, shall we remove it?
 	// We can also skip writing to cache if c.constants.blockNum == blockNumber, except if it's through BeginMining
-	if exists && (entry.blockNum < blockNumber || (entry.blockNum == blockNumber && entry.blockHash == c.head)) {
+	if exists && (entry.blockNum < blockNumber || (entry.blockNum == blockNumber )) {
 		return entry.config, true
 	}
 	return types.FeeMarketConfig{}, false

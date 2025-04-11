@@ -85,7 +85,6 @@ func (c *FeeMarketCache) ReportJSON() (string, error) {
 	if c.constants != nil {
 		report.Constants = &ConstantsReport{
 			BlockNum:    c.constants.blockNum,
-			BlockHash:   c.constants.blockHash.Hex(),
 			Modified:    c.constants.modified,
 			Denominator: c.constants.constants.Denominator,
 			MaxRewards:  c.constants.constants.MaxRewards,
@@ -101,7 +100,6 @@ func (c *FeeMarketCache) ReportJSON() (string, error) {
 		if tempConst.entry != nil {
 			report.TempConsts[workIDStr] = &ConstantsReport{
 				BlockNum:    tempConst.entry.blockNum,
-				BlockHash:   tempConst.entry.blockHash.Hex(),
 				Modified:    tempConst.entry.modified,
 				Denominator: tempConst.entry.constants.Denominator,
 				MaxRewards:  tempConst.entry.constants.MaxRewards,
@@ -144,7 +142,6 @@ func (c *FeeMarketCache) ReportJSON() (string, error) {
 func createConfigReport(entry *ConfigEntry) *ConfigReport {
 	report := &ConfigReport{
 		BlockNum:  entry.blockNum,
-		BlockHash: entry.blockHash.Hex(),
 		Modified:  entry.modified,
 		IsActive:  entry.config.IsActive,
 	}
