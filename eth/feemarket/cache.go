@@ -199,15 +199,7 @@ func (c *FeeMarketCache) SetConstants(constants types.FeeMarketConstants, blockN
 
 	// If we're mining and have a workID, write to specific temp entries
 	if workID != nil {
-		if c.tempConstantsMap[*workID] == nil {
-			// TODO: this should never happen after release (bugs free), what if we remove this check?
-			c.tempConstantsMap[*workID] = &MiningConstantsCache{
-				entry:  entry,
-				workID: *workID,
-			}
-		} else {
-			c.tempConstantsMap[*workID].entry = entry
-		}
+		c.tempConstantsMap[*workID].entry = entry
 		return
 	}
 
@@ -222,8 +214,12 @@ func (c *FeeMarketCache) GetConstants(blockNumber uint64, workID *MiningWorkID) 
 
 	// First check specific temp entries if we're mining
 	if workID != nil {
-		if tempConstants, exists := c.tempConstantsMap[*workID]; exists && tempConstants.entry != nil {
-			return &tempConstants.entry.constants
+		if tempConstants, exists := c.tempConstantsMap[*workID]; exists {
+			if tempConstants.entry != nil {
+				return &tempConstants.entry.constants
+			}
+			// If mining cache has nil, return it
+			return nil
 		}
 	}
 
@@ -244,7 +240,7 @@ func (c *FeeMarketCache) InvalidateConstants(workID *MiningWorkID) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if workID != nil {
-		delete(c.tempConstantsMap, *workID)
+		c.tempConstantsMap[*workID].entry = nil
 	} else {
 		c.constants = nil
 	}
@@ -306,6 +302,7 @@ func (c *FeeMarketCache) GetConfig(addr common.Address, blockNumber uint64, work
 func (c *FeeMarketCache) InvalidateConfig(addr common.Address, workID *MiningWorkID) {
 	log.Debug("FeeMarket config invalidated", "address", addr, "forMiningWork", workID != nil)
 
+	// TODO: correctly handle invalidations
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if workID != nil {
@@ -373,8 +370,9 @@ func (c *FeeMarketCache) CommitMining(workID MiningWorkID) {
 	defer c.lock.Unlock()
 
 	// Commit constants if they exist
-	if tempConstants, exists := c.tempConstantsMap[workID]; exists && tempConstants.entry != nil {
+	if tempConstants, exists := c.tempConstantsMap[workID]; exists {
 		if tempConstants.workID.ParentHash == c.head {
+			// Entry can be nil if it was invalidated, which will invalidate the whole constantscache
 			c.constants = tempConstants.entry
 		}
 	}
