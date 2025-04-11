@@ -228,9 +228,10 @@ func (c *FeeMarketCache) GetConstants(blockNumber uint64, workID *MiningWorkID) 
 	}
 
 	// Then check main cache
-	// TODO: the blockHash == c.head will probably never happen on mining, shall we remove it?
-	// We can also skip writing to cache if c.constants.blockNum == blockNumber, except if it's through BeginMining
-	if c.constants != nil && (c.constants.blockNum < blockNumber || (c.constants.blockNum == blockNumber)) {
+	// We don't check with "c.constants.blockNum <= blockNumber" for extra safety, though it's not needed.
+	// Latest block for miners will be read from above tempConstants, if it passes above, then here it is probably a different blockHash
+	// onChainEvent will handle the reorg.
+	if c.constants != nil && c.constants.blockNum < blockNumber {
 		return &c.constants.constants
 	}
 	return nil
@@ -292,10 +293,10 @@ func (c *FeeMarketCache) GetConfig(addr common.Address, blockNumber uint64, work
 	}
 
 	// Then check main cache
-	entry, exists := c.entries[addr]
-	// TODO: the blockHash == c.head will probably never happen on mining, shall we remove it?
-	// We can also skip writing to cache if c.constants.blockNum == blockNumber, except if it's through BeginMining
-	if exists && (entry.blockNum < blockNumber || (entry.blockNum == blockNumber )) {
+	// We don't check with "entry.blockNum <= blockNumber" for extra safety, though it's not needed.
+	// Latest block for miners will be read from above tempCache, if it passes above, then here it is probably a different blockHash
+	// onChainEvent will handle the reorg.
+	if entry, exists := c.entries[addr]; exists && entry.blockNum < blockNumber {
 		return entry.config, true
 	}
 	return types.FeeMarketConfig{}, false
