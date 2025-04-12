@@ -4511,7 +4511,7 @@ func getFeeMarketGenesisAlloc(maxRewards, maxEvents, maxGas uint64) (accountAddr
 }
 
 // addNewFeeMarketFullFlowTxs Add all the transactions for the full flow of the fee market. That is add contract, add fee market configuration, call contract.
-func addNewFeeMarketFullFlowTxs(t *testing.T, feeMarketAddress common.Address, rewardRecipient common.Address, nonce *uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction, contractAddress common.Address) {
+func addNewFeeMarketFullFlowTxs(t testing.TB, feeMarketAddress common.Address, rewardRecipient common.Address, nonce uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction, contractAddress common.Address) {
 	// Deploy counter contract
 	tx, counterContractAddress := addNewFeeMarketTestContractTx(t, nonce, gasPrice, chain, b, signer)
 	fmt.Println("counterContractAddress:", counterContractAddress)
@@ -4526,7 +4526,7 @@ func addNewFeeMarketFullFlowTxs(t *testing.T, feeMarketAddress common.Address, r
 }
 
 // addNewFeeMarketTestContractTx Deploy a test contract
-func addNewFeeMarketTestContractTx(t *testing.T, nonce *uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction, contractAddress common.Address) {
+func addNewFeeMarketTestContractTx(t testing.TB, nonce uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction, contractAddress common.Address) {
 	/*
 		contract Counter {
 			uint256 public number;
@@ -4550,22 +4550,20 @@ func addNewFeeMarketTestContractTx(t *testing.T, nonce *uint64, gasPrice *big.In
 		}
 	*/
 	counterBIN := common.Hex2Bytes("608060405234801561001057600080fd5b50610194806100206000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c80633fb5c1cb146100515780638381f58a14610066578063d09de08a14610081578063e1c7392a14610089575b600080fd5b61006461005f36600461011f565b610093565b005b61006f60005481565b60405190815260200160405180910390f35b6100646100ce565b610064600a600055565b60008190556040518181527f51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a819060200160405180910390a150565b6000805490806100dd83610137565b91905055507f51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a8160005460405161011591815260200190565b60405180910390a1565b600060208284031215610130578081fd5b5035919050565b600060001982141561015757634e487b7160e01b81526011600452602481fd5b506001019056fea26469706673582212203377405d46b8a079d1af97ea43d94b569eebc0dadc089dd96f37ce59cfe4c92c64736f6c63430008040033")
-
 	// Deploy counter contract
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
-		Nonce:    *nonce,
+		Nonce:    nonce,
 		GasPrice: gasPrice,
 		Gas:      150000,
 		Data:     counterBIN,
 	})
 	b.AddTxWithChain(chain, tx)
-	contractAddress = crypto.CreateAddress(testAddr, *nonce)
-	*nonce++
+	contractAddress = crypto.CreateAddress(testAddr, nonce)
 	return tx, contractAddress
 }
 
 // addFeeMarketConfigurationTx Add a fee market configuration transaction
-func addFeeMarketConfigurationTx(t *testing.T, feeMarketAddress common.Address, configuredContractAddress common.Address, rewardRecipient common.Address, nonce *uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
+func addFeeMarketConfigurationTx(t testing.TB, feeMarketAddress common.Address, configuredContractAddress common.Address, rewardRecipient common.Address, nonce uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
 	// Add configuration for the deployed contract
 	configurationAddConfig := "f05082870000000000000000000000003A220f351252089D385b29beca14e27F204c296A000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000002e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000014051af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a8100000000000000000000000000000000000000000000000000000000000186a0000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000020000000000000000000000008f10d3a6283672ecfaeea0377d460bded489ec440000000000000000000000000000000000000000000000000000000000002328000000000000000000000000000000000000000000000000000000000000078900000000000000000000000000000000000000000000000000000000000003e80335b51418df6ad87c7638414b2dd16910635533ebf9090fab3f0fdd07a515080000000000000000000000000000000000000000000000000000000000030d40000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000020000000000000000000000008f10d3a6283672ecfaeea0377d460bded489ec440000000000000000000000000000000000000000000000000000000000002328000000000000000000000000000000000000000000000000000000000000078900000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000"
 
@@ -4576,19 +4574,18 @@ func addFeeMarketConfigurationTx(t *testing.T, feeMarketAddress common.Address, 
 	configurationAddConfig = strings.ReplaceAll(configurationAddConfig, "8f10d3a6283672ecfaeea0377d460bded489ec44", rewardRecipient.Hex()[2:])
 
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
-		Nonce:    *nonce,
+		Nonce:    nonce,
 		GasPrice: gasPrice,
 		Gas:      350000,
 		To:       &feeMarketAddress,
 		Data:     common.Hex2Bytes(configurationAddConfig),
 	})
 	b.AddTxWithChain(chain, tx)
-	*nonce++
 	return tx
 }
 
 // removeFeeMarketConfigurationTx Remove a fee market configuration transaction
-func removeFeeMarketConfigurationTx(t *testing.T, feeMarketAddress common.Address, configuredContractAddress common.Address, nonce *uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
+func removeFeeMarketConfigurationTx(t testing.TB, feeMarketAddress common.Address, configuredContractAddress common.Address, nonce uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
 	// Remove configuration for the deployed contract
 	configurationRemoveConfig := "6b3ab9550000000000000000000000003A220f351252089D385b29beca14e27F204c296A"
 
@@ -4596,29 +4593,27 @@ func removeFeeMarketConfigurationTx(t *testing.T, feeMarketAddress common.Addres
 	configurationRemoveConfig = strings.ReplaceAll(configurationRemoveConfig, "3A220f351252089D385b29beca14e27F204c296A", configuredContractAddress.Hex()[2:])
 
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
-		Nonce:    *nonce,
+		Nonce:    nonce,
 		GasPrice: gasPrice,
 		Gas:      200000,
 		To:       &feeMarketAddress,
 		Data:     common.Hex2Bytes(configurationRemoveConfig),
 	})
 	b.AddTxWithChain(chain, tx)
-	*nonce++
 	return tx
 }
 
 // addNewFeeMarketCallContractTx Call a contract
-func addNewFeeMarketCallContractTx(t *testing.T, contractAddress common.Address, nonce *uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
+func addNewFeeMarketCallContractTx(t testing.TB, contractAddress common.Address, nonce uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
 	data := common.Hex2Bytes("3fb5c1cb000000000000000000000000000000000000000000000000000000000000000a")
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
-		Nonce:    *nonce,
+		Nonce:    nonce,
 		GasPrice: gasPrice,
 		Gas:      150000,
 		To:       &contractAddress,
 		Data:     data,
 	})
 	b.AddTxWithChain(chain, tx)
-	*nonce++
 	return tx
 }
 
@@ -4654,7 +4649,8 @@ func TestSatoshiFeeMarket(t *testing.T) {
 
 		// Add all the transactions for the full flow of the fee market.
 		// That is add contract, add fee market configuration, call contract.
-		addNewFeeMarketFullFlowTxs(t, feeMarketAddress, rewardRecipient, &nonce, fee, chain, b, signer)
+		addNewFeeMarketFullFlowTxs(t, feeMarketAddress, rewardRecipient, nonce, fee, chain, b, signer)
+		nonce++
 
 		tx, _ := types.SignNewTx(testKey, signer, &types.LegacyTx{
 			Nonce:    nonce,
@@ -4697,4 +4693,70 @@ func TestSatoshiFeeMarket(t *testing.T) {
 	expect := big.NewInt(90000)
 	actual := stateDB.GetBalance(rewardRecipient)
 	require.Equal(t, expect.Uint64(), actual.Uint64())
+}
+
+func BenchmarkSatoshiFeeMarket(b *testing.B) {
+	config := params.SatoshiTestChainConfig
+	gspec := &Genesis{
+		Config:   config,
+		GasLimit: 50_000_000,
+		Alloc: types.GenesisAlloc{
+			testAddr: {Balance: new(big.Int).SetUint64(10 * params.Ether)},
+		},
+	}
+
+	feeMarketAddress, feeMarketAccount := getFeeMarketGenesisAlloc(2, 2, 1000000)
+	gspec.Alloc[feeMarketAddress] = feeMarketAccount
+
+	rewardRecipient := common.HexToAddress("0x8f10d3a6283672ecfaeea0377d460bded489ec44")
+
+	// Initialize blockchain
+	frdir := b.TempDir()
+	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false, false, false)
+	if err != nil {
+		b.Fatalf("failed to create database with ancient backend")
+	}
+	engine := &mockSatoshi{}
+	chain, _ := NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
+	signer := types.LatestSigner(config)
+
+	// nonce := uint64(0)
+	fee := big.NewInt(1)
+
+	// Benchmark loop
+	_, bs, _ := GenerateChainWithGenesis(gspec, engine, 1, func(i int, gen *BlockGen) {
+		gen.SetCoinbase(common.Address{1})
+
+		var counterContractAddress common.Address
+		if i == 0 {
+			// Deploy counter contract
+			fmt.Println("--- Deploy counter contract ---")
+			_, counterContractAddress = addNewFeeMarketTestContractTx(b, gen.TxNonce(testAddr), fee, chain, gen, signer)
+			fmt.Println("counterContractAddress:", counterContractAddress)
+
+			fmt.Println("--- Add configuration for the deployed contract ---")
+			// Add configuration for the deployed contract
+			addFeeMarketConfigurationTx(b, feeMarketAddress, counterContractAddress, rewardRecipient, gen.TxNonce(testAddr), fee, chain, gen, signer)
+		}
+
+		// Add transactions until the block is full
+		for z := 0; gen.gasPool.Gas() > 630_000; z++ {
+			// fmt.Println("--- Call contract ---", i, z)
+			// Call contract
+			addNewFeeMarketCallContractTx(b, counterContractAddress, gen.TxNonce(testAddr), fee, chain, gen, signer)
+		}
+	})
+
+	b.StopTimer()
+	b.ResetTimer()
+
+	// fmt.Println("--- Start inserting chain ---")
+	for i := 0; i < b.N; i++ {
+
+		b.StartTimer()
+		if _, err := chain.InsertChain(bs); err != nil {
+			b.Fatalf("failed to insert chain: %v", err)
+		}
+		b.StopTimer()
+	}
 }
