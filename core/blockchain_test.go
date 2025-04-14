@@ -4609,7 +4609,7 @@ func addNewFeeMarketCallContractTx(t testing.TB, contractAddress common.Address,
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
-		Gas:      150000,
+		Gas:      160000,
 		To:       &contractAddress,
 		Data:     data,
 	})
@@ -4759,4 +4759,174 @@ func BenchmarkSatoshiFeeMarket(b *testing.B) {
 		}
 		b.StopTimer()
 	}
+}
+
+func TestFullBlock(t *testing.T) {
+	// Set up logger to write to stdout at trace level
+	// glogger := log.NewGlogHandler(log.NewTerminalHandler(os.Stdout, false))
+	// glogger.Verbosity(log.LevelTrace)
+	// log.SetDefault(log.NewLogger(glogger))
+
+	blockGasLimit := uint64(50_000_000)
+
+	// rewardRecipientMap[blockNumber][rewardRecipient] = numberOfTxs
+	rewardRecipientMap := make(map[uint64]map[common.Address]uint64)
+	remainingGasPoolMap := make(map[uint64]uint64)
+
+	createGenRandomFn := func(withConfig bool) func(*params.ChainConfig, *BlockChain, common.Address) func(int, *BlockGen) {
+		return func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(i int, gen *BlockGen) {
+			return func(i int, gen *BlockGen) {
+				signer := types.LatestSigner(config)
+				fee := big.NewInt(1)
+
+				gen.SetCoinbase(common.Address{1})
+
+				blockNumber := gen.Number().Uint64()
+				rewardRecipientMap[blockNumber] = make(map[common.Address]uint64)
+
+				for y := 0; gen.gasPool.Gas() > 500_000; y++ {
+					var counterContractAddress common.Address
+					rewardRecipient := common.BytesToAddress(crypto.Keccak256([]byte(fmt.Sprintf("recipient-%d", y))))
+
+					// Deploy counter contract
+					nonce := gen.TxNonce(testAddr)
+					_, counterContractAddress = addNewFeeMarketTestContractTx(t, nonce, fee, chain, gen, signer)
+
+					// Add configuration only if enabled
+					if withConfig {
+						addFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, rewardRecipient, gen.TxNonce(testAddr), fee, chain, gen, signer)
+					}
+
+					// Add transactions until the block is full
+					for z := 0; gen.gasPool.Gas() > 500_000 && z < 4; z++ {
+						addNewFeeMarketCallContractTx(t, counterContractAddress, gen.TxNonce(testAddr), fee, chain, gen, signer)
+						rewardRecipientMap[blockNumber][rewardRecipient]++
+					}
+				}
+
+				remainingGasPoolMap[blockNumber] = gen.gasPool.Gas()
+			}
+		}
+	}
+
+	chainTesterFn := func(withConfig bool) func(chain *BlockChain, blocks []*types.Block) {
+		return func(chain *BlockChain, blocks []*types.Block) {
+			stateDB, err := chain.State()
+			if err != nil {
+				t.Fatalf("failed to get state: %v", err)
+			}
+
+			for _, block := range blocks {
+				// txs := block.Transactions()
+				receipts := chain.GetReceiptsByHash(block.Hash())
+
+				fmt.Println("Block number:", block.Number().Uint64(), "txs:", len(receipts), "withConfig:", withConfig)
+
+				// Calculate full gas used from receipts
+				txGasUsed := uint64(0)
+				for _, receipt := range receipts {
+					// tx := txs[idx]
+					// fmt.Println("receipt:", "gasUsed:", receipt.GasUsed, "toAddr:", tx.To(), "status:", receipt.Status, "logs:", len(receipt.Logs), "contractAddr:", receipt.ContractAddress, "effectiveGasPrice:", receipt.EffectiveGasPrice)
+					txGasUsed += receipt.GasUsed
+
+					if receipt.Status == types.ReceiptStatusFailed {
+						t.Errorf("transaction failed tx_hash: %s, status: %d, block number: %d", receipt.TxHash.Hex(), receipt.Status, block.Number().Uint64())
+					}
+				}
+
+				// Check if block gas used reports the sum of all txs gas used
+				if block.GasUsed() != txGasUsed {
+					t.Fatalf("block.GasUsed() %d doesn't match txGasUsed %d", block.GasUsed(), txGasUsed)
+				}
+
+				// Calculate the total amount of fees paid as fee market rewards
+				distributedAmount := big.NewInt(0)
+				if withConfig {
+					blockRecepients := rewardRecipientMap[block.Number().Uint64()]
+					for recipient, numberOfTxs := range blockRecepients {
+						// TODO: make gas 100000 configurable
+						expect := new(big.Int).Mul(big.NewInt(int64(numberOfTxs)), big.NewInt(int64(100000)))
+
+						distributedAmount.Add(distributedAmount, expect)
+
+						actual := stateDB.GetBalance(recipient)
+						require.Equal(t, actual.Uint64(), expect.Uint64(),
+							fmt.Sprintf("recipient (%s) balance %d is different that expected fee market reward %d (numberOfTxs: %d)", recipient.Hex(), actual.Uint64(), expect.Uint64(), numberOfTxs))
+					}
+				}
+
+				// Check if validator reward receives:
+				// - all txs profit if there is no fee market configuration
+				// - txs profit excluding the fee market rewards if there is a fee market configuration
+				validatorRewardU64 := stateDB.GetBalance(params.SystemAddress).Uint64()
+				if withConfig {
+					if validatorRewardU64 == txGasUsed {
+						t.Errorf("validator (%d) shouldn't receive all txs fees, as some has been distributed to fee market recipients (txGasUsed: %d)", validatorRewardU64, txGasUsed)
+					}
+				} else {
+					if validatorRewardU64 != txGasUsed {
+						t.Errorf("validator (%d) should receive all txs fees", validatorRewardU64)
+					}
+				}
+
+				// Get the remaining gas in the pool
+				remainingBlockPoolGas := remainingGasPoolMap[block.Number().Uint64()]
+				distributedAmountU64 := distributedAmount.Uint64()
+
+				// Check if block gas pool expands as expected to fit more transactions when distributed gas exists (aka ghost gas)
+				if withConfig {
+					if txGasUsed-distributedAmountU64+remainingBlockPoolGas != blockGasLimit {
+						t.Fatalf("block gas limit %d doesn't fit txGasUsed %d, with included distributed gas %d", blockGasLimit, txGasUsed, distributedAmountU64)
+					}
+				} else {
+					if txGasUsed+remainingBlockPoolGas != blockGasLimit {
+						t.Fatalf("block gas limit %d with remaining gas %d is not equal to txGasUsed %d", blockGasLimit, remainingBlockPoolGas, txGasUsed)
+					}
+				}
+			}
+			t.Fail()
+		}
+	}
+
+	t.Run("WithConfiguration", func(t *testing.T) {
+		testFeeMarketBlock(t, blockGasLimit, createGenRandomFn(true), chainTesterFn(true))
+	})
+
+	t.Run("WithoutConfiguration", func(t *testing.T) {
+		testFeeMarketBlock(t, blockGasLimit, createGenRandomFn(false), chainTesterFn(false))
+	})
+}
+
+func testFeeMarketBlock(t *testing.T, gasLimit uint64, genFn func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(i int, gen *BlockGen), chainTesterFn func(chain *BlockChain, blocks []*types.Block)) {
+	config := params.SatoshiTestChainConfig
+	gspec := &Genesis{
+		Config:   config,
+		GasLimit: gasLimit,
+		Alloc: types.GenesisAlloc{
+			testAddr: {Balance: new(big.Int).SetUint64(15 * params.Ether)},
+		},
+	}
+
+	feeMarketAddress, feeMarketAccount := getFeeMarketGenesisAlloc(2, 2, 1000000)
+	gspec.Alloc[feeMarketAddress] = feeMarketAccount
+
+	// Initialize blockchain
+	frdir := t.TempDir()
+	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false, false, false)
+	if err != nil {
+		t.Fatalf("failed to create database with ancient backend")
+	}
+	engine := &mockSatoshi{}
+	chain, _ := NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
+
+	// Generate chain blocks
+	_, bs, _ := GenerateChainWithGenesis(gspec, engine, 1, genFn(config, chain, feeMarketAddress))
+
+	// Insert chain
+	if _, err := chain.InsertChain(bs); err != nil {
+		t.Fatalf("failed to insert chain: %v", err)
+	}
+
+	// Verify the chain
+	chainTesterFn(chain, bs)
 }
