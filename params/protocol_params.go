@@ -37,7 +37,7 @@ const (
 	CallNewAccountGas      uint64 = 25000  // Paid for CALL when the destination address didn't exist prior.
 	TxGas                  uint64 = 21000  // Per transaction not creating a contract. NOTE: Not payable on data of calls between transactions.
 	SystemTxsGas           uint64 = 500000 // The gas reserved for system txs; only for satoshi consensus
-	FeeMarketDistributeGas uint64 = 2300   // The gas added for distributing each fee market reward; only for satoshi consensus
+	FeeMarketDistributeGas uint64 = 5000   // The gas added for distributing each fee market reward; only for satoshi consensus (includes a Config storage read and an AddBalance call)
 	TxGasContractCreation  uint64 = 53000  // Per transaction that creates a contract. NOTE: Not payable on data of calls between transactions.
 	TxDataZeroGas          uint64 = 4      // Per byte of data attached to a transaction that equals zero. NOTE: Not payable on data of calls between transactions.
 	QuadCoeffDiv           uint64 = 512    // Divisor for the quadratic particle of the memory cost equation.
