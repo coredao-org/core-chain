@@ -23,12 +23,14 @@ func (m *mockStateDB) GetState(addr common.Address, key common.Hash) common.Hash
 
 // TestIsValidConfig tests the isValidConfig function
 func TestIsValidConfig(t *testing.T) {
-	storage := map[common.Hash]common.Hash{
-		common.HexToHash("0x0000000000000000000000000000000000000001"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000002710"), // denominator = 10000
-		common.HexToHash("0x0000000000000000000000000000000000000002"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"), // maxRewards = 2
-		common.HexToHash("0x0000000000000000000000000000000000000003"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"), // maxEvents = 2
-		common.HexToHash("0x0000000000000000000000000000000000000005"): common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240"), // maxGas = 1000000
-	}
+	storage := map[common.Hash]common.Hash{}
+
+	writeConstants(storage, types.FeeMarketConstants{
+		MaxRewards:   2,
+		MaxEvents:    2,
+		MaxFunctions: 0,
+		MaxGas:       1000000,
+	})
 
 	stateDB := &mockStateDB{storage: storage}
 	provider, err := NewFeeMarket()
@@ -164,10 +166,8 @@ func TestIsValidConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := tc.config.IsValidConfig(
-				provider.GetDenominator(stateDB),
-				provider.GetMaxGas(stateDB),
-				provider.GetMaxEvents(stateDB),
-				provider.GetMaxRewards(stateDB),
+				provider.GetConstants(stateDB),
+				DENOMINATOR,
 			)
 			if result != tc.expected {
 				t.Errorf("Expected IsValidConfig to return %v, got %v", tc.expected, result)
@@ -179,121 +179,59 @@ func TestIsValidConfig(t *testing.T) {
 	}
 }
 
-// TestConstantsCache tests the constants cache
-func TestConstantsCache(t *testing.T) {
-	type testCase struct {
-		name        string
-		initialVal  uint64
-		newVal      uint64
-		storageSlot common.Hash
-		getter      func(*FeeMarket, StateReader) uint64
+// TestConstants tests the constants reading
+func TestConstants(t *testing.T) {
+	storage := map[common.Hash]common.Hash{}
+
+	expectedConstants := types.FeeMarketConstants{
+		MaxRewards:   10,
+		MaxEvents:    20,
+		MaxFunctions: 50,
+		MaxGas:       1000000,
+	}
+	writeConstants(storage, expectedConstants)
+
+	stateDB := &mockStateDB{storage: storage}
+	provider, err := NewFeeMarket()
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
 	}
 
-	testCases := []testCase{
-		{
-			name:        "Denominator",
-			initialVal:  10000,
-			newVal:      5000,
-			storageSlot: common.BigToHash(big.NewInt(DENOMINATOR_STORAGE_SLOT)),
-			getter:      (*FeeMarket).GetDenominator,
-		},
-		{
-			name:        "MaxRewards",
-			initialVal:  5,
-			newVal:      10,
-			storageSlot: common.BigToHash(big.NewInt(MAX_REWARDS_STORAGE_SLOT)),
-			getter:      (*FeeMarket).GetMaxRewards,
-		},
-		{
-			name:        "MaxEvents",
-			initialVal:  6,
-			newVal:      12,
-			storageSlot: common.BigToHash(big.NewInt(MAX_EVENTS_STORAGE_SLOT)),
-			getter:      (*FeeMarket).GetMaxEvents,
-		},
-		{
-			name:        "MaxFunctionSignatures",
-			initialVal:  7,
-			newVal:      14,
-			storageSlot: common.BigToHash(big.NewInt(MAX_FUNCTION_SIGNATURES_STORAGE_SLOT)),
-			getter:      (*FeeMarket).GetMaxFunctionSignatures,
-		},
-		{
-			name:        "MaxGas",
-			initialVal:  1000000,
-			newVal:      2000000,
-			storageSlot: common.BigToHash(big.NewInt(MAX_GAS_STORAGE_SLOT)),
-			getter:      (*FeeMarket).GetMaxGas,
-		},
+	actualConstants := provider.GetConstants(stateDB)
+	if actualConstants != expectedConstants {
+		t.Errorf("Expected constants %v, got %v", expectedConstants, actualConstants)
 	}
+}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			storage := map[common.Hash]common.Hash{
-				tc.storageSlot: common.BigToHash(big.NewInt(int64(tc.initialVal))),
-			}
-			stateDB := &mockStateDB{storage: storage}
-			fm, err := NewFeeMarket()
-			if err != nil {
-				t.Fatalf("Failed to create FeeMarket: %v", err)
-			}
+func writeConstants(storage map[common.Hash]common.Hash, constants types.FeeMarketConstants) {
+	// Pack the data into a 32 byte array
+	packedData := make([]byte, 32)
 
-			// Test initial read and cache
-			val := tc.getter(fm, stateDB)
-			if val != tc.initialVal {
-				t.Errorf("Expected initial %s to be %d, got %d", tc.name, tc.initialVal, val)
-			}
+	// Pack maxGas into last 4 bytes (uint32)
+	binary.BigEndian.PutUint32(packedData[24:28], constants.MaxGas)
+	packedData[28] = constants.MaxFunctions
+	packedData[29] = constants.MaxEvents
+	packedData[30] = constants.MaxRewards
 
-			// Modify storage but keep cache
-			stateDB.storage[tc.storageSlot] = common.BigToHash(big.NewInt(int64(tc.newVal)))
-
-			// Should get new value
-			val = tc.getter(fm, stateDB)
-			if val != tc.newVal {
-				t.Errorf("Expected new %s to be %d, got %d", tc.name, tc.newVal, val)
-			}
-		})
-	}
+	storage[common.BigToHash(big.NewInt(CONSTANTS_STORAGE_SLOT))] = common.BytesToHash(packedData)
 }
 
 // writeRandomConfiguration writes a random config for the given address at the given index
-func writeRandomConfiguration(storage map[common.Hash]common.Hash, index uint64, addr common.Address, maxGas, maxEvents, maxRewards uint64) types.FeeMarketConfig {
-	numEvents := uint64(rand.Intn(int(maxEvents))) + 1
-	numRewards := uint64(rand.Intn(int(maxRewards))) + 1
-	return writeConfiguration(storage, index, addr, maxGas, numEvents, numRewards)
+func writeRandomConfiguration(storage map[common.Hash]common.Hash, addr common.Address, maxConstants types.FeeMarketConstants) types.FeeMarketConfig {
+	constants := types.FeeMarketConstants{
+		MaxEvents:  uint8(rand.Intn(int(maxConstants.MaxEvents))) + 1,
+		MaxRewards: uint8(rand.Intn(int(maxConstants.MaxRewards))) + 1,
+		MaxGas:     uint32(rand.Intn(int(maxConstants.MaxGas))) + 1,
+	}
+	return writeConfiguration(storage, addr, constants)
 }
 
-func writeConfiguration(storage map[common.Hash]common.Hash, index uint64, addr common.Address, maxGas, numEvents, numRewards uint64) types.FeeMarketConfig {
+func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address, constants types.FeeMarketConstants) types.FeeMarketConfig {
 	// Write the index in the address mapping
 	configsMapSlot := common.BigToHash(big.NewInt(CONFIGS_MAP_STORAGE_SLOT))
 	addressBytes := common.LeftPadBytes(addr.Bytes(), 32)
 	data := append(addressBytes, configsMapSlot.Bytes()...)
-	mappingSlot := common.BytesToHash(crypto.Keccak256(data))
-	storage[mappingSlot] = common.BigToHash(new(big.Int).SetUint64(index))
-
-	// Update configs length if necessary
-	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
-	currentLength := new(big.Int).SetBytes(storage[configsSlot].Bytes()).Uint64()
-	if index >= currentLength {
-		storage[configsSlot] = common.BigToHash(big.NewInt(int64(index + 1)))
-	}
-
-	// Calculate base slot for configs array
-	configsBaseSlotBytes := crypto.Keccak256(configsSlot[:])
-	configsBaseSlot := common.BytesToHash(configsBaseSlotBytes)
-
-	// Each Config takes 3 slots (packed fields, events.length, functionSignatures.length)
-	configSizeInSlots := uint64(3)
-
-	// Calculate this config's starting slot
-	indexOffset := new(big.Int).Mul(
-		big.NewInt(int64(configSizeInSlots)),
-		big.NewInt(int64(index)),
-	)
-	configSlot := common.BigToHash(new(big.Int).Add(
-		new(big.Int).SetBytes(configsBaseSlot[:]),
-		indexOffset,
-	))
+	configSlot := common.BytesToHash(crypto.Keccak256(data))
 
 	// Set up config data (isActive + address)
 	packedData := make([]byte, 32)
@@ -303,7 +241,7 @@ func writeConfiguration(storage map[common.Hash]common.Hash, index uint64, addr 
 
 	// Set events length at slot+1
 	eventsLengthSlot := incrementHash(configSlot)
-	eventsLength := numEvents
+	eventsLength := constants.MaxEvents
 	storage[eventsLengthSlot] = common.BigToHash(big.NewInt(int64(eventsLength)))
 
 	// Set up events data
@@ -311,15 +249,15 @@ func writeConfiguration(storage map[common.Hash]common.Hash, index uint64, addr 
 	events := make([]types.FeeMarketEvent, eventsLength)
 
 	// Create multiple events
-	for eventIdx := uint64(0); eventIdx < eventsLength; eventIdx++ {
+	for eventIdx := uint8(0); eventIdx < constants.MaxEvents; eventIdx++ {
 		eventSlot := common.BigToHash(new(big.Int).Add(
 			new(big.Int).SetBytes(eventsBaseSlot.Bytes()),
 			new(big.Int).Mul(big.NewInt(3), big.NewInt(int64(eventIdx))), // Each event takes 3 slots
 		))
 
 		// Generate random event data
-		eventSig := common.Hash{byte(rand.Intn(255) + 1)} // Random signature
-		gas := uint64(rand.Intn(int(maxGas-1000))) + 1000 // Random gas between 1000 and maxGas
+		eventSig := common.Hash{byte(rand.Intn(255) + 1)}           // Random signature
+		gas := uint64(rand.Intn(int(constants.MaxGas-1000))) + 1000 // Random gas between 1000 and maxGas
 
 		// Each Event takes 3 slots (eventSignature, gas, rewards.length)
 		eventSigSlot := eventSlot
@@ -331,8 +269,8 @@ func writeConfiguration(storage map[common.Hash]common.Hash, index uint64, addr 
 		storage[gasSlot] = common.BigToHash(big.NewInt(int64(gas)))
 
 		// Generate number of rewards
-		rewards := make([]types.FeeMarketReward, numRewards)
-		storage[rewardsLengthSlot] = common.BigToHash(big.NewInt(int64(numRewards)))
+		rewards := make([]types.FeeMarketReward, constants.MaxRewards)
+		storage[rewardsLengthSlot] = common.BigToHash(big.NewInt(int64(constants.MaxRewards)))
 
 		// Set up reward data
 		rewardsBaseSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
@@ -340,7 +278,7 @@ func writeConfiguration(storage map[common.Hash]common.Hash, index uint64, addr 
 		// Track total percentage to ensure it adds up to 10000
 		remainingPercentage := uint64(10000)
 
-		for i := uint64(0); i < numRewards; i++ {
+		for i := uint64(0); i < uint64(constants.MaxRewards); i++ {
 			rewardSlot := common.BigToHash(new(big.Int).Add(
 				new(big.Int).SetBytes(rewardsBaseSlot.Bytes()),
 				big.NewInt(int64(i)),
@@ -350,10 +288,10 @@ func writeConfiguration(storage map[common.Hash]common.Hash, index uint64, addr 
 			rewardAddr := common.BytesToAddress(crypto.Keccak256(append(addr.Bytes(), byte(i)))) // Unique per index
 
 			var percentage uint64
-			if i == numRewards-1 {
+			if i == uint64(constants.MaxRewards)-1 {
 				percentage = remainingPercentage // Last reward gets remainder
 			} else {
-				maxPercent := remainingPercentage - (numRewards - i - 1) // Leave room for remaining rewards
+				maxPercent := remainingPercentage - (uint64(constants.MaxRewards) - i - 1) // Leave room for remaining rewards
 				if maxPercent > 1 {
 					percentage = uint64(rand.Intn(int(maxPercent-1))) + 1
 				} else {
@@ -391,85 +329,45 @@ func writeConfiguration(storage map[common.Hash]common.Hash, index uint64, addr 
 
 // TestStorageLayoutParsing tests the storage layout parsing, it uses actual data as stored by the contract in the storage
 func TestStorageLayoutParsing(t *testing.T) {
-	DENOMINATOR_VALUE := uint64(10000)
-	MAX_REWARDS_VALUE := uint64(5)
-	MAX_EVENTS_VALUE := uint64(10)
-	MAX_GAS_VALUE := uint64(1000000)
-	MAX_FUNCTION_SIGNATURES_VALUE := uint64(20)
-
-	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
-
 	// -- Setup storage with valid config and constants
 	storage := map[common.Hash]common.Hash{
-		// Constants
-		common.BigToHash(big.NewInt(DENOMINATOR_STORAGE_SLOT)):             common.BigToHash(big.NewInt(int64(DENOMINATOR_VALUE))),
-		common.BigToHash(big.NewInt(MAX_REWARDS_STORAGE_SLOT)):             common.BigToHash(big.NewInt(int64(MAX_REWARDS_VALUE))),
-		common.BigToHash(big.NewInt(MAX_EVENTS_STORAGE_SLOT)):              common.BigToHash(big.NewInt(int64(MAX_EVENTS_VALUE))),
-		common.BigToHash(big.NewInt(MAX_GAS_STORAGE_SLOT)):                 common.BigToHash(big.NewInt(int64(MAX_GAS_VALUE))),
-		common.BigToHash(big.NewInt(MAX_FUNCTION_SIGNATURES_STORAGE_SLOT)): common.BigToHash(big.NewInt(int64(MAX_FUNCTION_SIGNATURES_VALUE))),
-
-		// Configs
-		configsSlot: common.BigToHash(big.NewInt(2)),
-
-		// 1: configSlot -> 2: eventSlot -> 1: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
-		common.HexToHash("0x36049a515b56f00dd3fda789341a520e4cd9943bb902ddb34aaf2985b96b84f7"): common.HexToHash("0x0000000000000000000023288f10d3a6283672ecfaeea0377d460bded489ec44"),
-		// 1: configSlot -> 2: eventSlot -> 2: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
-		common.HexToHash("0x36049a515b56f00dd3fda789341a520e4cd9943bb902ddb34aaf2985b96b84f8"): common.HexToHash("0x0000000000000000000003e80000000000000000000000000000000000000789"),
-		// 1: configSlot -> 1: eventSlot [slot 0] (eventSigSlot)
-		common.HexToHash("0x768c3a22b1e4688c94525eb9bc2cf1ce7601fc9e871dc6e10fc44f0f06340ce1"): common.HexToHash("0x51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a81"),
-		// 1: configSlot -> 1: eventSlot [slot 1] (gasSlot)
-		common.HexToHash("0x768c3a22b1e4688c94525eb9bc2cf1ce7601fc9e871dc6e10fc44f0f06340ce2"): common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000186a0"),
-		// 1: configSlot -> 1: eventSlot [slot 2] (rewardsLength)
-		common.HexToHash("0x768c3a22b1e4688c94525eb9bc2cf1ce7601fc9e871dc6e10fc44f0f06340ce3"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
-		// 1: configSlot -> 2: eventSlot [slot 0] (eventSigSlot)
-		common.HexToHash("0x768c3a22b1e4688c94525eb9bc2cf1ce7601fc9e871dc6e10fc44f0f06340ce4"): common.HexToHash("0x0335b51418df6ad87c7638414b2dd16910635533ebf9090fab3f0fdd07a51508"),
-		// 1: configSlot -> 2: eventSlot [slot 1] (gasSlot)
-		common.HexToHash("0x768c3a22b1e4688c94525eb9bc2cf1ce7601fc9e871dc6e10fc44f0f06340ce5"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000030d40"),
-		// 1: configSlot -> 2: eventSlot [slot 2] (rewardsLength)
-		common.HexToHash("0x768c3a22b1e4688c94525eb9bc2cf1ce7601fc9e871dc6e10fc44f0f06340ce6"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
-		// 1: configSlot -> 1: eventSlot -> 1: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
-		common.HexToHash("0x826e18df85dad61eff35b9d11c2a9631949d2ab75d01408a39e1f3400d7f198c"): common.HexToHash("0x0000000000000000000023288f10d3a6283672ecfaeea0377d460bded489ec44"),
-		// 1: configSlot -> 1: eventSlot -> 2: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
-		common.HexToHash("0x826e18df85dad61eff35b9d11c2a9631949d2ab75d01408a39e1f3400d7f198d"): common.HexToHash("0x0000000000000000000003e80000000000000000000000000000000000000789"),
+		// Config for address 0x96c4a1421b494e0cf1bb1e41911ec3251df94223
 		// 1: configSlot [slot 0] (packed isActive and configAddress)
-		common.HexToHash("0xf652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f"): common.HexToHash("0x000000000000000000000001e452e78f45ed9542be008308ebdb7d13e786884b"),
+		common.HexToHash("0x12cb81277f1a78c5576703f63501cc1aedbad6b963375179202504604409aa43"): common.HexToHash("0x00000000000000000000000196c4a1421b494e0cf1bb1e41911ec3251df94223"),
 		// 1: configSlot [slot 1] (eventsLengthSlot)
-		common.HexToHash("0xf652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d40"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+		common.HexToHash("0x12cb81277f1a78c5576703f63501cc1aedbad6b963375179202504604409aa44"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+		common.HexToHash("0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace"): common.HexToHash("0x00000000000000000000000096c4a1421b494e0cf1bb1e41911ec3251df94223"),
+		// 1: configSlot -> 1: eventSlot -> 1: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
+		common.HexToHash("0x800db93068d4ee7373a17955cef4cfe1a5b2c98385893b58d38d4cc445bbf855"): common.HexToHash("0x0000000000000000000027108f10d3a6283672ecfaeea0377d460bded489ec44"),
+		// 1: configSlot -> 1: eventSlot [slot 0] (eventSigSlot)
+		common.HexToHash("0x950db65f3406dedf2d2f8f47af2ba44b624f998262d0229b91f7390977b7aefb"): common.HexToHash("0x51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a81"),
+		// 1: configSlot -> 1: eventSlot [slot 1] (gasSlot)
+		common.HexToHash("0x950db65f3406dedf2d2f8f47af2ba44b624f998262d0229b91f7390977b7aefc"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000002710"),
+		// 1: configSlot -> 1: eventSlot [slot 2] (rewardsLength)
+		common.HexToHash("0x950db65f3406dedf2d2f8f47af2ba44b624f998262d0229b91f7390977b7aefd"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 
-		// 2nd discount
-		// 2: configSlot -> 2: eventSlot -> 1: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
-		common.HexToHash("0x0b6863eba6c023daa40fb79ecc1f6091ccda27004508009816639ff2cad368bd"): common.HexToHash("0x0000000000000000000023280000000000000000000000000000000000000123"),
-		// 2: configSlot -> 2: eventSlot -> 2: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
-		common.HexToHash("0x0b6863eba6c023daa40fb79ecc1f6091ccda27004508009816639ff2cad368be"): common.HexToHash("0x0000000000000000000003e80000000000000000000000000000000000000456"),
-		// 2: configSlot -> 1: eventSlot [slot 0] (eventSigSlot)
-		common.HexToHash("0x35817d789b7a6dbe8b95b0f21e189fb26d3d329de699cac7a267a9568298e0a5"): common.HexToHash("0x51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a81"),
-		// 2: configSlot -> 1: eventSlot [slot 1] (gasSlot)
-		common.HexToHash("0x35817d789b7a6dbe8b95b0f21e189fb26d3d329de699cac7a267a9568298e0a6"): common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000186a0"),
-		// 2: configSlot -> 1: eventSlot [slot 2] (rewardsLength)
-		common.HexToHash("0x35817d789b7a6dbe8b95b0f21e189fb26d3d329de699cac7a267a9568298e0a7"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
-		// 2: configSlot -> 2: eventSlot [slot 0] (eventSigSlot)
-		common.HexToHash("0x35817d789b7a6dbe8b95b0f21e189fb26d3d329de699cac7a267a9568298e0a8"): common.HexToHash("0x0335b51418df6ad87c7638414b2dd16910635533ebf9090fab3f0fdd07a51508"),
-		// 2: configSlot -> 2: eventSlot [slot 1] (gasSlot)
-		common.HexToHash("0x35817d789b7a6dbe8b95b0f21e189fb26d3d329de699cac7a267a9568298e0a9"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000030d40"),
-		// 2: configSlot -> 2: eventSlot [slot 2] (rewardsLength)
-		common.HexToHash("0x35817d789b7a6dbe8b95b0f21e189fb26d3d329de699cac7a267a9568298e0aa"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+		// Config for address 0x13261a11f2C6c6318240818de0Ddc3DB70a1B3bF
 		// 2: configSlot [slot 0] (packed isActive and configAddress)
-		common.HexToHash("0xf652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d42"): common.HexToHash("0x000000000000000000000001bd673746fd7da230489aeee913922467b543ab54"),
+		common.HexToHash("0x0f2fd38231387d9f50b59f3719e56209cad04414f1b4ea7e4bb80e6e4e18043f"): common.HexToHash("0x00000000000000000000000113261a11f2c6c6318240818de0ddc3db70a1b3bf"),
 		// 2: configSlot [slot 1] (eventsLengthSlot)
-		common.HexToHash("0xf652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d43"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+		common.HexToHash("0x0f2fd38231387d9f50b59f3719e56209cad04414f1b4ea7e4bb80e6e4e180440"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 		// 2: configSlot -> 1: eventSlot -> 1: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
-		common.HexToHash("0xf877648a5fd5598677ea6f98c3662fd95b67a58762d49d5f3c34688bc14cc0f5"): common.HexToHash("0x0000000000000000000023280000000000000000000000000000000000000123"),
-		// 2: configSlot -> 1: eventSlot -> 2: rewardSlot [slot 0] (packed rewardAddr + rewardPercentage)
-		common.HexToHash("0xf877648a5fd5598677ea6f98c3662fd95b67a58762d49d5f3c34688bc14cc0f6"): common.HexToHash("0x0000000000000000000003e80000000000000000000000000000000000000456"),
-
-		// ConfigsMap
-
-		// configsMap -> address: 0xe452e78f45ed9542be008308ebdb7d13e786884b
-		common.HexToHash("0xccd7e4416803283dfbbc798c621a3b6f550588594a47a31e802b52b34889700f"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),
-
-		// configsMap -> address: 0xBD673746fD7Da230489AEee913922467b543ab54
-		common.HexToHash("0x6b160b5dff96150968f69a94eaced1feeabbd842b3de4f9ab01ef7977ddba97a"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+		common.HexToHash("0x2b37d6b48c527b1c24c7b31e55dc893170bea392dddfd5eb522ac366d9024551"): common.HexToHash("0x0000000000000000000027108f10d3a6283672ecfaeea0377d460bded489ec44"),
+		common.HexToHash("0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf"): common.HexToHash("0x00000000000000000000000013261a11f2c6c6318240818de0ddc3db70a1b3bf"),
+		// 2: configSlot -> 1: eventSlot [slot 0] (eventSigSlot)
+		common.HexToHash("0x47efc7dc35c6613e58d6334258d2eb4097cf5686ff168d8e6e611c2ea5a793ef"): common.HexToHash("0x51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a81"),
+		// 2: configSlot -> 1: eventSlot [slot 1] (gasSlot)
+		common.HexToHash("0x47efc7dc35c6613e58d6334258d2eb4097cf5686ff168d8e6e611c2ea5a793f0"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000002710"),
+		// 2: configSlot -> 1: eventSlot [slot 2] (rewardsLength)
+		common.HexToHash("0x47efc7dc35c6613e58d6334258d2eb4097cf5686ff168d8e6e611c2ea5a793f1"): common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 	}
+
+	constants := types.FeeMarketConstants{
+		MaxRewards: 5,
+		MaxEvents:  10,
+		MaxGas:     1000000,
+	}
+	writeConstants(storage, constants)
 
 	stateDB := &mockStateDB{storage: storage}
 	fm, err := NewFeeMarket()
@@ -477,19 +375,18 @@ func TestStorageLayoutParsing(t *testing.T) {
 		t.Fatalf("Failed to create storage FeeMarket: %v", err)
 	}
 
-	contractAddr1 := common.HexToAddress("0xe452e78f45ed9542be008308ebdb7d13e786884b")
+	contractAddr1 := common.HexToAddress("0x96c4a1421b494e0cf1bb1e41911ec3251df94223")
 	if _, found := fm.GetConfig(contractAddr1, stateDB); !found {
 		t.Errorf("Config not found for address %s", contractAddr1.Hex())
 	}
 
-	contractAddr2 := common.HexToAddress("0xBD673746fD7Da230489AEee913922467b543ab54")
+	contractAddr2 := common.HexToAddress("0x13261a11f2C6c6318240818de0Ddc3DB70a1B3bF")
 	if _, found := fm.GetConfig(contractAddr2, stateDB); !found {
 		t.Errorf("Config not found for address %s", contractAddr2.Hex())
 	}
-
 	// Write generated config
 	testAddr := common.HexToAddress("0x1234")
-	genConfig1 := writeRandomConfiguration(storage, 2, testAddr, MAX_GAS_VALUE, MAX_EVENTS_VALUE, MAX_REWARDS_VALUE)
+	genConfig1 := writeRandomConfiguration(storage, testAddr, constants)
 
 	// Verify generated config can be read correctly
 	config, found := fm.GetConfig(testAddr, stateDB)
@@ -499,11 +396,6 @@ func TestStorageLayoutParsing(t *testing.T) {
 	if !reflect.DeepEqual(config, genConfig1) {
 		t.Errorf("Invalid generated config state: active=%v, addr=%s, expected addr=%s",
 			config.IsActive, config.ConfigAddress.Hex(), genConfig1.ConfigAddress.Hex())
-	}
-
-	length, err := fm.readConfigsLength(stateDB)
-	if err != nil || length != 3 {
-		t.Errorf("Invalid configs length: got %d, expected 3", length)
 	}
 }
 
@@ -573,57 +465,5 @@ func TestReadRewardsEdgeCases(t *testing.T) {
 	}
 	if rewards[0].RewardPercentage != maxPercentage {
 		t.Errorf("Expected reward percentage %d, got %d", maxPercentage, rewards[0].RewardPercentage)
-	}
-}
-
-// TestGetConfigEdgeCases tests the getConfig function for edge cases
-func TestGetConfigEdgeCases(t *testing.T) {
-	storage := make(map[common.Hash]common.Hash)
-	stateDB := &mockStateDB{storage: storage}
-
-	fm, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create FeeMarket: %v", err)
-	}
-
-	testAddr := common.HexToAddress("0x1234")
-
-	// Test with empty storage
-	_, found := fm.GetConfig(testAddr, stateDB)
-	if found {
-		t.Error("Should not find config in empty storage")
-	}
-
-	// Test with invalid configs length
-	configsSlot := common.BigToHash(big.NewInt(CONFIGS_STORAGE_SLOT))
-	storage[configsSlot] = common.BigToHash(big.NewInt(-1)) // Invalid length
-
-	_, found = fm.GetConfig(testAddr, stateDB)
-	if found {
-		t.Error("Should not find config with invalid configs length")
-	}
-
-	// Test with nil stateDB
-	_, found = fm.GetConfig(testAddr, nil)
-	if found {
-		t.Error("Should not find config with nil stateDB")
-	}
-
-	// Test with invalid config data
-	storage[configsSlot] = common.BigToHash(big.NewInt(1)) // One config
-	configsBaseSlotBytes := crypto.Keccak256(configsSlot[:])
-	configsBaseSlot := common.BytesToHash(configsBaseSlotBytes)
-
-	// Set up an invalid config
-	packedData := make([]byte, 32)
-	packedData[11] = 1 // isActive = true
-	copy(packedData[12:32], testAddr.Bytes())
-
-	storage[configsBaseSlot] = common.BytesToHash(packedData)
-	// Don't set events length - this should make it invalid
-
-	_, found = fm.GetConfig(testAddr, stateDB)
-	if found {
-		t.Error("Should not find config with invalid data")
 	}
 }

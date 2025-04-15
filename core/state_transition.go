@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -465,10 +466,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			// are only being filled in the logs, we can ignore them in this specific use case.
 			logs := st.state.GetLogs(st.evm.StateDB.TxHash(), st.evm.Context.BlockNumber.Uint64(), common.Hash{})
 
-			feeMarket := st.evm.Context.FeeMarket
+			fm := st.evm.Context.FeeMarket
 
-			if len(logs) > 0 && feeMarket != nil {
-				feeMarketDenominator := feeMarket.GetDenominator(st.state)
+			if len(logs) > 0 && fm != nil {
+				feeMarketDenominator := feemarket.DENOMINATOR
 				if feeMarketDenominator > 0 {
 					for _, eventLog := range logs {
 						if eventLog.Removed {
@@ -476,7 +477,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						}
 
 						// Get configuration from fee market
-						config, found := feeMarket.GetConfig(eventLog.Address, st.state)
+						config, found := fm.GetConfig(eventLog.Address, st.state)
 						if !found || !config.IsActive {
 							continue
 						}

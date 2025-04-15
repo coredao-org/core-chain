@@ -2,9 +2,18 @@ package types
 
 import (
 	"errors"
+	"math"
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+// FeeMarketConstants represents the constants of the fee market contract
+type FeeMarketConstants struct {
+	MaxRewards   uint8
+	MaxEvents    uint8
+	MaxFunctions uint8
+	MaxGas       uint32
+}
 
 // FeeMarketReward represents a reward address and percentage
 type FeeMarketReward struct {
@@ -35,8 +44,8 @@ type FeeMarketConfig struct {
 }
 
 // IsValidConfig checks if a config is valid
-func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxRewards uint64) (valid bool, err error) {
-	if denominator == 0 || maxGas == 0 || maxEvents == 0 || maxRewards == 0 {
+func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants, denominator uint64) (valid bool, err error) {
+	if constants.MaxGas == 0 || constants.MaxEvents == 0 || constants.MaxRewards == 0 {
 		return false, errors.New("invalid config constants")
 	}
 
@@ -48,12 +57,12 @@ func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxReward
 		return false, errors.New("config address is not set")
 	}
 
-	if c.Events == nil || len(c.Events) > int(maxEvents) {
+	if c.Events == nil || len(c.Events) > int(constants.MaxEvents) {
 		return false, errors.New("invalid events length")
 	}
 
 	for _, event := range c.Events {
-		if event.Gas == 0 || event.Gas > maxGas {
+		if event.Gas == 0 || event.Gas > math.MaxUint32 || event.Gas > uint64(constants.MaxGas) {
 			return false, errors.New("invalid event gas")
 		}
 
@@ -61,7 +70,7 @@ func (c FeeMarketConfig) IsValidConfig(denominator, maxGas, maxEvents, maxReward
 			return false, errors.New("invalid event signature")
 		}
 
-		if len(event.Rewards) == 0 || len(event.Rewards) > int(maxRewards) {
+		if len(event.Rewards) == 0 || len(event.Rewards) > int(constants.MaxRewards) {
 			return false, errors.New("invalid rewards length")
 		}
 
