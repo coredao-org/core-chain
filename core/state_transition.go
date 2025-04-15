@@ -524,6 +524,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							// Mark transaction as failed
 							vmerr = fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+distributedGas+feeMarketComputationalGas)
 
+							break
 						} else {
 							// TODO: remove this before release
 							distributedAmount := new(uint256.Int).SetUint64(feeMarketEvent.Gas)
