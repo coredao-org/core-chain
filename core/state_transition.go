@@ -493,10 +493,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 						var feeMarketEvent types.FeeMarketEvent
 						for _, event := range config.Events {
-							if event.EventSignature != eventLog.Topics[0] {
-								continue
+							if event.EventSignature == eventLog.Topics[0] {
+								feeMarketEvent = event
+								break
 							}
-							feeMarketEvent = event
 						}
 						if len(feeMarketEvent.Rewards) == 0 {
 							continue
