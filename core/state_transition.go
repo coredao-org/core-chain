@@ -476,6 +476,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							continue
 						}
 
+						// Check if is a precompile
+						if isPrecompile := slices.Contains(vm.ActivePrecompiles(rules), eventLog.Address); isPrecompile {
+							continue
+						}
+						// TODO: check for our built-in precompiles
+
 						// Get configuration from fee market
 						config, found := fm.GetConfig(eventLog.Address, st.state)
 						if !found || !config.IsActive {
