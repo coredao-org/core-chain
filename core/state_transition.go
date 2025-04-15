@@ -525,9 +525,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							vmerr = fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+distributedGas+feeMarketComputationalGas)
 
 						} else {
+							// TODO: remove this before release
 							distributedAmount := new(uint256.Int).SetUint64(feeMarketEvent.Gas)
 							distributedAmount.Mul(distributedAmount, effectiveTipU256)
-							log.Debug("FeeMarket will distribute fees for event", "eventSig", feeMarketEvent.EventSignature, "contractAddr", eventLog.Address, "feesInEther", new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.Ether)))
+							feesInEther, _ := new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.Ether)).Float64()
+							log.Debug("FeeMarket will distribute fees for event", "eventSig", feeMarketEvent.EventSignature, "contractAddr", eventLog.Address, "feesInEther", feesInEther)
 						}
 					}
 
