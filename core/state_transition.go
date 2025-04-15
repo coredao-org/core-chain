@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
@@ -453,6 +454,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
+	// Keep track of the distributed amounts in order to remove it from the validator fee
+	distributedAmount := uint256.NewInt(0)
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
 	if vmerr == nil && st.evm.ChainConfig().Satoshi != nil {
@@ -505,8 +508,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							// Reward amount for this specific address
 							rewardAmount := new(uint256.Int).SetUint64(rewardGas)
 							rewardAmount.Mul(rewardAmount, effectiveTipU256)
-
 							st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
+
+							// Keep track of the distributed amounts in order to remove it from the validator fee
+							distributedAmount.Add(distributedAmount, rewardAmount)
 
 							// Add the computational gas for fees distributions for the AddBalance call
 							feeMarketComputationalGas += params.FeeMarketDistributeGas
@@ -557,6 +562,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						// IMPORTANT: keep this above any state changes that we want to persisted, like the distributed fees refund to the user.
 						st.evm.StateDB.RevertToSnapshot(snapshot)
 
+						// Reset it here, to make clear our intention
+						distributedAmount = uint256.NewInt(0)
+
 						// Return ETH for distributed gas to the user, exchanged at the original rate.
 						if distributedGas > 0 && distributedGas < st.initialGas {
 							if st.gasRemaining < distributedGas {
@@ -573,9 +581,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							// TODO(ziogaschr): verify this is applied and is not affected by the RevertToSnapshot() outer call.
 							// Add the distributed gas to the user's balance.
 							// IMPORTANT: keep this after the RevertToSnapshot() call.
-							distributedGasU256 := uint256.NewInt(availableDistributedGas)
-							distributedGasU256 = distributedGasU256.Mul(distributedGasU256, uint256.MustFromBig(st.msg.GasPrice))
-							st.state.AddBalance(st.msg.From, distributedGasU256, tracing.BalanceIncreaseFeeMarketGasReturnOnFailure)
+							distributedGasFeesU256 := uint256.NewInt(availableDistributedGas)
+							distributedGasFeesU256 = distributedGasFeesU256.Mul(distributedGasFeesU256, uint256.MustFromBig(st.msg.GasPrice))
+							st.state.AddBalance(st.msg.From, distributedGasFeesU256, tracing.BalanceIncreaseFeeMarketGasReturnOnFailure)
+
+							// Keep track of the distributed amount given back to the user in order to remove it from the validator fee
+							distributedAmount.Add(distributedAmount, distributedGasFeesU256)
 						}
 
 						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
@@ -605,11 +616,17 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		gasRefund = st.refundGas(params.RefundQuotientEIP3529)
 	}
 
+	// Keep the fee calculation after the fee market distribution and gas refund
 	fee := new(uint256.Int).SetUint64(st.gasUsed())
 	fee.Mul(fee, effectiveTipU256)
 
 	// consensus engine is satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
+		// Subtract the distributed amount from the fee to validator
+		if distributedAmount.Sign() > 0 && distributedAmount.Cmp(fee) < 0 {
+			fee.Sub(fee, distributedAmount)
+		}
+
 		st.state.AddBalance(consensus.SystemAddress, fee, tracing.BalanceIncreaseRewardTransactionFee)
 		// add extra blob fee reward
 		if rules.IsCancun {
