@@ -4761,7 +4761,7 @@ func BenchmarkSatoshiFeeMarket(b *testing.B) {
 	}
 }
 
-func TestFullBlock(t *testing.T) {
+func TestFeeMarketFullBlock(t *testing.T) {
 	// Set up logger to write to stdout at trace level
 	// glogger := log.NewGlogHandler(log.NewTerminalHandler(os.Stdout, false))
 	// glogger.Verbosity(log.LevelTrace)
