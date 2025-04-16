@@ -9,10 +9,9 @@ import (
 
 // FeeMarketConstants represents the constants of the fee market contract
 type FeeMarketConstants struct {
-	MaxRewards   uint8
-	MaxEvents    uint8
-	MaxFunctions uint8
-	MaxGas       uint32
+	MaxRewards uint8
+	MaxEvents  uint8
+	MaxGas     uint32
 }
 
 // FeeMarketReward represents a reward address and percentage
@@ -28,19 +27,11 @@ type FeeMarketEvent struct {
 	Rewards        []FeeMarketReward
 }
 
-// FeeMarketFunctionSignatures represents a function signature and its associated rewards and gas
-type FeeMarketFunctionSignature struct {
-	FunctionSignature common.Hash
-	Gas               uint64
-	Rewards           []FeeMarketReward
-}
-
 // FeeMarketConfig represents a fee monetization configuration
 type FeeMarketConfig struct {
-	ConfigAddress      common.Address               // The address this config applies to
-	IsActive           bool                         // Whether this config is active
-	Events             []FeeMarketEvent             // The events this config applies to
-	FunctionSignatures []FeeMarketFunctionSignature // The function signatures this config applies to
+	ConfigAddress common.Address   // The address this config applies to
+	IsActive      bool             // Whether this config is active
+	Events        []FeeMarketEvent // The events this config applies to
 }
 
 // IsValidConfig checks if a config is valid

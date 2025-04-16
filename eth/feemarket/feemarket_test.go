@@ -26,10 +26,9 @@ func TestIsValidConfig(t *testing.T) {
 	storage := map[common.Hash]common.Hash{}
 
 	writeConstants(storage, types.FeeMarketConstants{
-		MaxRewards:   2,
-		MaxEvents:    2,
-		MaxFunctions: 0,
-		MaxGas:       1000000,
+		MaxRewards: 2,
+		MaxEvents:  2,
+		MaxGas:     1000000,
 	})
 
 	stateDB := &mockStateDB{storage: storage}
@@ -184,10 +183,9 @@ func TestConstants(t *testing.T) {
 	storage := map[common.Hash]common.Hash{}
 
 	expectedConstants := types.FeeMarketConstants{
-		MaxRewards:   10,
-		MaxEvents:    20,
-		MaxFunctions: 50,
-		MaxGas:       1000000,
+		MaxRewards: 10,
+		MaxEvents:  20,
+		MaxGas:     1000000,
 	}
 	writeConstants(storage, expectedConstants)
 
@@ -209,7 +207,6 @@ func writeConstants(storage map[common.Hash]common.Hash, constants types.FeeMark
 
 	// Pack maxGas into last 4 bytes (uint32)
 	binary.BigEndian.PutUint32(packedData[24:28], constants.MaxGas)
-	packedData[28] = constants.MaxFunctions
 	packedData[29] = constants.MaxEvents
 	packedData[30] = constants.MaxRewards
 

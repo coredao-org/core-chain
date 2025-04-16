@@ -44,15 +44,13 @@ func (fm *FeeMarket) GetConstants(state StateReader) types.FeeMarketConstants {
 	constantsBytes := state.GetState(fm.contractAddress, constantsSlot)
 
 	maxGas := new(uint256.Int).SetBytes(constantsBytes[24:28]).Uint64()
-	maxFunctions := uint8(constantsBytes[28])
 	maxEvents := uint8(constantsBytes[29])
 	maxRewards := uint8(constantsBytes[30])
 
 	return types.FeeMarketConstants{
-		MaxRewards:   maxRewards,
-		MaxEvents:    maxEvents,
-		MaxFunctions: maxFunctions,
-		MaxGas:       uint32(maxGas),
+		MaxRewards: maxRewards,
+		MaxEvents:  maxEvents,
+		MaxGas:     uint32(maxGas),
 	}
 }
 
@@ -145,7 +143,6 @@ func (fm *FeeMarket) readConfigForAddress(address common.Address, state StateRea
 		}
 	}
 
-	// Function signatures will be handled in a later release.
 	config = types.FeeMarketConfig{
 		ConfigAddress: configAddr,
 		IsActive:      isActive,
