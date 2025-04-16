@@ -56,8 +56,8 @@ func (fm *FeeMarket) GetConstants(state StateReader) types.FeeMarketConstants {
 	}
 }
 
-// GetConfig returns configuration for a specific address
-func (fm *FeeMarket) GetConfig(address common.Address, state StateReader) (config types.FeeMarketConfig, found bool) {
+// GetActiveConfig returns configuration for a specific address
+func (fm *FeeMarket) GetActiveConfig(address common.Address, state StateReader) (config types.FeeMarketConfig, found bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, false
 	}

@@ -376,12 +376,12 @@ func TestStorageLayoutParsing(t *testing.T) {
 	}
 
 	contractAddr1 := common.HexToAddress("0x96c4a1421b494e0cf1bb1e41911ec3251df94223")
-	if _, found := fm.GetConfig(contractAddr1, stateDB); !found {
+	if _, found := fm.GetActiveConfig(contractAddr1, stateDB); !found {
 		t.Errorf("Config not found for address %s", contractAddr1.Hex())
 	}
 
 	contractAddr2 := common.HexToAddress("0x13261a11f2C6c6318240818de0Ddc3DB70a1B3bF")
-	if _, found := fm.GetConfig(contractAddr2, stateDB); !found {
+	if _, found := fm.GetActiveConfig(contractAddr2, stateDB); !found {
 		t.Errorf("Config not found for address %s", contractAddr2.Hex())
 	}
 	// Write generated config
@@ -389,7 +389,7 @@ func TestStorageLayoutParsing(t *testing.T) {
 	genConfig1 := writeRandomConfiguration(storage, testAddr, constants)
 
 	// Verify generated config can be read correctly
-	config, found := fm.GetConfig(testAddr, stateDB)
+	config, found := fm.GetActiveConfig(testAddr, stateDB)
 	if !found {
 		t.Fatal("Generated config not found")
 	}

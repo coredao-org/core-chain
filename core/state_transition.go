@@ -486,8 +486,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						// TODO: check for our built-in precompiles
 
 						// Get configuration from fee market
-						config, found := fm.GetConfig(eventLog.Address, st.state)
-						if !found || !config.IsActive {
+						config, found := fm.GetActiveConfig(eventLog.Address, st.state)
+						if !found {
 							continue
 						}
 
