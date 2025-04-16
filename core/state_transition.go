@@ -464,7 +464,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		distributedGas := uint64(0)
 
 		// Check if is a contract call
-		if st.state.GetCodeSize(*st.msg.To) > 0 {
+		if contractCreation || (msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0) {
 			// Get tx logs. Only tx hash is used to get logs, the blockNumber and blockHash
 			// are only being filled in the logs, we can ignore them in this specific use case.
 			logs := st.state.GetLogs(st.evm.StateDB.TxHash(), st.evm.Context.BlockNumber.Uint64(), common.Hash{})
