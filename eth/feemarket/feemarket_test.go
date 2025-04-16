@@ -3,6 +3,7 @@ package feemarket
 import (
 	"encoding/binary"
 	"errors"
+	"math"
 	"math/big"
 	"math/rand"
 	"reflect"
@@ -253,8 +254,13 @@ func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address
 		))
 
 		// Generate random event data
-		eventSig := common.Hash{byte(rand.Intn(255) + 1)}           // Random signature
-		gas := uint64(rand.Intn(int(constants.MaxGas-1000))) + 1000 // Random gas between 1000 and maxGas
+		eventSig := common.Hash{byte(rand.Intn(255) + 1)} // Random signature
+		var gas uint32
+		if eventIdx == constants.MaxEvents-1 {
+			gas = constants.MaxGas // Use max gas for last event
+		} else {
+			gas = uint32(rand.Intn(int(constants.MaxGas-1000))) + 1000 // Random gas between 1000 and maxGas
+		}
 
 		// Each Event takes 3 slots (eventSignature, gas, rewards.length)
 		eventSigSlot := eventSlot
@@ -266,16 +272,23 @@ func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address
 		storage[gasSlot] = common.BigToHash(big.NewInt(int64(gas)))
 
 		// Generate number of rewards
+		var rewardsLength uint8
+		if eventIdx == constants.MaxEvents-1 {
+			rewardsLength = constants.MaxRewards // Use max rewards for last event
+		} else {
+			rewardsLength = uint8(rand.Intn(int(constants.MaxRewards-1))) + 1 // Random rewards between 1 and maxRewards
+		}
+
 		rewards := make([]types.FeeMarketReward, constants.MaxRewards)
-		storage[rewardsLengthSlot] = common.BigToHash(big.NewInt(int64(constants.MaxRewards)))
+		storage[rewardsLengthSlot] = common.BigToHash(big.NewInt(int64(rewardsLength)))
 
 		// Set up reward data
 		rewardsBaseSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
 
 		// Track total percentage to ensure it adds up to 10000
-		remainingPercentage := uint64(10000)
+		remainingPercentage := uint16(10000)
 
-		for i := uint64(0); i < uint64(constants.MaxRewards); i++ {
+		for i := uint8(0); i < rewardsLength; i++ {
 			rewardSlot := common.BigToHash(new(big.Int).Add(
 				new(big.Int).SetBytes(rewardsBaseSlot.Bytes()),
 				big.NewInt(int64(i)),
@@ -284,15 +297,14 @@ func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address
 			// Generate random reward data
 			rewardAddr := common.BytesToAddress(crypto.Keccak256(append(addr.Bytes(), byte(i)))) // Unique per index
 
-			var percentage uint64
-			if i == uint64(constants.MaxRewards)-1 {
+			var percentage uint16
+			if i == rewardsLength-1 {
 				percentage = remainingPercentage // Last reward gets remainder
 			} else {
-				maxPercent := remainingPercentage - (uint64(constants.MaxRewards) - i - 1) // Leave room for remaining rewards
-				if maxPercent > 1 {
-					percentage = uint64(rand.Intn(int(maxPercent-1))) + 1
-				} else {
-					percentage = 1
+				percentage = 1
+				maxPercent := remainingPercentage - uint16(rewardsLength-i-1) // Leave room for remaining rewards
+				if maxPercent >= uint16(rewardsLength-i-1) {
+					percentage = uint16(rand.Intn(int(maxPercent))) + 1
 				}
 				remainingPercentage -= percentage
 			}
@@ -430,6 +442,39 @@ func TestIncrementHash(t *testing.T) {
 	}
 }
 
+// TestTypeBoundariesEdgeCases tests the type boundaries edge cases
+func TestTypeBoundariesEdgeCases(t *testing.T) {
+	storage := map[common.Hash]common.Hash{}
+
+	constants := types.FeeMarketConstants{
+		MaxRewards: math.MaxUint8,
+		MaxEvents:  math.MaxUint8,
+		MaxGas:     math.MaxUint32,
+	}
+	writeConstants(storage, constants)
+	writeConfiguration(storage, common.HexToAddress("0x1234"), constants)
+
+	stateDB := &mockStateDB{storage: storage}
+	fm, err := NewFeeMarket()
+	if err != nil {
+		t.Fatalf("Failed to create storage FeeMarket: %v", err)
+	}
+
+	config, found := fm.GetActiveConfig(common.HexToAddress("0x1234"), stateDB)
+	if !found {
+		t.Fatal("Config not found")
+	}
+	if config.Events[len(config.Events)-1].Gas != math.MaxUint32 {
+		t.Errorf("Expected max gas %d, got %d", math.MaxUint32, config.Events[0].Gas)
+	}
+	if len(config.Events) != math.MaxUint8 {
+		t.Errorf("Expected max events %d, got %d", math.MaxUint8, len(config.Events))
+	}
+	if len(config.Events[len(config.Events)-1].Rewards) != math.MaxUint8 {
+		t.Errorf("Expected max rewards %d, got %d", math.MaxUint8, len(config.Events[len(config.Events)-1].Rewards))
+	}
+}
+
 // TestReadRewardsEdgeCases tests the readRewards function for edge cases
 func TestReadRewardsEdgeCases(t *testing.T) {
 	configurationContractAddr := common.HexToAddress("0x0000000000000000000000000000000000001016")
@@ -445,7 +490,7 @@ func TestReadRewardsEdgeCases(t *testing.T) {
 
 	// Test rewards with max values
 	rewardAddr := common.HexToAddress("0x1234")
-	maxPercentage := uint64(65535) // max uint16
+	maxPercentage := uint16(65535) // max uint16
 	packedData := make([]byte, 32)
 	copy(packedData[12:32], rewardAddr.Bytes())
 	binary.BigEndian.PutUint16(packedData[10:12], uint16(maxPercentage))

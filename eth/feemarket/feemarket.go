@@ -2,6 +2,7 @@
 package feemarket
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"math/big"
@@ -20,7 +21,7 @@ const (
 	CONFIGS_MAP_STORAGE_SLOT = 1
 
 	// The denominator for the fee market
-	DENOMINATOR = uint64(10000)
+	DENOMINATOR = uint16(10000)
 )
 
 // FeeMarket represents the fee market integration which is used to get the fee market config for an address.
@@ -43,7 +44,7 @@ func (fm *FeeMarket) GetConstants(state StateReader) types.FeeMarketConstants {
 	constantsSlot := common.BigToHash(big.NewInt(CONSTANTS_STORAGE_SLOT))
 	constantsBytes := state.GetState(fm.contractAddress, constantsSlot)
 
-	maxGas := new(uint256.Int).SetBytes(constantsBytes[24:28]).Uint64()
+	maxGas := binary.BigEndian.Uint32(constantsBytes[24:28])
 	maxEvents := uint8(constantsBytes[29])
 	maxRewards := uint8(constantsBytes[30])
 
@@ -113,7 +114,7 @@ func (fm *FeeMarket) readConfigForAddress(address common.Address, state StateRea
 	// Read events
 	eventsBaseSlot := common.BytesToHash(crypto.Keccak256(eventsLengthSlot[:]))
 	events := make([]types.FeeMarketEvent, eventsLength)
-	for i := uint64(0); i < eventsLength; i++ {
+	for i := uint8(0); i < uint8(eventsLength); i++ {
 		// Each Event takes 3 slots (eventSignature, gas, rewards.length)
 		eventSlot := common.BigToHash(new(big.Int).Add(
 			new(big.Int).SetBytes(eventsBaseSlot.Bytes()),
@@ -134,11 +135,11 @@ func (fm *FeeMarket) readConfigForAddress(address common.Address, state StateRea
 			return types.FeeMarketConfig{}, fmt.Errorf("rewards length is greater than max rewards")
 		}
 
-		rewards := readRewards(fm.contractAddress, rewardsLengthSlot, rewardsLength, state)
+		rewards := readRewards(fm.contractAddress, rewardsLengthSlot, uint8(rewardsLength), state)
 
 		events[i] = types.FeeMarketEvent{
 			EventSignature: state.GetState(fm.contractAddress, eventSigSlot),
-			Gas:            new(uint256.Int).SetBytes(state.GetState(fm.contractAddress, gasSlot).Bytes()).Uint64(),
+			Gas:            binary.BigEndian.Uint32(state.GetState(fm.contractAddress, gasSlot).Bytes()[28:32]),
 			Rewards:        rewards,
 		}
 	}
@@ -153,11 +154,11 @@ func (fm *FeeMarket) readConfigForAddress(address common.Address, state StateRea
 }
 
 // Helper function to read rewards array
-func readRewards(contractAddr common.Address, rewardsLengthSlot common.Hash, rewardsLength uint64, state StateReader) []types.FeeMarketReward {
+func readRewards(contractAddr common.Address, rewardsLengthSlot common.Hash, rewardsLength uint8, state StateReader) []types.FeeMarketReward {
 	rewardsBaseSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
 	rewards := make([]types.FeeMarketReward, rewardsLength)
 
-	for i := uint64(0); i < rewardsLength; i++ {
+	for i := uint8(0); i < rewardsLength; i++ {
 		// Each Reward takes 1 slot with packed fields (rewardAddr, rewardPercentage)
 		rewardSlot := common.BigToHash(new(big.Int).Add(
 			new(big.Int).SetBytes(rewardsBaseSlot[:]),
@@ -169,7 +170,7 @@ func readRewards(contractAddr common.Address, rewardsLengthSlot common.Hash, rew
 		// Solidity packs data right-aligned, so we need to read from the end
 		packedBytes := state.GetState(contractAddr, rewardSlot)
 		rewardAddress := common.BytesToAddress(packedBytes[12:32])
-		rewardPercentage := new(uint256.Int).SetBytes(packedBytes[10:12]).Uint64()
+		rewardPercentage := binary.BigEndian.Uint16(packedBytes[10:12])
 
 		rewards[i] = types.FeeMarketReward{
 			RewardAddress:    rewardAddress,

@@ -504,7 +504,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 						for _, reward := range feeMarketEvent.Rewards {
 							// Gas to reward for this specific address
-							rewardGas := (feeMarketEvent.Gas * reward.RewardPercentage) / feeMarketDenominator
+							rewardGas := (uint64(feeMarketEvent.Gas) * uint64(reward.RewardPercentage)) / uint64(feeMarketDenominator)
 							// Reward amount for this specific address
 							rewardAmount := new(uint256.Int).SetUint64(rewardGas)
 							rewardAmount.Mul(rewardAmount, effectiveTipU256)
@@ -527,7 +527,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							break
 						} else {
 							// TODO: remove this before release
-							distributedAmount := new(uint256.Int).SetUint64(feeMarketEvent.Gas)
+							distributedAmount := new(uint256.Int).SetUint64(uint64(feeMarketEvent.Gas))
 							distributedAmount.Mul(distributedAmount, effectiveTipU256)
 							feesInEther, _ := new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.Ether)).Float64()
 							log.Debug("FeeMarket will distribute fees for event", "eventSig", feeMarketEvent.EventSignature, "contractAddr", eventLog.Address, "feesInEther", feesInEther)

@@ -2,7 +2,6 @@ package types
 
 import (
 	"errors"
-	"math"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -17,13 +16,13 @@ type FeeMarketConstants struct {
 // FeeMarketReward represents a reward address and percentage
 type FeeMarketReward struct {
 	RewardAddress    common.Address
-	RewardPercentage uint64
+	RewardPercentage uint16
 }
 
 // FeeMarketEvent represents an event and its associated rewards and gas
 type FeeMarketEvent struct {
 	EventSignature common.Hash
-	Gas            uint64
+	Gas            uint32
 	Rewards        []FeeMarketReward
 }
 
@@ -35,7 +34,7 @@ type FeeMarketConfig struct {
 }
 
 // IsValidConfig checks if a config is valid
-func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants, denominator uint64) (valid bool, err error) {
+func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants, denominator uint16) (valid bool, err error) {
 	if constants.MaxGas == 0 || constants.MaxEvents == 0 || constants.MaxRewards == 0 {
 		return false, errors.New("invalid config constants")
 	}
@@ -53,7 +52,7 @@ func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants, denominator
 	}
 
 	for _, event := range c.Events {
-		if event.Gas == 0 || event.Gas > math.MaxUint32 || event.Gas > uint64(constants.MaxGas) {
+		if event.Gas == 0 || event.Gas > constants.MaxGas {
 			return false, errors.New("invalid event gas")
 		}
 
@@ -65,7 +64,7 @@ func (c FeeMarketConfig) IsValidConfig(constants FeeMarketConstants, denominator
 			return false, errors.New("invalid rewards length")
 		}
 
-		totalRewardPercentage := uint64(0)
+		totalRewardPercentage := uint16(0)
 		for _, reward := range event.Rewards {
 			if reward.RewardAddress == (common.Address{}) {
 				return false, errors.New("invalid reward address")
