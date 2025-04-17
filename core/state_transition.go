@@ -532,16 +532,18 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							// Add the pumped gas for the actual fees
 							distributedGas += rewardGas
 						}
+					}
 
 					if st.gasRemaining < distributedGas+feeMarketComputationalGas {
 						// Mark transaction as failed
-						vmerr = fmt.Errorf("%w: required gas %d", ErrFeeMarketGas, st.gasUsed()+distributedGas+feeMarketComputationalGas)
-					} else {
-						// TODO: remove this before release
-						distributedAmount := new(uint256.Int).SetUint64(uint64(distributedGas))
-						distributedAmount.Mul(distributedAmount, effectiveTipU256)
-						feesInGWei, _ := new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.GWei)).Float64()
-						log.Debug("FeeMarket distributed fees", "feesInGWei", feesInGWei)
+						vmerr = fmt.Errorf("%w: required gas %d", ErrFeeMarketOutOfGas, st.gasUsed()+distributedGas+feeMarketComputationalGas)
+					}
+
+					// Add some hard caps to the fee market rewards
+					if distributedGas > params.MaxFeeMarketRewardGasCapPerTx {
+						vmerr = ErrFeeMarketRewardGasCapVeryHigh
+					} else if distributedAmount.Cmp(new(uint256.Int).SetUint64(params.MaxFeeMarketRewardFeesCapPerTx)) > 0 {
+						vmerr = ErrFeeMarketRewardFeesCapVeryHigh
 					}
 
 					// This is the final available distributed gas to be refunded to the user and returned to the block gas counter, it's copied here as it might be modified on error logic.
@@ -562,6 +564,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 						// Remove the distributed gas for fees distributions (this is the pumped gas for the fees)
 						st.gasRemaining -= distributedGas
+
+						feesInGWei, _ := new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.GWei)).Float64()
+						log.Debug("FeeMarket distributed fees", "txHash", st.evm.StateDB.TxHash(), "feesInGWei", feesInGWei)
 
 						// On error, revert the state
 					} else {

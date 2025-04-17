@@ -18,8 +18,10 @@ package core
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
@@ -117,7 +119,13 @@ var (
 	// ErrBlobTxCreate is returned if a blob transaction has no explicit to field.
 	ErrBlobTxCreate = errors.New("blob transaction of type create")
 
-	// ErrFeeMarketGas is returned if the transaction is specified to use less gas
+	// ErrFeeMarketOutOfGas is returned if the transaction is specified to use less gas
 	// than required to distribute the fee market rewards. If no rewards, the gas is refunded to the user.
-	ErrFeeMarketGas = errors.New("out of gas for fee market distribution")
+	ErrFeeMarketOutOfGas = errors.New("out of gas for fee market distribution")
+
+	// ErrFeeMarketRewardGasCapVeryHigh is returned if the transaction tries to distribute more gas than the fee market rewards gas cap
+	ErrFeeMarketRewardGasCapVeryHigh = fmt.Errorf("max fee market rewards gas reached (max=%d)", params.MaxFeeMarketRewardGasCapPerTx)
+
+	// ErrFeeMarketRewardFeesCapVeryHigh is returned if the transaction tries to distribute more fees than the fee market rewards cap
+	ErrFeeMarketRewardFeesCapVeryHigh = fmt.Errorf("max fee market rewards fees reached (max=%d)", params.MaxFeeMarketRewardFeesCapPerTx)
 )
