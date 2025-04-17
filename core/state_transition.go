@@ -459,7 +459,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
 	if vmerr == nil && st.evm.ChainConfig().Satoshi != nil {
-		snapshot := st.evm.StateDB.Snapshot()
+		snapshot := st.state.Snapshot()
 		feeMarketComputationalGas := uint64(0)
 		distributedGas := uint64(0)
 
@@ -563,7 +563,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 						// Revert the state in case of error in the fee market distributions
 						// IMPORTANT: keep this above any state changes that we want to persisted, like the distributed fees refund to the user.
-						st.evm.StateDB.RevertToSnapshot(snapshot)
+						st.state.RevertToSnapshot(snapshot)
 
 						// Reset it here, to make clear our intention
 						distributedAmount = uint256.NewInt(0)
