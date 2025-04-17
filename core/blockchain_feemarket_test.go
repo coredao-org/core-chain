@@ -124,9 +124,9 @@ func addFeeMarketTestContract(t testing.TB, nonce uint64, gasPrice *big.Int, cha
 
 // addFeeMarketConfigurationTx Add a fee market configuration transaction
 func addFeeMarketConfigurationTx(t testing.TB, feeMarketAddress common.Address, configuredContractAddress common.Address, rewardRecipient common.Address, nonce uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
-	// Supported topics
-	// "Increment(uint256)": "51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a81",
-	// "Transfer(address,address,uint256)": "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+	// Topic | Event Signature | Gas
+	// Increment(uint256) | 51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a81 | 10000
+	// Transfer(address,address,uint256) | ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef | 20000
 
 	// Add configuration for the deployed contract
 	configurationAddConfig := "f0508287000000000000000000000000<contract_address>00000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000260000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000010051af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a81000000000000000000000000000000000000000000000000000000000000271000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000<reward_recipient>0000000000000000000000000000000000000000000000000000000000002710ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000000000000000000000000000000000000000004e2000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000<reward_recipient>00000000000000000000000000000000000000000000000000000000000027100000000000000000000000000000000000000000000000000000000000000000"
@@ -601,11 +601,11 @@ func TestFeeMarketZeroTransfer(t *testing.T) {
 	testFeeMarketBlock(t, 1_000_000, 1, createGenFn, chainTesterFn)
 }
 
-// TestFeeMarketRevertToSnapshot tests that distributes the fees to the user if it runs out of gas on distribution
-func TestFeeMarketRevertToSnapshot(t *testing.T) {
+// TestFeeMarketOutOfGasForComputationalGas tests that on TX failure because of out of gas the reward fees are distributed to the user
+func TestFeeMarketOutOfGasForComputationalGas(t *testing.T) {
+	var counterContractAddress common.Address
 	rewardRecipient := common.HexToAddress("0x123")
-	expectedTxGas := uint64(59616)
-	failureTxGas := uint64(59500)
+	failureTxGas := uint64(58900)
 
 	createGenFn := func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
 		return func(i int, gen *BlockGen) {
@@ -613,81 +613,57 @@ func TestFeeMarketRevertToSnapshot(t *testing.T) {
 			fee := big.NewInt(1)
 			gen.SetCoinbase(common.Address{1})
 
-			_, counterContractAddress := addFeeMarketTestContract(t, gen.TxNonce(testAddr), fee, chain, gen, signer)
+			if i == 0 {
+				fmt.Println("i:", i)
+				_, counterContractAddress = addFeeMarketTestContract(t, gen.TxNonce(testAddr), fee, chain, gen, signer)
 
-			// Add configuration for the deployed contract
-			addFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, rewardRecipient, gen.TxNonce(testAddr), fee, chain, gen, signer)
+				// Add configuration for the deployed contract
+				addFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, rewardRecipient, gen.TxNonce(testAddr), fee, chain, gen, signer)
+			}
 
-			// Call contract
-			callData := createContractCallData("increment()", nil)
-			addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), &failureTxGas, fee, chain, gen, signer)
+			if i == 1 {
+				fmt.Println("i2:", i, counterContractAddress)
+				// Call contract
+				callData := createContractCallData("increment()", nil)
+				addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), &failureTxGas, fee, chain, gen, signer)
+			}
 		}
 	}
 
 	chainTesterFn := func(chain *BlockChain, blocks []*types.Block) {
+		// Get balance before calling the contract that distributes the fees
+		stateDB, _ := chain.StateAt(blocks[0].Root())
+		preBalance := stateDB.GetBalance(testAddr)
+
+		// Parse last block with the contract that distributes the fees
 		stateDB, err := chain.State()
 		if err != nil {
 			t.Fatalf("failed to get state: %v", err)
 		}
 
-		for _, block := range blocks {
-			// txs := block.Transactions()
-			receipts := chain.GetReceiptsByHash(block.Hash())
+		block := blocks[len(blocks)-1]
+		receipts := chain.GetReceiptsByHash(block.Hash())
+		receipt := receipts[0]
 
-			// Get last receipt which called the contract
-			txGasUsed := uint64(0)
-			// txAddConfGasUsed := uint64(0)
-			for idx, receipt := range receipts {
-				// tx := txs[idx]
-				// if tx.To() != nil && *tx.To() == common.HexToAddress(systemcontracts.FeeMarketContract) {
-				// 	// fmt.Println("receipt:", "gasUsed:", receipt.GasUsed, "toAddr:", tx.To(), "status:", receipt.Status, "logs:", len(receipt.Logs))
-				// 	txAddConfGasUsed += receipt.GasUsed
-				// }
-				fmt.Println("gasUsed:", receipt.GasUsed)
-				txGasUsed += receipt.GasUsed
-				// tx := txs[len(txs)-1]
-				// fmt.Println("tx:", tx)
-				// receipt := receipts[len(receipts)-1]
-
-				if receipt.Status != types.ReceiptStatusFailed {
-					t.Errorf("transaction should fail because of out of gas")
-				}
-
-				if idx == len(receipts)-1 {
-					if receipt.GasUsed != failureTxGas {
-						t.Errorf("transaction gas used %d is different that expected %d", receipt.GasUsed, failureTxGas)
-					}
-				}
-			}
-
-			fmt.Println("expectedTxGas", expectedTxGas)
-
-			// sender, err := types.Sender(types.LatestSigner(chain.Config()), tx)
-			// if err != nil {
-			// 	t.Fatalf("failed to get sender: %v", err)
-			// }
-			actualRecipientBalance := stateDB.GetBalance(testAddr)
-			fmt.Println("actualRecipientBalance:", actualRecipientBalance.Uint64())
-			fmt.Println("actualRecipientBalance:", actualRecipientBalance.Uint64()+txGasUsed)
-
-			expectedBalance := uint64(10000)
-			require.Equal(t, expectedBalance, actualRecipientBalance.Uint64(),
-				fmt.Sprintf("recipient (%s) balance %d is different that expected fee market reward %d", rewardRecipient.Hex(), actualRecipientBalance.Uint64(), expectedBalance))
-			// distributedAmountU64 := distributedAmount.Uint64()
-
-			// Check if validator reward receives:
-			// - all txs profit if there is no fee market configuration
-			// - txs profit excluding the fee market rewards if there is a fee market configuration
-			// validatorRewardU64 := stateDB.GetBalance(params.SystemAddress).Uint64()
-			// if validatorRewardU64+distributedAmountU64 != txGasUsed {
-			// 	t.Errorf("validator (%d) shouldn't receive all txs fees, as some has been distributed (%d) to fee market recipients (txGasUsed: %d)", validatorRewardU64, distributedAmountU64, txGasUsed)
-			// }
-
-			t.Fail()
+		if receipt.Status != types.ReceiptStatusFailed {
+			t.Errorf("transaction should fail because of out of gas")
 		}
+
+		distributedAmount := uint64(10000)
+		postBalance := stateDB.GetBalance(testAddr)
+		balanceDiff := preBalance.Uint64() - postBalance.Uint64()
+		if balanceDiff != receipt.GasUsed-distributedAmount {
+			t.Errorf("balance diff %d is different that expected %d", balanceDiff, receipt.GasUsed-distributedAmount)
+		}
+
+		// TODO: check that the validator received the correct amount of fees
 	}
 
-	testFeeMarketBlock(t, 1_000_000, 1, createGenFn, chainTesterFn)
+	testFeeMarketBlock(t, 1_000_000, 2, createGenFn, chainTesterFn)
+}
+
+// TestFeeMarketOutOfGasForDistributionGas tests that on TX failure because of out of gas the remaining reward fees are distributed to the user
+func TestFeeMarketOutOfGasForDistributionGas(t *testing.T) {
 }
 
 // testFeeMarketBlock is a helper function to test the fee market

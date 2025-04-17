@@ -599,12 +599,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							// TODO(ziogaschr): verify this is applied and is not affected by the RevertToSnapshot() outer call.
 							// Add the distributed gas to the user's balance.
 							// IMPORTANT: keep this after the RevertToSnapshot() call.
-							distributedGasFeesU256 := uint256.NewInt(availableDistributedGas)
-							distributedGasFeesU256 = distributedGasFeesU256.Mul(distributedGasFeesU256, uint256.MustFromBig(st.msg.GasPrice))
-							st.state.AddBalance(st.msg.From, distributedGasFeesU256, tracing.BalanceIncreaseFeeMarketGasReturnOnFailure)
+							availableDistributeAmountU256 := uint256.NewInt(availableDistributedGas)
+							availableDistributeAmountU256 = availableDistributeAmountU256.Mul(availableDistributeAmountU256, uint256.MustFromBig(st.msg.GasPrice))
+							st.state.AddBalance(st.msg.From, availableDistributeAmountU256, tracing.BalanceIncreaseFeeMarketGasReturnOnFailure)
 
 							// Keep track of the distributed amount given back to the user in order to remove it from the validator fee
-							distributedAmount.Add(distributedAmount, distributedGasFeesU256)
+							distributedAmount = availableDistributeAmountU256
 						}
 
 						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
