@@ -222,10 +222,10 @@ func writeRandomConfiguration(storage map[common.Hash]common.Hash, addr common.A
 		MaxRewards: uint8(rand.Intn(int(maxConstants.MaxRewards))) + 1,
 		MaxGas:     uint32(rand.Intn(int(maxConstants.MaxGas))) + 1,
 	}
-	return writeConfiguration(storage, addr, constants)
+	return writeConfiguration(storage, addr, constants, true)
 }
 
-func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address, constants types.FeeMarketConstants) types.FeeMarketConfig {
+func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address, constants types.FeeMarketConstants, randomLoops bool) types.FeeMarketConfig {
 	// Write the index in the address mapping
 	configsMapSlot := common.BigToHash(big.NewInt(CONFIGS_MAP_STORAGE_SLOT))
 	addressBytes := common.LeftPadBytes(addr.Bytes(), 32)
@@ -274,7 +274,7 @@ func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address
 
 		// Generate number of rewards
 		var rewardsLength uint8
-		if eventIdx == constants.MaxEvents-1 {
+		if !randomLoops || eventIdx == constants.MaxEvents-1 {
 			rewardsLength = constants.MaxRewards // Use max rewards for last event
 		} else {
 			rewardsLength = uint8(rand.Intn(int(constants.MaxRewards))) + 1 // Random rewards between 1 and maxRewards
@@ -459,7 +459,7 @@ func TestTypeBoundariesEdgeCases(t *testing.T) {
 		MaxGas:     math.MaxUint32,
 	}
 	writeConstants(storage, constants)
-	writeConfiguration(storage, common.HexToAddress("0x1234"), constants)
+	writeConfiguration(storage, common.HexToAddress("0x1234"), constants, false)
 
 	stateDB := &mockStateDB{storage: storage}
 	fm, err := NewFeeMarket()
@@ -522,4 +522,71 @@ func TestReadRewardsEdgeCases(t *testing.T) {
 	if rewards[0].RewardPercentage != maxPercentage {
 		t.Errorf("Expected reward percentage %d, got %d", maxPercentage, rewards[0].RewardPercentage)
 	}
+}
+
+// TestGetActiveConfigGas tests the gas consumption of GetActiveConfig
+func TestGetActiveConfigGas(t *testing.T) {
+	testCases := []struct {
+		name        string
+		constants   types.FeeMarketConstants
+		expectedGas uint64
+	}{
+		{
+			name: "Max values",
+			constants: types.FeeMarketConstants{
+				MaxRewards: math.MaxUint8,
+				MaxEvents:  math.MaxUint8,
+				MaxGas:     math.MaxUint32,
+			},
+			expectedGas: 65792 * params.FeeMarketSloadGas, // 13158400
+		},
+		{
+			name: "Min values",
+			constants: types.FeeMarketConstants{
+				MaxRewards: 1,
+				MaxEvents:  1,
+				MaxGas:     1000,
+			},
+			expectedGas: 6 * params.FeeMarketSloadGas, // 1200
+		},
+		{
+			name: "Common values",
+			constants: types.FeeMarketConstants{
+				MaxRewards: 5,
+				MaxEvents:  5,
+				MaxGas:     100000,
+			},
+			expectedGas: 42 * params.FeeMarketSloadGas, // 8400
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			storage := map[common.Hash]common.Hash{}
+			writeConstants(storage, tc.constants)
+
+			stateDB := &mockStateDB{storage: storage}
+			fm, err := NewFeeMarket()
+			if err != nil {
+				t.Fatalf("Failed to create storage FeeMarket: %v", err)
+			}
+
+			testAddr := common.HexToAddress("0x1234")
+			genConfig1 := writeConfiguration(storage, testAddr, tc.constants, false)
+
+			// Verify generated config can be read correctly
+			config, gas, found := fm.GetActiveConfig(testAddr, stateDB)
+			if !found {
+				t.Fatal("Generated config not found")
+			}
+			if !reflect.DeepEqual(config, genConfig1) {
+				t.Errorf("Invalid generated config state: active=%v, addr=%+v, expected addr=%+v",
+					config.IsActive, config, genConfig1)
+			}
+			if gas != tc.expectedGas {
+				t.Errorf("Expected gas %d, got %d", tc.expectedGas, gas)
+			}
+		})
+	}
+
 }
