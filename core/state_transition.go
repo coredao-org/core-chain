@@ -486,7 +486,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						// TODO: check for our built-in precompiles
 
 						// Get configuration from fee market
-						config, found := fm.GetActiveConfig(eventLog.Address, st.state)
+						config, configReadGas, found := fm.GetActiveConfig(eventLog.Address, st.state)
+
+						// Remove gas for Sload of the config from storage
+						// st.gasRemaining -= configReadGas
+						feeMarketComputationalGas += configReadGas
 						if !found {
 							continue
 						}
@@ -520,18 +524,15 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							distributedGas += rewardGas
 						}
 
-						if st.gasRemaining < distributedGas+feeMarketComputationalGas {
-							// Mark transaction as failed
-							vmerr = fmt.Errorf("%w: have %d, want %d", ErrFeeMarketGas, st.gasRemaining, st.gasUsed()+distributedGas+feeMarketComputationalGas)
-
-							break
-						} else {
-							// TODO: remove this before release
-							distributedAmount := new(uint256.Int).SetUint64(uint64(feeMarketEvent.Gas))
-							distributedAmount.Mul(distributedAmount, effectiveTipU256)
-							feesInEther, _ := new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.Ether)).Float64()
-							log.Debug("FeeMarket will distribute fees for event", "eventSig", feeMarketEvent.EventSignature, "contractAddr", eventLog.Address, "feesInEther", feesInEther)
-						}
+					if st.gasRemaining < distributedGas+feeMarketComputationalGas {
+						// Mark transaction as failed
+						vmerr = fmt.Errorf("%w: required gas %d", ErrFeeMarketGas, st.gasUsed()+distributedGas+feeMarketComputationalGas)
+					} else {
+						// TODO: remove this before release
+						distributedAmount := new(uint256.Int).SetUint64(uint64(distributedGas))
+						distributedAmount.Mul(distributedAmount, effectiveTipU256)
+						feesInGWei, _ := new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.GWei)).Float64()
+						log.Debug("FeeMarket distributed fees", "feesInGWei", feesInGWei)
 					}
 
 					// This is the final available distributed gas to be refunded to the user and returned to the block gas counter, it's copied here as it might be modified on error logic.
@@ -543,7 +544,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-feeMarketComputationalGas, tracing.GasChangeFeeMarketComputationalGas)
 						}
 
-						// Remove the computational gas for fees distributions (mostly for the AddBalance calls)
+						// Remove the computational gas for fees distributions
 						st.gasRemaining -= feeMarketComputationalGas
 
 						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && distributedGas > 0 {

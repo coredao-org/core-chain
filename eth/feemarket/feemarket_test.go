@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type mockStateDB struct {
@@ -276,10 +277,10 @@ func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address
 		if eventIdx == constants.MaxEvents-1 {
 			rewardsLength = constants.MaxRewards // Use max rewards for last event
 		} else {
-			rewardsLength = uint8(rand.Intn(int(constants.MaxRewards-1))) + 1 // Random rewards between 1 and maxRewards
+			rewardsLength = uint8(rand.Intn(int(constants.MaxRewards))) + 1 // Random rewards between 1 and maxRewards
 		}
 
-		rewards := make([]types.FeeMarketReward, constants.MaxRewards)
+		rewards := make([]types.FeeMarketReward, rewardsLength)
 		storage[rewardsLengthSlot] = common.BigToHash(big.NewInt(int64(rewardsLength)))
 
 		// Set up reward data
@@ -385,26 +386,32 @@ func TestStorageLayoutParsing(t *testing.T) {
 	}
 
 	contractAddr1 := common.HexToAddress("0x96c4a1421b494e0cf1bb1e41911ec3251df94223")
-	if _, found := fm.GetActiveConfig(contractAddr1, stateDB); !found {
+	_, gas1, found := fm.GetActiveConfig(contractAddr1, stateDB)
+	if !found {
 		t.Errorf("Config not found for address %s", contractAddr1.Hex())
+	}
+	expectedGas := 6 * params.FeeMarketSloadGas
+	if gas1 != expectedGas {
+		t.Fatalf("Expected gas %d, got %d", expectedGas, gas1)
 	}
 
 	contractAddr2 := common.HexToAddress("0x13261a11f2C6c6318240818de0Ddc3DB70a1B3bF")
-	if _, found := fm.GetActiveConfig(contractAddr2, stateDB); !found {
+	if _, _, found := fm.GetActiveConfig(contractAddr2, stateDB); !found {
 		t.Errorf("Config not found for address %s", contractAddr2.Hex())
 	}
+
 	// Write generated config
 	testAddr := common.HexToAddress("0x1234")
 	genConfig1 := writeRandomConfiguration(storage, testAddr, constants)
 
 	// Verify generated config can be read correctly
-	config, found := fm.GetActiveConfig(testAddr, stateDB)
+	config, _, found := fm.GetActiveConfig(testAddr, stateDB)
 	if !found {
 		t.Fatal("Generated config not found")
 	}
 	if !reflect.DeepEqual(config, genConfig1) {
-		t.Errorf("Invalid generated config state: active=%v, addr=%s, expected addr=%s",
-			config.IsActive, config.ConfigAddress.Hex(), genConfig1.ConfigAddress.Hex())
+		t.Errorf("Invalid generated config state: active=%v, addr=%+v, expected addr=%+v",
+			config.IsActive, config, genConfig1)
 	}
 }
 
@@ -460,7 +467,7 @@ func TestTypeBoundariesEdgeCases(t *testing.T) {
 		t.Fatalf("Failed to create storage FeeMarket: %v", err)
 	}
 
-	config, found := fm.GetActiveConfig(common.HexToAddress("0x1234"), stateDB)
+	config, _, found := fm.GetActiveConfig(common.HexToAddress("0x1234"), stateDB)
 	if !found {
 		t.Fatal("Config not found")
 	}
@@ -483,9 +490,12 @@ func TestReadRewardsEdgeCases(t *testing.T) {
 
 	// Test empty rewards array
 	rewardsLengthSlot := common.Hash{1}
-	rewards := readRewards(configurationContractAddr, rewardsLengthSlot, 0, stateDB)
+	rewards, gas := readRewards(configurationContractAddr, rewardsLengthSlot, 0, stateDB)
 	if len(rewards) != 0 {
 		t.Errorf("Expected empty rewards array, got length %d", len(rewards))
+	}
+	if gas != 0 {
+		t.Fatalf("Expected gas %d, got %d", 0, gas)
 	}
 
 	// Test rewards with max values
@@ -498,9 +508,13 @@ func TestReadRewardsEdgeCases(t *testing.T) {
 	rewardSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
 	stateDB.storage[rewardSlot] = common.BytesToHash(packedData)
 
-	rewards = readRewards(configurationContractAddr, rewardsLengthSlot, 1, stateDB)
+	rewards, gas = readRewards(configurationContractAddr, rewardsLengthSlot, 1, stateDB)
 	if len(rewards) != 1 {
 		t.Fatalf("Expected 1 reward, got %d", len(rewards))
+	}
+	expectedGas := uint64(len(rewards)) * params.FeeMarketSloadGas
+	if gas != expectedGas {
+		t.Fatalf("Expected gas %d, got %d", expectedGas, gas)
 	}
 	if rewards[0].RewardAddress != rewardAddr {
 		t.Errorf("Expected reward address %s, got %s", rewardAddr.Hex(), rewards[0].RewardAddress.Hex())
