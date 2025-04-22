@@ -383,12 +383,10 @@ const (
 	// GasChangeCallFailedExecution is the burning of the remaining gas when the execution failed without a revert.
 	GasChangeCallFailedExecution GasChangeReason = 14
 
-	// GasChangeFeeMarketComputationalGas is the computational gas used for distributing the fee market rewards.
-	GasChangeFeeMarketComputationalGas GasChangeReason = 180
 	// GasChangeFeeMarketDistributedGas is the gas distributed as fee market rewards.
-	GasChangeFeeMarketDistributedGas GasChangeReason = 181
+	GasChangeFeeMarketDistributedGas GasChangeReason = 180
 	// GasChangeFeeMarketDistributedGasRefunded is the refunded gas to the user on failed transaction for the fee market reward.
-	GasChangeFeeMarketDistributedGasRefunded GasChangeReason = 182
+	GasChangeFeeMarketDistributedGasRefunded GasChangeReason = 181
 
 	// GasChangeIgnored is a special value that can be used to indicate that the gas change should be ignored as
 	// it will be "manually" tracked by a direct emit of the gas change event.

@@ -444,9 +444,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1, tracing.NonceChangeEoACall)
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, value)
-
-		// TODO(ziogaschr): don't add FeeMarketRewardGas for system contracts calls?
-		// TODO(ziogaschr): skip the logic for EOA-to-EOA
 	}
 
 	effectiveTip := msg.GasPrice
@@ -457,13 +454,18 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	// Keep track of the distributed amounts in order to remove it from the validator fee
 	distributedAmount := uint256.NewInt(0)
+
+	// TODO: get in even with vmerr to return the distributed gas to the user? is remainingGas=0?
+
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
 	if vmerr == nil && st.evm.ChainConfig().Satoshi != nil {
-		snapshot := st.state.Snapshot()
+		// Keep track of the computational gas for fees distributions, instead of subtracting it from the gas remaining
+		// so as on error we can return as much as possible distributed fees to the user.
 		feeMarketComputationalGas := uint64(0)
 		distributedGas := uint64(0)
 
+		// TODO: collect the logs even with error to distribute the amount back to user on failure
 		// Check if is a contract call
 		if contractCreation || (msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0) {
 			// Get tx logs. Only tx hash is used to get logs, the blockNumber and blockHash
@@ -474,152 +476,180 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 			if len(logs) > 0 && fm != nil {
 				feeMarketDenominator := feemarket.DENOMINATOR
-				if feeMarketDenominator > 0 {
-					for _, eventLog := range logs {
-						if eventLog.Removed {
-							continue
-						}
 
-						// Check if is a precompile
-						if isPrecompile := slices.Contains(vm.ActivePrecompiles(rules), eventLog.Address); isPrecompile {
-							continue
-						}
-						// TODO: check for our built-in precompiles
+				// Cache of the configs for this transaction only, we consider that only our governance contract can add/update/remove
+				// configs and for this reason we don't need to check and invalidate for config changes.
+				configs := make(map[common.Address]types.FeeMarketConfig)
 
-						// Get configuration from fee market
-						config, configReadGas, found := fm.GetActiveConfig(eventLog.Address, st.state)
+				// Map of the addresses to the distributed amounts to apply after we pass the gas calculations
+				distributionMap := make(map[common.Address]*uint256.Int)
 
-						// Remove gas for Sload of the config from storage
-						// st.gasRemaining -= configReadGas
-						feeMarketComputationalGas += configReadGas
+				for _, eventLog := range logs {
+					if eventLog.Removed {
+						continue
+					}
+
+					// Check if is a precompile
+					if isPrecompile := slices.Contains(vm.ActivePrecompiles(rules), eventLog.Address); isPrecompile {
+						continue
+					}
+					// TODO: check for our built-in precompiles
+
+					// Get configuration from the fee market
+					config, foundInCache := configs[eventLog.Address]
+					if !foundInCache {
+						freshConfig, configReadGas, found := fm.GetActiveConfig(eventLog.Address, st.state)
 						if !found {
 							continue
 						}
 
-						var feeMarketEvent types.FeeMarketEvent
-						for _, event := range config.Events {
-							if event.EventSignature == eventLog.Topics[0] {
-								feeMarketEvent = event
-								break
-							}
+						config = freshConfig
+
+						// Cache the config
+						configs[eventLog.Address] = config
+
+						// Add the computational gas for reading the config from storage
+						feeMarketComputationalGas += configReadGas
+					}
+
+					var feeMarketEvent types.FeeMarketEvent
+					for _, event := range config.Events {
+						if event.EventSignature == eventLog.Topics[0] {
+							feeMarketEvent = event
+							break
 						}
-						if len(feeMarketEvent.Rewards) == 0 {
+					}
+					if len(feeMarketEvent.Rewards) == 0 {
+						continue
+					}
+
+					// Special handling for Transfer event, we skip distributing rewards for zero value transfers
+					if eventLog.Topics[0] == crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)")) {
+						transferedAmount := new(uint256.Int).SetBytes(eventLog.Data[len(eventLog.Data)-32:])
+						if transferedAmount.IsZero() {
 							continue
 						}
+					}
 
-						// Special handling for Transfer event, we skip distributing rewards for zero value transfers
-						if eventLog.Topics[0] == crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)")) {
-							transferedAmount := new(uint256.Int).SetBytes(eventLog.Data[len(eventLog.Data)-32:])
-							if transferedAmount.IsZero() {
-								continue
-							}
-						}
+					for _, reward := range feeMarketEvent.Rewards {
+						// Gas to reward for this specific address
+						rewardGas := (uint64(feeMarketEvent.Gas) * uint64(reward.RewardPercentage)) / uint64(feeMarketDenominator)
 
-						for _, reward := range feeMarketEvent.Rewards {
-							// Gas to reward for this specific address
-							rewardGas := (uint64(feeMarketEvent.Gas) * uint64(reward.RewardPercentage)) / uint64(feeMarketDenominator)
-							// Reward amount for this specific address
-							rewardAmount := new(uint256.Int).SetUint64(rewardGas)
-							rewardAmount.Mul(rewardAmount, effectiveTipU256)
-							st.state.AddBalance(reward.RewardAddress, rewardAmount, tracing.BalanceIncreaseFeeMarketReward)
+						// Add the pumped gas for the actual fees
+						distributedGas += rewardGas
 
-							// Keep track of the distributed amounts in order to remove it from the validator fee
-							distributedAmount.Add(distributedAmount, rewardAmount)
+						if distributionMap[reward.RewardAddress] == nil {
+							// Initialize the distribution amount for this address
+							distributionMap[reward.RewardAddress] = uint256.NewInt(0)
 
-							// Add the computational gas for fees distributions for the AddBalance call
+							// Add the computational gas for fees distributions for the single AddBalance call per address.
+							// We keep track for this gas here and not where the AddBalance is called so as to precheck
+							// if we have enough gasRemaining for transaction to succeed.
 							feeMarketComputationalGas += params.FeeMarketDistributeGas
+						}
 
-							// Add the pumped gas for the actual fees
-							distributedGas += rewardGas
+						// Add the reward amount for this specific address
+						rewardAmount := new(uint256.Int).SetUint64(rewardGas)
+						rewardAmount.Mul(rewardAmount, effectiveTipU256)
+						distributionMap[reward.RewardAddress].Add(distributionMap[reward.RewardAddress], rewardAmount)
+
+						// Keep track of the distributed amounts in order to validate for MaxFeeMarketRewardFeesCapPerTx and remove it from the validator fees
+						distributedAmount.Add(distributedAmount, rewardAmount)
+					}
+
+					// We break the loop, in order to disallow DDoS attacks,
+					// if we don't have enough gas to distribute the fees
+					if st.gasRemaining < distributedGas+feeMarketComputationalGas ||
+						// or if the gas distributed is too high
+						distributedGas > params.MaxFeeMarketRewardGasCapPerTx ||
+						// or if the fees distributed is too high
+						distributedAmount.Cmp(new(uint256.Int).SetUint64(params.MaxFeeMarketRewardFeesCapPerTx)) > 0 {
+						break
+					}
+				}
+
+				// Mark trancation as failed with error
+				// Check if we don't have enough gas to distribute the fees
+				if st.gasRemaining < distributedGas+feeMarketComputationalGas {
+					vmerr = fmt.Errorf("%w: required gas %d", ErrFeeMarketOutOfGas, st.gasUsed()+distributedGas+feeMarketComputationalGas)
+				}
+
+				// Check if it reached the fee market protocol hard caps
+				if distributedGas > params.MaxFeeMarketRewardGasCapPerTx {
+					vmerr = ErrFeeMarketRewardGasCapVeryHigh
+					// Set amount of gas to be refunded to the user
+					distributedGas = params.MaxFeeMarketRewardGasCapPerTx
+				} else if distributedAmount.Cmp(new(uint256.Int).SetUint64(params.MaxFeeMarketRewardFeesCapPerTx)) > 0 {
+					vmerr = ErrFeeMarketRewardFeesCapVeryHigh
+					// Set amount of gas to be refunded to the user
+					// TODO: we have precision loss here, as we try to translate amount back to gas. Shall we handle it?
+					distributedGasFloat, _ := new(big.Float).Quo(new(big.Float).SetUint64(params.MaxFeeMarketRewardFeesCapPerTx), big.NewFloat(effectiveTipU256.Float64())).Float64()
+					distributedGas = uint64(distributedGasFloat)
+				}
+
+				// This is the final available distributed gas to be refunded to the user and returned to the block gas counter, it's copied here as it might be modified on error logic.
+				availableDistributedGas := distributedGas
+
+				// If no error, remove the distributed gas and computational gas from the gas remaining
+				if vmerr == nil {
+					// Remove the computational gas for fees distributions, no need to add a gas reason with hooks
+					st.gasRemaining -= feeMarketComputationalGas
+
+					if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && distributedGas > 0 {
+						st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-distributedGas, tracing.GasChangeFeeMarketDistributedGas)
+					}
+
+					// Remove the distributed gas for fees distributions (this is the pumped gas for the fees)
+					st.gasRemaining -= distributedGas
+
+					for address, amount := range distributionMap {
+						if amount.Sign() > 0 {
+							st.state.AddBalance(address, amount, tracing.BalanceIncreaseFeeMarketReward)
+
+							feesInGWei, _ := new(big.Float).Quo(new(big.Float).SetInt(amount.ToBig()), big.NewFloat(params.GWei)).Float64()
+							log.Debug("FeeMarket distributed fees", "txHash", st.evm.StateDB.TxHash(), "address", address.Hex(), "feesInGWei", feesInGWei)
 						}
 					}
 
-					if st.gasRemaining < distributedGas+feeMarketComputationalGas {
-						// Mark transaction as failed
-						vmerr = fmt.Errorf("%w: required gas %d", ErrFeeMarketOutOfGas, st.gasUsed()+distributedGas+feeMarketComputationalGas)
-					}
+					// On error, revert the state
+				} else {
+					// Reset it here, to make clear our intention
+					distributedAmount = uint256.NewInt(0)
 
-					// Add some hard caps to the fee market rewards
-					if distributedGas > params.MaxFeeMarketRewardGasCapPerTx {
-						vmerr = ErrFeeMarketRewardGasCapVeryHigh
-					} else if distributedAmount.Cmp(new(uint256.Int).SetUint64(params.MaxFeeMarketRewardFeesCapPerTx)) > 0 {
-						vmerr = ErrFeeMarketRewardFeesCapVeryHigh
-					}
-
-					// This is the final available distributed gas to be refunded to the user and returned to the block gas counter, it's copied here as it might be modified on error logic.
-					availableDistributedGas := distributedGas
-
-					// If no error, remove the distributed gas and computational gas from the gas remaining
-					if vmerr == nil {
-						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && feeMarketComputationalGas > 0 {
-							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-feeMarketComputationalGas, tracing.GasChangeFeeMarketComputationalGas)
-						}
-
-						// Remove the computational gas for fees distributions
-						st.gasRemaining -= feeMarketComputationalGas
-
-						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && distributedGas > 0 {
-							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-distributedGas, tracing.GasChangeFeeMarketDistributedGas)
-						}
-
-						// Remove the distributed gas for fees distributions (this is the pumped gas for the fees)
-						st.gasRemaining -= distributedGas
-
-						feesInGWei, _ := new(big.Float).Quo(new(big.Float).SetInt(distributedAmount.ToBig()), big.NewFloat(params.GWei)).Float64()
-						log.Debug("FeeMarket distributed fees", "txHash", st.evm.StateDB.TxHash(), "feesInGWei", feesInGWei)
-
-						// On error, revert the state
-					} else {
-						// Using NoBaseFee as estimation indicator
-						isEstimate := st.evm.Config.NoBaseFee
-						if isEstimate && st.evm.Config.Tracer == nil {
-							return nil, vmerr // Return error for eth_estimateGas
-						}
-
-						// Revert the state in case of error in the fee market distributions
-						// IMPORTANT: keep this above any state changes that we want to persisted, like the distributed fees refund to the user.
-						st.state.RevertToSnapshot(snapshot)
-
-						// Reset it here, to make clear our intention
-						distributedAmount = uint256.NewInt(0)
-
-						// Return ETH for distributed gas to the user, exchanged at the original rate.
-						if distributedGas > 0 && distributedGas < st.initialGas {
-							if st.gasRemaining < distributedGas {
-								availableDistributedGas = st.gasRemaining
-							}
-
-							if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
-								st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-availableDistributedGas, tracing.GasChangeFeeMarketDistributedGasRefunded)
-							}
-
-							// Remove the distributed gas as it will be refunded back to the user
-							st.gasRemaining -= availableDistributedGas
-
-							// TODO(ziogaschr): verify this is applied and is not affected by the RevertToSnapshot() outer call.
-							// Add the distributed gas to the user's balance.
-							// IMPORTANT: keep this after the RevertToSnapshot() call.
-							availableDistributeAmountU256 := uint256.NewInt(availableDistributedGas)
-							availableDistributeAmountU256 = availableDistributeAmountU256.Mul(availableDistributeAmountU256, uint256.MustFromBig(st.msg.GasPrice))
-							st.state.AddBalance(st.msg.From, availableDistributeAmountU256, tracing.BalanceIncreaseFeeMarketGasReturnOnFailure)
-
-							// Keep track of the distributed amount given back to the user in order to remove it from the validator fee
-							distributedAmount = availableDistributeAmountU256
+					// Return ETH for distributed gas to the user, exchanged at the original rate.
+					if distributedGas > 0 && distributedGas < st.initialGas {
+						if st.gasRemaining < distributedGas {
+							availableDistributedGas = st.gasRemaining
 						}
 
 						if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
-							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, 0, tracing.GasChangeCallFailedExecution)
+							st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-availableDistributedGas, tracing.GasChangeFeeMarketDistributedGasRefunded)
 						}
 
-						// For consensus flow, consume all remaining gas
-						st.gasRemaining = 0
+						// Remove the distributed gas as it will be refunded back to the user
+						st.gasRemaining -= availableDistributedGas
+
+						// Add the distributed gas to the user's balance.
+						availableDistributedAmountU256 := uint256.NewInt(availableDistributedGas)
+						availableDistributedAmountU256 = availableDistributedAmountU256.Mul(availableDistributedAmountU256, uint256.MustFromBig(st.msg.GasPrice))
+						st.state.AddBalance(st.msg.From, availableDistributedAmountU256, tracing.BalanceIncreaseFeeMarketGasReturnOnFailure)
+
+						// Keep track of the distributed amount given back to the user in order to remove it from the validator fee
+						distributedAmount = availableDistributedAmountU256
 					}
 
-					// Also return distributed gas to the block gas counter so it is
-					// available for the next transaction.
-					if availableDistributedGas > 0 {
-						st.gp.AddGas(availableDistributedGas)
+					if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil {
+						st.evm.Config.Tracer.OnGasChange(st.gasRemaining, 0, tracing.GasChangeCallFailedExecution)
 					}
+
+					// For consensus flow, consume all remaining gas
+					st.gasRemaining = 0
+				}
+
+				// Also return distributed gas to the block gas counter so it is
+				// available for the next transaction.
+				if availableDistributedGas > 0 {
+					st.gp.AddGas(availableDistributedGas)
 				}
 			}
 		}
