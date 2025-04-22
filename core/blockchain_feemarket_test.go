@@ -18,12 +18,12 @@ package core
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -102,19 +102,19 @@ func addFeeMarketTestContract(t testing.TB, nonce uint64, gasPrice *big.Int, cha
 				emit Transfer(msg.sender, 0x0000000000000000000000000000000000000002, 0);
 			}
 
-			function eventsEmitter(uint32 num) public {
-				for (uint32 i = 0; i < num; i++) {
-					increment();
+			function eventsEmitter(uint256 num) public {
+				for (uint256 i = 0; i < num; i++) {
+					emit Increment(i);
 				}
 			}
 		}
 	*/
-	counterBIN := common.Hex2Bytes("608060405234801561001057600080fd5b50610306806100206000396000f3fe608060405234801561001057600080fd5b506004361061007d5760003560e01c8063a0712d681161005b578063a0712d68146100c5578063a50ed97e146100d8578063d09de08a146100e0578063e1c7392a146100e857600080fd5b806312514bba14610082578063599e96d1146100975780638381f58a146100aa575b600080fd5b610095610090366004610238565b6100f2565b005b6100956100a5366004610250565b610137565b6100b360005481565b60405190815260200160405180910390f35b6100956100d3366004610238565b61016c565b6100956101aa565b6100956101f1565b610095600a600055565b60408051338152600160208201529081018290527fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef906060015b60405180910390a150565b60005b8163ffffffff168163ffffffff161015610168576101566101f1565b8061016081610296565b91505061013a565b5050565b60408051600081523360208201529081018290527fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef9060600161012c565b60408051338152600260208201526000918101919091527fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef906060015b60405180910390a1565b6000805490806102008361027b565b91905055507f51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a816000546040516101e791815260200190565b600060208284031215610249578081fd5b5035919050565b600060208284031215610261578081fd5b813563ffffffff81168114610274578182fd5b9392505050565b600060001982141561028f5761028f6102ba565b5060010190565b600063ffffffff808316818114156102b0576102b06102ba565b6001019392505050565b634e487b7160e01b600052601160045260246000fdfea2646970667358221220680e1f4264f6b4e720cbfbccece1f65206a21604ff7f61664fd013c9f5884bab64736f6c63430008040033")
+	counterBIN := common.Hex2Bytes("608060405234801561001057600080fd5b506102cc806100206000396000f3fe608060405234801561001057600080fd5b506004361061007d5760003560e01c8063a50ed97e1161005b578063a50ed97e146100c5578063d09de08a146100cd578063e1c7392a146100d5578063f00543ea146100df57600080fd5b806312514bba146100825780638381f58a14610097578063a0712d68146100b2575b600080fd5b610095610090366004610257565b6100f2565b005b6100a060005481565b60405190815260200160405180910390f35b6100956100c0366004610257565b610137565b610095610175565b6100956101bc565b610095600a600055565b6100956100ed366004610257565b610203565b60408051338152600160208201529081018290527fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef906060015b60405180910390a150565b60408051600081523360208201529081018290527fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef9060600161012c565b60408051338152600260208201526000918101919091527fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef906060015b60405180910390a1565b6000805490806101cb8361026f565b91905055507f51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a816000546040516101b291815260200190565b60005b81811015610253576040518181527f51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a819060200160405180910390a18061024b8161026f565b915050610206565b5050565b600060208284031215610268578081fd5b5035919050565b600060001982141561028f57634e487b7160e01b81526011600452602481fd5b506001019056fea26469706673582212206c14e484a2aec35ba3082c32b95e0f74970c58e688885b8eba7f9ec131e9abc664736f6c63430008040033")
 	// Deploy counter contract
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
-		Gas:      220_500,
+		Gas:      250_000,
 		Data:     counterBIN,
 	})
 	b.AddTxWithChain(chain, tx)
@@ -214,10 +214,11 @@ func createContractCallData(name string, value interface{}) []byte {
 // addFeeMarketContractCall Call a contract
 func addFeeMarketContractCall(t testing.TB, contractAddress common.Address, data []byte, nonce uint64, specificGasLimit *uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
 	// fmt.Println("data:", common.Bytes2Hex(data))
-	// func					| funcSig 	| initialGas 	| Gas
-	// increment		| 3fb5c1cb	| 59616 			| 42516
-	// transfer			| ddf252ad	| 23299 			| 16000
-	// zeroTransfer | a50ed97e	|							| 47147
+	// func						| funcSig 	| initialGas 	| Gas
+	// increment			| 3fb5c1cb	| 59616 			| 42516
+	// transfer				| ddf252ad	| 23299 			| 16000
+	// zeroTransfer		| a50ed97e	|							| 47147
+	// eventsEmitter	| 90d6510c	|							| 40000000
 	gas := uint64(160_000)
 	if specificGasLimit != nil {
 		gas = *specificGasLimit
@@ -605,6 +606,7 @@ func TestFeeMarketZeroTransfer(t *testing.T) {
 func TestFeeMarketOutOfGasForComputationalGas(t *testing.T) {
 	var counterContractAddress common.Address
 	rewardRecipient := common.HexToAddress("0x123")
+	// The important part of this test is that we reduce the Tx gas so as it has enough gas to distribute the fees but not for paying the computational gas
 	failureTxGas := uint64(58900)
 
 	createGenFn := func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
@@ -664,6 +666,141 @@ func TestFeeMarketOutOfGasForComputationalGas(t *testing.T) {
 
 // TestFeeMarketOutOfGasForDistributionGas tests that on TX failure because of out of gas the remaining reward fees are distributed to the user
 func TestFeeMarketOutOfGasForDistributionGas(t *testing.T) {
+}
+
+// TestFeeMarketMultipleEventsInTx tests functionality when multiple events are emitted in a single tx
+func TestFeeMarketMultipleEventsInTx(t *testing.T) {
+	var counterContractAddress common.Address
+	rewardRecipient := common.HexToAddress("0x123")
+
+	createGenFn := func(eventsToEmitted uint64, callGasPrice *big.Int) func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
+		return func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
+			return func(i int, gen *BlockGen) {
+				signer := types.LatestSigner(config)
+				fee := big.NewInt(1)
+				gen.SetCoinbase(common.Address{1})
+
+				if i == 0 {
+					_, counterContractAddress = addFeeMarketTestContract(t, gen.TxNonce(testAddr), fee, chain, gen, signer)
+
+					// Add configuration for the deployed contract
+					addFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, rewardRecipient, gen.TxNonce(testAddr), fee, chain, gen, signer)
+				}
+
+				if i == 1 {
+					// Call contract
+					callData := createContractCallData("eventsEmitter(uint256)", new(big.Int).SetUint64(eventsToEmitted))
+					txGas := uint64(40_000_000)
+					addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), &txGas, callGasPrice, chain, gen, signer)
+				}
+			}
+		}
+	}
+
+	chainTesterFn := func(subTesterFn func(receipt *types.Receipt, preSenderBalance *uint256.Int, stateDB vm.StateDB)) func(chain *BlockChain, blocks []*types.Block) {
+		return func(chain *BlockChain, blocks []*types.Block) {
+			// Get balance before calling the contract that distributes the fees
+			stateDB, _ := chain.StateAt(blocks[0].Root())
+			preBalance := stateDB.GetBalance(testAddr)
+
+			// Parse last block with the contract that distributes the fees
+			stateDB, err := chain.State()
+			if err != nil {
+				t.Fatalf("failed to get state: %v", err)
+			}
+
+			block := blocks[len(blocks)-1]
+			receipts := chain.GetReceiptsByHash(block.Hash())
+			receipt := receipts[0]
+			fmt.Println("receipt:", receipt.GasUsed)
+
+			subTesterFn(receipt, preBalance, stateDB)
+		}
+	}
+
+	testCases := []struct {
+		name     string
+		createFn func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen)
+		testerFn func(chain *BlockChain, blocks []*types.Block)
+	}{
+		{
+			name:     "Pass",
+			createFn: createGenFn(2000, big.NewInt(1)),
+			testerFn: chainTesterFn(func(receipt *types.Receipt, preSenderBalance *uint256.Int, stateDB vm.StateDB) {
+				if receipt.Status == types.ReceiptStatusFailed {
+					t.Errorf("transaction should pass")
+				}
+
+				// Expected amount of gas rewarded to the recipient
+				// - increment() event is configured to distribute 10000 gas per event
+				// - 2000 events are emitted
+				expectedAmountReceived := uint64(10000) * 2000
+
+				// Check if the recipient received the correct amount of fees
+				recipientBalance := stateDB.GetBalance(rewardRecipient)
+				if recipientBalance.Uint64() != expectedAmountReceived {
+					t.Errorf("recipient balance %d is different than expected %d", recipientBalance.Uint64(), expectedAmountReceived)
+				}
+			}),
+		},
+		{
+			name:     "FailOn_MaxFeeMarketRewardGasCapPerTx",
+			createFn: createGenFn(2100, big.NewInt(1)),
+			testerFn: chainTesterFn(func(receipt *types.Receipt, preSenderBalance *uint256.Int, stateDB vm.StateDB) {
+				if receipt.Status != types.ReceiptStatusFailed {
+					t.Errorf("transaction should fail because of out of gas")
+				}
+
+				postBalance := stateDB.GetBalance(testAddr)
+				balanceDiff := preSenderBalance.Uint64() - postBalance.Uint64()
+				if balanceDiff < params.MaxFeeMarketRewardGasCapPerTx {
+					t.Errorf("balance diff %d should be lower than MaxFeeMarketRewardGasCapPerTx (%d)", balanceDiff, params.MaxFeeMarketRewardGasCapPerTx)
+				}
+
+				validatorBalance := stateDB.GetBalance(params.SystemAddress)
+				// Compare balance to gasUsed as fees are 1 wei per gas
+				if validatorBalance.Uint64() >= receipt.GasUsed || validatorBalance.Uint64() < params.MaxFeeMarketRewardGasCapPerTx {
+					t.Errorf("validator balance %d should be more than MaxFeeMarketRewardGasCapPerTx and less than gasUsed (%d)", validatorBalance.Uint64(), receipt.GasUsed)
+				}
+
+				recipientBalance := stateDB.GetBalance(rewardRecipient)
+				if recipientBalance.Sign() != 0 {
+					t.Errorf("recipient balance %d should be zero", recipientBalance.Uint64())
+				}
+			}),
+		},
+		{
+			name: "FailOn_MaxFeeMarketRewardFeesCapPerTx",
+			// This test sets a high gas price to trigger the MaxFeeMarketRewardFeesCapPerTx
+			createFn: createGenFn(2100, big.NewInt(31_000_000_000)),
+			testerFn: chainTesterFn(func(receipt *types.Receipt, preSenderBalance *uint256.Int, stateDB vm.StateDB) {
+				if receipt.Status != types.ReceiptStatusFailed {
+					t.Errorf("transaction should fail because of out of gas")
+				}
+				postBalance := stateDB.GetBalance(testAddr)
+				balanceDiff := preSenderBalance.Uint64() - postBalance.Uint64()
+				if balanceDiff < params.MaxFeeMarketRewardFeesCapPerTx {
+					t.Errorf("balance diff %d should be lower than MaxFeeMarketRewardFeesCapPerTx (%d)", balanceDiff, params.MaxFeeMarketRewardFeesCapPerTx)
+				}
+
+				validatorBalance := stateDB.GetBalance(params.SystemAddress)
+				if validatorBalance.Uint64() >= receipt.GasUsed*31_000_000_000 || validatorBalance.Uint64() < params.MaxFeeMarketRewardGasCapPerTx {
+					t.Errorf("validator balance %d should be more than MaxFeeMarketRewardGasCapPerTx and less than gasUsed (%d)", validatorBalance.Uint64(), receipt.GasUsed)
+				}
+
+				recipientBalance := stateDB.GetBalance(rewardRecipient)
+				if recipientBalance.Sign() != 0 {
+					t.Errorf("recipient balance %d should be zero", recipientBalance.Uint64())
+				}
+			}),
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			testFeeMarketBlock(t, 50_000_000, 2, testCase.createFn, testCase.testerFn)
+		})
+	}
 }
 
 // testFeeMarketBlock is a helper function to test the fee market
