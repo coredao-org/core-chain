@@ -3520,6 +3520,7 @@ func preShanghaiConfig() *params.ChainConfig {
 	config.KeplerTime = nil
 	config.DemeterTime = nil
 	config.AthenaTime = nil
+	config.TheseusTime = nil
 	config.CancunTime = nil
 	return &config
 }

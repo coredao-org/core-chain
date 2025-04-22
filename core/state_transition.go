@@ -458,11 +458,13 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	// TODO: get in even with vmerr to return the distributed gas to the user? is remainingGas=0?
 
+	// The distributed gas is the gas that is distributed to the fee market reward recipients
 	distributedGas := uint64(0)
 
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
-	if vmerr == nil && st.evm.ChainConfig().Satoshi != nil {
+	isTheseus := st.evm.ChainConfig().IsTheseus(st.evm.Context.BlockNumber, st.evm.Context.Time)
+	if vmerr == nil && st.evm.ChainConfig().Satoshi != nil && isTheseus {
 		// Keep track of the computational gas for fees distributions, instead of subtracting it from the gas remaining
 		// so as on error we can return as much as possible distributed fees to the user.
 		feeMarketComputationalGas := uint64(0)

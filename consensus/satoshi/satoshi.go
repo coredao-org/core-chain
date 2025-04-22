@@ -939,15 +939,17 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 		return nil, nil, err
 	}
 
-	// Remove any fee market distributed gas from the block gas limit check
-	distributedGas := uint64(0)
-	for _, receipt := range receipts {
-		distributedGas += receipt.DistributedGas
-	}
-
 	actualGasUsed := header.GasUsed
-	if header.GasUsed > distributedGas {
-		actualGasUsed -= distributedGas
+
+	// Remove any fee market distributed gas from the block gas limit check
+	if chain.Config().IsTheseus(header.Number, header.Time) {
+		distributedGas := uint64(0)
+		for _, receipt := range receipts {
+			distributedGas += receipt.DistributedGas
+		}
+		if header.GasUsed > distributedGas {
+			actualGasUsed -= distributedGas
+		}
 	}
 
 	// should not happen. Once happen, stop the node is better than broadcast the block
