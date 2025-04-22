@@ -904,7 +904,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		}
 		vmRet, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.GasLimit))
 		if vmConf.Tracer.OnTxEnd != nil {
-			vmConf.Tracer.OnTxEnd(&types.Receipt{GasUsed: vmRet.UsedGas}, err)
+			vmConf.Tracer.OnTxEnd(&types.Receipt{GasUsed: vmRet.UsedGas, DistributedGas: vmRet.DistributedGas}, err)
 		}
 		if writer != nil {
 			writer.Flush()

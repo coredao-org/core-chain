@@ -39,10 +39,11 @@ import (
 // ExecutionResult includes all output after executing given evm
 // message no matter the execution itself is successful or not.
 type ExecutionResult struct {
-	UsedGas     uint64 // Total used gas, not including the refunded gas
-	RefundedGas uint64 // Total gas refunded after execution
-	Err         error  // Any error encountered during the execution(listed in core/vm/errors.go)
-	ReturnData  []byte // Returned data from evm(function result or data supplied with revert opcode)
+	UsedGas        uint64 // Total used gas, not including the refunded gas
+	DistributedGas uint64 // Total gas distributed to the recipients
+	RefundedGas    uint64 // Total gas refunded after execution
+	Err            error  // Any error encountered during the execution(listed in core/vm/errors.go)
+	ReturnData     []byte // Returned data from evm(function result or data supplied with revert opcode)
 }
 
 // Unwrap returns the internal evm error which allows us for further
@@ -457,13 +458,14 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	// TODO: get in even with vmerr to return the distributed gas to the user? is remainingGas=0?
 
+	distributedGas := uint64(0)
+
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
 	if vmerr == nil && st.evm.ChainConfig().Satoshi != nil {
 		// Keep track of the computational gas for fees distributions, instead of subtracting it from the gas remaining
 		// so as on error we can return as much as possible distributed fees to the user.
 		feeMarketComputationalGas := uint64(0)
-		distributedGas := uint64(0)
 
 		// TODO: collect the logs even with error to distribute the amount back to user on failure
 		// Check if is a contract call
@@ -690,10 +692,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	return &ExecutionResult{
-		UsedGas:     st.gasUsed(),
-		RefundedGas: gasRefund,
-		Err:         vmerr,
-		ReturnData:  ret,
+		UsedGas:        st.gasUsed(),
+		DistributedGas: distributedGas,
+		RefundedGas:    gasRefund,
+		Err:            vmerr,
+		ReturnData:     ret,
 	}, nil
 }
 

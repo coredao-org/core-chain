@@ -938,10 +938,22 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// Remove any fee market distributed gas from the block gas limit check
+	distributedGas := uint64(0)
+	for _, receipt := range receipts {
+		distributedGas += receipt.DistributedGas
+	}
+
+	actualGasUsed := header.GasUsed
+	if header.GasUsed > distributedGas {
+		actualGasUsed -= distributedGas
+	}
+
 	// should not happen. Once happen, stop the node is better than broadcast the block
-	// if header.GasLimit < header.GasUsed {
-	// 	return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
-	// }
+	if header.GasLimit < actualGasUsed {
+		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
+	}
 	header.UncleHash = types.CalcUncleHash(nil)
 	var blk *types.Block
 	var rootHash common.Hash
