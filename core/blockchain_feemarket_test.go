@@ -902,6 +902,48 @@ func BenchmarkFeeMarketFullBlock(b *testing.B) {
 	})
 }
 
+// BenchmarkFeeMarketMultipleEventsInASingleTx is a benchmark ...
+func BenchmarkFeeMarketMultipleEventsInASingleTx(b *testing.B) {
+	b.StopTimer()
+	b.ResetTimer()
+
+	blockGasLimit := uint64(50_000_000)
+	rewardRecipient := common.HexToAddress("0x123")
+	var counterContractAddress common.Address
+
+	createGenFn := func(withConfig bool) func(*params.ChainConfig, *BlockChain, common.Address) func(int, *BlockGen) {
+		return func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
+			return func(i int, gen *BlockGen) {
+				signer := types.LatestSigner(config)
+				fee := big.NewInt(1)
+				gen.SetCoinbase(common.Address{1})
+
+				if i == 0 {
+					_, counterContractAddress = addFeeMarketTestContract(b, gen.TxNonce(testAddr), fee, chain, gen, signer)
+
+					// Add configuration for the deployed contract
+					addFeeMarketConfigurationTx(b, feeMarketAddress, counterContractAddress, rewardRecipient, gen.TxNonce(testAddr), fee, chain, gen, signer)
+				}
+
+				if i == 1 {
+					// Call contract
+					callData := createContractCallData("eventsEmitter(uint256)", big.NewInt(2000))
+					txGas := uint64(40_000_000)
+					addFeeMarketContractCall(b, counterContractAddress, callData, gen.TxNonce(testAddr), &txGas, fee, chain, gen, signer)
+				}
+			}
+		}
+	}
+
+	b.Run("WithConfiguration", func(b *testing.B) {
+		benchmarkFeeMarketBlock(b, blockGasLimit, 2, createGenFn(true))
+	})
+
+	b.Run("WithoutConfiguration", func(b *testing.B) {
+		benchmarkFeeMarketBlock(b, blockGasLimit, 2, createGenFn(false))
+	})
+}
+
 // benchmarkFeeMarketBlock is a helper function to benchmark the fee market
 func benchmarkFeeMarketBlock(b *testing.B, gasLimit uint64, numberOfBlocks int, genFn func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(i int, gen *BlockGen)) {
 	config := params.SatoshiTestChainConfig
