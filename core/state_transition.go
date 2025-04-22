@@ -475,6 +475,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			if len(logs) > 0 && fm != nil {
 				feeMarketDenominator := feemarket.DENOMINATOR
 				if feeMarketDenominator > 0 {
+					notFoundMap := make(map[common.Address]bool)
 					for _, eventLog := range logs {
 						if eventLog.Removed {
 							continue
@@ -487,12 +488,16 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						// TODO: check for our built-in precompiles
 
 						// Get configuration from fee market
+						if isNotFound, exists := notFoundMap[eventLog.Address]; exists && isNotFound {
+							continue
+						}
 						config, configReadGas, found := fm.GetActiveConfig(eventLog.Address, st.state)
 
 						// Remove gas for Sload of the config from storage
 						// st.gasRemaining -= configReadGas
 						feeMarketComputationalGas += configReadGas
 						if !found {
+							notFoundMap[eventLog.Address] = true
 							continue
 						}
 
