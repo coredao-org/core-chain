@@ -46,13 +46,13 @@ func (fm *FeeMarket) GetConstants(state StateReader) types.FeeMarketConstants {
 	constantsBytes := state.GetState(fm.contractAddress, constantsSlot)
 
 	maxGas := binary.BigEndian.Uint32(constantsBytes[24:28])
-	maxEvents := uint8(constantsBytes[29])
-	maxRewards := uint8(constantsBytes[30])
+	maxEvents := constantsBytes[29]
+	maxRewards := constantsBytes[30]
 
 	return types.FeeMarketConstants{
 		MaxRewards: maxRewards,
 		MaxEvents:  maxEvents,
-		MaxGas:     uint32(maxGas),
+		MaxGas:     maxGas,
 	}
 }
 

@@ -39,7 +39,6 @@ import (
 )
 
 func getFeeMarketGenesisAlloc(maxRewards, maxEvents uint8, maxGas uint32) (accountAddress common.Address, account types.Account) {
-
 	constantsBytes := make([]byte, 32)
 	binary.BigEndian.PutUint32(constantsBytes[24:28], maxGas)
 	constantsBytes[29] = maxEvents
@@ -664,7 +663,7 @@ func TestFeeMarketOutOfGasForComputationalGas(t *testing.T) {
 			t.Errorf("validator balance diff %d is different than user paid %d (amount received)", validatorBalance.Uint64(), receipt.GasUsed-distributedAmount)
 		}
 
-		// Transation is failed, so recipient should not receive any fees
+		// Transaction is failed, so recipient should not receive any fees
 		recipientBalance := stateDB.GetBalance(rewardRecipient)
 		if recipientBalance.Sign() != 0 {
 			t.Errorf("recipient balance %d should be zero", recipientBalance.Uint64())
@@ -775,7 +774,7 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 					t.Errorf("validator balance %d should be MaxFeeMarketRewardGasCapPerTx ", validatorBalance.Uint64())
 				}
 
-				// Transation is failed, so recipient should not receive any fees
+				// Transaction is failed, so recipient should not receive any fees
 				recipientBalance := stateDB.GetBalance(rewardRecipient)
 				if recipientBalance.Sign() != 0 {
 					t.Errorf("recipient balance %d should be zero", recipientBalance.Uint64())
@@ -806,10 +805,10 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 				validatorBalance := stateDB.GetBalance(params.SystemAddress)
 				validatorBalanceDiff := validatorBalance.Uint64() - preBalances[params.SystemAddress].Uint64()
 				if validatorBalanceDiff < validatorFees {
-					t.Errorf("validator balance %d should be slighty bigger than validatorFees (%d), because of precision loss on conversion of fees back to gas", validatorBalanceDiff, validatorFees)
+					t.Errorf("validator balance %d should be slightly bigger than validatorFees (%d), because of precision loss on conversion of fees back to gas", validatorBalanceDiff, validatorFees)
 				}
 
-				// Transation is failed, so recipient should not receive any fees
+				// Transaction is failed, so recipient should not receive any fees
 				recipientBalance := stateDB.GetBalance(rewardRecipient)
 				if recipientBalance.Sign() != 0 {
 					t.Errorf("recipient balance %d should be zero", recipientBalance.Uint64())

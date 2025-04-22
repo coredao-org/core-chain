@@ -66,7 +66,6 @@ type BlockContext struct {
 	BlobBaseFee *big.Int       // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
 	Random      *common.Hash   // Provides information for PREVRANDAO
 
-	// TODO: Move this field somewhere else
 	// Fee market provider for discount calculations
 	FeeMarket *feemarket.FeeMarket
 }

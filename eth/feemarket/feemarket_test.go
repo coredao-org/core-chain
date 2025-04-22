@@ -296,7 +296,7 @@ func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address
 			))
 
 			// Generate random reward data
-			rewardAddr := common.BytesToAddress(crypto.Keccak256(append(addr.Bytes(), byte(i)))) // Unique per index
+			rewardAddr := common.BytesToAddress(crypto.Keccak256(append(addr.Bytes(), i))) // Unique per index
 
 			var percentage uint16
 			if i == rewardsLength-1 {
@@ -313,7 +313,7 @@ func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address
 			// Set reward data (packed address + percentage)
 			rewardData := make([]byte, 32)
 			copy(rewardData[12:32], rewardAddr.Bytes())
-			binary.BigEndian.PutUint16(rewardData[10:12], uint16(percentage))
+			binary.BigEndian.PutUint16(rewardData[10:12], percentage)
 			storage[rewardSlot] = common.BytesToHash(rewardData)
 
 			rewards[i] = types.FeeMarketReward{
@@ -503,7 +503,7 @@ func TestReadRewardsEdgeCases(t *testing.T) {
 	maxPercentage := uint16(65535) // max uint16
 	packedData := make([]byte, 32)
 	copy(packedData[12:32], rewardAddr.Bytes())
-	binary.BigEndian.PutUint16(packedData[10:12], uint16(maxPercentage))
+	binary.BigEndian.PutUint16(packedData[10:12], maxPercentage)
 
 	rewardSlot := common.BytesToHash(crypto.Keccak256(rewardsLengthSlot[:]))
 	stateDB.storage[rewardSlot] = common.BytesToHash(packedData)
@@ -588,5 +588,4 @@ func TestGetActiveConfigGas(t *testing.T) {
 			}
 		})
 	}
-
 }
