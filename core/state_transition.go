@@ -495,6 +495,14 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					}
 					// TODO: check for our built-in precompiles
 
+					// Special handling for Transfer event, we skip distributing rewards for zero value transfers
+					if eventLog.Topics[0] == crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)")) {
+						transferedAmount := new(uint256.Int).SetBytes(eventLog.Data[len(eventLog.Data)-32:])
+						if transferedAmount.IsZero() {
+							continue
+						}
+					}
+
 					// Get configuration from the fee market
 					config, foundInCache := configs[eventLog.Address]
 					if !foundInCache {
@@ -521,14 +529,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					}
 					if len(feeMarketEvent.Rewards) == 0 {
 						continue
-					}
-
-					// Special handling for Transfer event, we skip distributing rewards for zero value transfers
-					if eventLog.Topics[0] == crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)")) {
-						transferedAmount := new(uint256.Int).SetBytes(eventLog.Data[len(eventLog.Data)-32:])
-						if transferedAmount.IsZero() {
-							continue
-						}
 					}
 
 					for _, reward := range feeMarketEvent.Rewards {
