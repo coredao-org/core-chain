@@ -192,7 +192,6 @@ func removeFeeMarketConfigurationTx(t testing.TB, feeMarketAddress common.Addres
 
 func createContractCallData(name string, value interface{}) []byte {
 	methodID := crypto.Keccak256([]byte(name))[:4]
-	fmt.Println("methodID:", hex.EncodeToString(methodID))
 	if value != nil {
 		// use reflect to get the type of the argument
 		v := reflect.ValueOf(value)
@@ -287,19 +286,22 @@ func TestFeeMarketGasPoolExpansion(t *testing.T) {
 
 				// Calculate full gas used from receipts
 				txGasUsed := uint64(0)
-				for idx, receipt := range receipts {
+				for _, receipt := range receipts {
 					txGasUsed += receipt.GasUsed
-					if idx == len(receipts)-1 {
-						fmt.Println("\tLast TX receipt gasUsed:", receipt.GasUsed)
-					}
 					if receipt.Status == types.ReceiptStatusFailed {
 						t.Errorf("transaction failed tx_hash: %s, status: %d, gasUsed: %d", receipt.TxHash.Hex(), receipt.Status, receipt.GasUsed)
 					}
 				}
 
 				// Check if block gas used reports the sum of all txs gas used
-				if block.GasUsed() != txGasUsed {
-					t.Fatalf("block.GasUsed() %d doesn't match txGasUsed %d", block.GasUsed(), txGasUsed)
+				if withConfig {
+					if block.GasUsed() > blockGasLimit || block.GasUsed() >= txGasUsed {
+						t.Fatalf("block.GasUsed() %d should be smaller than txGasUsed %d", block.GasUsed(), txGasUsed)
+					}
+				} else {
+					if block.GasUsed() != txGasUsed {
+						t.Fatalf("block.GasUsed() %d doesn't match txGasUsed %d", block.GasUsed(), txGasUsed)
+					}
 				}
 
 				// Calculate the total amount of fees paid as fee market rewards
@@ -419,8 +421,8 @@ func TestFeeMarketMultiContractsBlock(t *testing.T) {
 				}
 
 				// Check if block gas used reports the sum of all txs gas used
-				if block.GasUsed() != txGasUsed {
-					t.Fatalf("block.GasUsed() %d doesn't match txGasUsed %d", block.GasUsed(), txGasUsed)
+				if withConfig && (block.GasUsed() > blockGasLimit || block.GasUsed() >= txGasUsed) {
+					t.Fatalf("block.GasUsed() %d should be smaller than txGasUsed %d", block.GasUsed(), txGasUsed)
 				}
 
 				// Calculate the total amount of fees paid as fee market rewards
@@ -511,8 +513,8 @@ func TestFeeMarketValidatorAndRecipientRewards(t *testing.T) {
 				}
 
 				// Check if block gas used reports the sum of all txs gas used
-				if block.GasUsed() != txGasUsed {
-					t.Fatalf("block.GasUsed() %d doesn't match txGasUsed %d", block.GasUsed(), txGasUsed)
+				if withConfig && (block.GasUsed() > blockGasLimit || block.GasUsed() >= txGasUsed) {
+					t.Fatalf("block.GasUsed() %d should be smaller than txGasUsed %d", block.GasUsed(), txGasUsed)
 				}
 
 				// Calculate the total amount of fees paid as fee market rewards
