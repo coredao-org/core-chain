@@ -137,9 +137,6 @@ const (
 	MaxCodeSize     = 24576           // Maximum bytecode to permit for a contract
 	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
 
-	MaxFeeMarketRewardGasCapPerTx  uint64 = 20_000_000              // Amount of gas that can be rewarded at FeeMarket per transaction
-	MaxFeeMarketRewardFeesCapPerTx uint64 = 600_000_000_000_000_000 // Amount of fees that can be rewarded at FeeMarket per transaction (MaxFeeMarketRewardGasCapPerTx * 30GWei)
-
 	// Precompiled contract gas prices
 
 	//TODO need further discussion

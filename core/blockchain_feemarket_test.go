@@ -753,68 +753,6 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 				}
 			}),
 		},
-		{
-			name:     "FailOn_MaxFeeMarketRewardGasCapPerTx",
-			createFn: createGenFn(2100, big.NewInt(1)),
-			testerFn: chainTesterFn(func(receipt *types.Receipt, preBalances map[common.Address]*uint256.Int, stateDB vm.StateDB) {
-				if receipt.Status != types.ReceiptStatusFailed {
-					t.Errorf("transaction should fail because of out of gas")
-				}
-
-				postBalance := stateDB.GetBalance(testAddr)
-				balanceDiff := preBalances[testAddr].Uint64() - postBalance.Uint64()
-				if balanceDiff != params.MaxFeeMarketRewardGasCapPerTx {
-					t.Errorf("balance diff %d should be equal to MaxFeeMarketRewardGasCapPerTx (%d), because of GasPrice=1", balanceDiff, params.MaxFeeMarketRewardGasCapPerTx)
-				}
-
-				validatorBalance := stateDB.GetBalance(params.SystemAddress)
-				validatorBalanceDiff := validatorBalance.Uint64() - preBalances[params.SystemAddress].Uint64()
-				// Compare balance to gasUsed as fees are 1 wei per gas
-				if validatorBalanceDiff != params.MaxFeeMarketRewardGasCapPerTx {
-					t.Errorf("validator balance %d should be MaxFeeMarketRewardGasCapPerTx ", validatorBalance.Uint64())
-				}
-
-				// Transaction is failed, so recipient should not receive any fees
-				recipientBalance := stateDB.GetBalance(rewardRecipient)
-				if recipientBalance.Sign() != 0 {
-					t.Errorf("recipient balance %d should be zero", recipientBalance.Uint64())
-				}
-			}),
-		},
-		{
-			name: "FailOn_MaxFeeMarketRewardFeesCapPerTx",
-			// This test sets a high gas price to trigger the MaxFeeMarketRewardFeesCapPerTx
-			createFn: createGenFn(2100, big.NewInt(31_000_000_000)),
-			testerFn: chainTesterFn(func(receipt *types.Receipt, preBalances map[common.Address]*uint256.Int, stateDB vm.StateDB) {
-				if receipt.Status != types.ReceiptStatusFailed {
-					t.Errorf("transaction should fail because of out of gas")
-				}
-
-				actualFees := receipt.GasUsed * 31_000_000_000
-				validatorFees := actualFees - params.MaxFeeMarketRewardFeesCapPerTx
-
-				postBalance := stateDB.GetBalance(testAddr)
-				balanceDiff := preBalances[testAddr].Uint64() - postBalance.Uint64()
-				if balanceDiff <= params.MaxFeeMarketRewardFeesCapPerTx {
-					t.Errorf("balance diff %d should be higher than MaxFeeMarketRewardFeesCapPerTx (%d)", balanceDiff, params.MaxFeeMarketRewardFeesCapPerTx)
-				}
-				if balanceDiff == actualFees {
-					t.Errorf("user should have received the fee market fees back, balance diff %d shouldn't be equal to actualFees (%d)", balanceDiff, actualFees)
-				}
-
-				validatorBalance := stateDB.GetBalance(params.SystemAddress)
-				validatorBalanceDiff := validatorBalance.Uint64() - preBalances[params.SystemAddress].Uint64()
-				if validatorBalanceDiff < validatorFees {
-					t.Errorf("validator balance %d should be slightly bigger than validatorFees (%d), because of precision loss on conversion of fees back to gas", validatorBalanceDiff, validatorFees)
-				}
-
-				// Transaction is failed, so recipient should not receive any fees
-				recipientBalance := stateDB.GetBalance(rewardRecipient)
-				if recipientBalance.Sign() != 0 {
-					t.Errorf("recipient balance %d should be zero", recipientBalance.Uint64())
-				}
-			}),
-		},
 	}
 
 	for _, testCase := range testCases {

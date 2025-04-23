@@ -561,34 +561,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						distributedAmount.Add(distributedAmount, rewardAmount)
 					}
 
-					// We break the loop, in order to disallow DDoS attacks,
-					// if we don't have enough gas to distribute the fees
-					if st.gasRemaining < distributedGas+feeMarketComputationalGas ||
-						// or if the gas distributed is too high
-						distributedGas > params.MaxFeeMarketRewardGasCapPerTx ||
-						// or if the fees distributed is too high
-						distributedAmount.Cmp(new(uint256.Int).SetUint64(params.MaxFeeMarketRewardFeesCapPerTx)) > 0 {
+					// If we don't have enough gas to distribute the fees
+					if st.gasRemaining < distributedGas+feeMarketComputationalGas {
+						// Mark trancation as failed with error
+						vmerr = fmt.Errorf("%w: required gas %d", ErrFeeMarketOutOfGas, st.gasUsed()+distributedGas+feeMarketComputationalGas)
 						break
 					}
-				}
-
-				// Mark trancation as failed with error
-				// Check if we don't have enough gas to distribute the fees
-				if st.gasRemaining < distributedGas+feeMarketComputationalGas {
-					vmerr = fmt.Errorf("%w: required gas %d", ErrFeeMarketOutOfGas, st.gasUsed()+distributedGas+feeMarketComputationalGas)
-				}
-
-				// Check if it reached the fee market protocol hard caps
-				if distributedGas > params.MaxFeeMarketRewardGasCapPerTx {
-					vmerr = ErrFeeMarketRewardGasCapVeryHigh
-					// Set amount of gas to be refunded to the user
-					distributedGas = params.MaxFeeMarketRewardGasCapPerTx
-				} else if distributedAmount.Cmp(new(uint256.Int).SetUint64(params.MaxFeeMarketRewardFeesCapPerTx)) > 0 {
-					vmerr = ErrFeeMarketRewardFeesCapVeryHigh
-					// Set amount of gas to be refunded to the user
-					// TODO: we have precision loss here, as we try to translate amount back to gas. Shall we handle it?
-					distributedGasFloat, _ := new(big.Float).Quo(new(big.Float).SetUint64(params.MaxFeeMarketRewardFeesCapPerTx), big.NewFloat(effectiveTipU256.Float64())).Float64()
-					distributedGas = uint64(distributedGasFloat)
 				}
 
 				// This is the final available distributed gas to be refunded to the user and returned to the block gas counter, it's copied here as it might be modified on error logic.
