@@ -212,11 +212,11 @@ func createContractCallData(name string, value interface{}) []byte {
 // addFeeMarketContractCall Call a contract
 func addFeeMarketContractCall(t testing.TB, contractAddress common.Address, data []byte, nonce uint64, specificGasLimit *uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
 	// fmt.Println("data:", common.Bytes2Hex(data))
-	// func						| funcSig 	| initialGas 	| Gas
-	// increment			| 3fb5c1cb	| 59616 			| 42516
-	// transfer				| ddf252ad	| 23299 			| 16000
-	// zeroTransfer		| a50ed97e	|							| 47147
-	// eventsEmitter	| 90d6510c	|							| 40000000
+	// func						| funcSig 	| Gas
+	// increment			| 3fb5c1cb	| 42516
+	// transfer				| ddf252ad	| 16000
+	// zeroTransfer		| a50ed97e	| 47147
+	// eventsEmitter	| 90d6510c	| 40000000
 	gas := uint64(160_000)
 	if specificGasLimit != nil {
 		gas = *specificGasLimit
@@ -603,18 +603,23 @@ func TestFeeMarketOutOfGasForComputationalGas(t *testing.T) {
 			t.Errorf("transaction should fail because of out of gas")
 		}
 
-		distributedAmount := uint64(10000)
+		// Block gas used includes the transactions gas used, without the distribution gas.
+		// This block has only this single transaction, so the balance diff should be the tx gas used.
+		// Compare balance to gas as fees are 1 wei per gas for this test
+		expectedBalanceDiff := block.GasUsed()
+
 		postBalance := stateDB.GetBalance(testAddr)
 		balanceDiff := preBalance.Uint64() - postBalance.Uint64()
-		if balanceDiff != receipt.GasUsed-distributedAmount {
-			t.Errorf("balance diff %d is different that expected %d (amount paid)", balanceDiff, receipt.GasUsed-distributedAmount)
+		hasPaidForFullGas := expectedBalanceDiff == failureTxGas
+		if !hasPaidForFullGas && balanceDiff != expectedBalanceDiff {
+			t.Errorf("balance diff %d is different that expected %d", balanceDiff, expectedBalanceDiff)
 		}
 
+		// The validator shall be paid the actual gas used. This transaction has failed to distribute the rewards, so the distributed amount has been refunded back to the user
 		validatorBalance := stateDB.GetBalance(params.SystemAddress)
 		validatorBalanceDiff := validatorBalance.Uint64() - preValidatorBalance.Uint64()
-		// Compare balance to gasUsed as fees are 1 wei per gas
-		if validatorBalanceDiff != receipt.GasUsed-distributedAmount {
-			t.Errorf("validator balance diff %d is different than user paid %d (amount received)", validatorBalance.Uint64(), receipt.GasUsed-distributedAmount)
+		if validatorBalanceDiff != expectedBalanceDiff {
+			t.Errorf("validator balance diff %d is different than user paid %d", validatorBalanceDiff, expectedBalanceDiff)
 		}
 
 		// Transaction is failed, so recipient should not receive any fees

@@ -322,8 +322,6 @@ const (
 	BalanceIncreaseCoreDistributeReward BalanceChangeReason = 181
 	// BalanceIncreaseFeeMarketReward is the fee market reward for a transaction.
 	BalanceIncreaseFeeMarketReward BalanceChangeReason = 182
-	// BalanceIncreaseFeeMarketGasReturnOnFailure is ether returned for ghost gas on a failed tx at the end of execution.
-	BalanceIncreaseFeeMarketGasReturnOnFailure BalanceChangeReason = 183
 )
 
 // GasChangeReason is used to indicate the reason for a gas change, useful
@@ -385,8 +383,6 @@ const (
 
 	// GasChangeFeeMarketDistributedGas is the gas distributed as fee market rewards.
 	GasChangeFeeMarketDistributedGas GasChangeReason = 180
-	// GasChangeFeeMarketDistributedGasRefunded is the refunded gas to the user on failed transaction for the fee market reward.
-	GasChangeFeeMarketDistributedGasRefunded GasChangeReason = 181
 
 	// GasChangeIgnored is a special value that can be used to indicate that the gas change should be ignored as
 	// it will be "manually" tracked by a direct emit of the gas change event.
