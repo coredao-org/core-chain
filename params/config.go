@@ -224,6 +224,7 @@ var (
 		KeplerTime:          newUint64(0),
 		DemeterTime:         newUint64(0),
 		AthenaTime:          newUint64(0),
+		TheseusTime:         newUint64(0),
 		CancunTime:          newUint64(0),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
