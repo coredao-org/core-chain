@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/log"
@@ -498,14 +497,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						continue
 					}
 					// TODO: check for our built-in precompiles
-
-					// Special handling for Transfer event, we skip distributing rewards for zero value transfers
-					if eventLog.Topics[0] == crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)")) {
-						transferedAmount := new(uint256.Int).SetBytes(eventLog.Data[len(eventLog.Data)-32:])
-						if transferedAmount.IsZero() {
-							continue
-						}
-					}
 
 					// Get configuration from the fee market
 					config, foundInCache := configs[eventLog.Address]

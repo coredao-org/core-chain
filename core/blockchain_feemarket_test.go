@@ -553,54 +553,6 @@ func TestFeeMarketValidatorAndRecipientRewards(t *testing.T) {
 	})
 }
 
-// TestFeeMarketZeroTransfer tests that Transfer(address,address,uint256) when value is 0 doesn't perform any fee marketoperation
-func TestFeeMarketZeroTransfer(t *testing.T) {
-	rewardRecipient := common.HexToAddress("0x123")
-
-	createGenFn := func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
-		return func(i int, gen *BlockGen) {
-			signer := types.LatestSigner(config)
-			fee := big.NewInt(1)
-			gen.SetCoinbase(common.Address{1})
-
-			_, counterContractAddress := addFeeMarketTestContract(t, gen.TxNonce(testAddr), fee, chain, gen, signer)
-
-			// Add configuration for the deployed contract
-			addFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, rewardRecipient, gen.TxNonce(testAddr), fee, chain, gen, signer)
-
-			// Call zeroTransfer() which emits a Transfer event with zero value
-			callData := createContractCallData("zeroTransfer()", nil)
-			addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), nil, fee, chain, gen, signer)
-		}
-	}
-
-	chainTesterFn := func(chain *BlockChain, blocks []*types.Block) {
-		stateDB, err := chain.State()
-		if err != nil {
-			t.Fatalf("failed to get state: %v", err)
-		}
-
-		for _, block := range blocks {
-			txs := block.Transactions()
-			receipts := chain.GetReceiptsByHash(block.Hash())
-
-			for idx, receipt := range receipts {
-				if receipt.Status == types.ReceiptStatusFailed {
-					t.Errorf("transaction failed tx_hash: %s, to: %s, status: %d, gasUsed: %d", receipt.TxHash.Hex(), txs[idx].To(), receipt.Status, receipt.GasUsed)
-				}
-			}
-
-			// Check that the recipient hasn't received any rewards
-			expectedBalance := uint64(0)
-			actualRecipientBalance := stateDB.GetBalance(rewardRecipient)
-			require.Equal(t, expectedBalance, actualRecipientBalance.Uint64(),
-				fmt.Sprintf("recipient (%s) balance=%d should be 0 for zero value Transfer event", rewardRecipient.Hex(), actualRecipientBalance.Uint64()))
-		}
-	}
-
-	testFeeMarketBlock(t, 1_000_000, 1, createGenFn, chainTesterFn)
-}
-
 // TestFeeMarketOutOfGasForComputationalGas tests that on TX failure because of out of gas the reward fees are distributed to the user
 func TestFeeMarketOutOfGasForComputationalGas(t *testing.T) {
 	var counterContractAddress common.Address
