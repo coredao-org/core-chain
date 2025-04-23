@@ -27,24 +27,23 @@ func _() {
 	_ = x[BalanceDecreaseCoreDistributeReward-180]
 	_ = x[BalanceIncreaseCoreDistributeReward-181]
 	_ = x[BalanceIncreaseFeeMarketReward-182]
-	_ = x[BalanceIncreaseFeeMarketGasReturnOnFailure-183]
 }
 
 const (
 	_BalanceChangeReason_name_0 = "BalanceChangeUnspecifiedBalanceIncreaseRewardMineUncleBalanceIncreaseRewardMineBlockBalanceIncreaseWithdrawalBalanceIncreaseGenesisBalanceBalanceIncreaseRewardTransactionFeeBalanceDecreaseGasBuyBalanceIncreaseGasReturnBalanceIncreaseDaoContractBalanceDecreaseDaoAccountBalanceChangeTransferBalanceChangeTouchAccountBalanceIncreaseSelfdestructBalanceDecreaseSelfdestructBalanceDecreaseSelfdestructBurnBalanceChangeRevert"
-	_BalanceChangeReason_name_1 = "BalanceDecreaseCoreDistributeRewardBalanceIncreaseCoreDistributeRewardBalanceIncreaseFeeMarketRewardBalanceIncreaseFeeMarketGasReturnOnFailure"
+	_BalanceChangeReason_name_1 = "BalanceDecreaseCoreDistributeRewardBalanceIncreaseCoreDistributeRewardBalanceIncreaseFeeMarketReward"
 )
 
 var (
 	_BalanceChangeReason_index_0 = [...]uint16{0, 24, 54, 84, 109, 138, 173, 194, 218, 244, 269, 290, 315, 342, 369, 400, 419}
-	_BalanceChangeReason_index_1 = [...]uint8{0, 35, 70, 100, 142}
+	_BalanceChangeReason_index_1 = [...]uint8{0, 35, 70, 100}
 )
 
 func (i BalanceChangeReason) String() string {
 	switch {
 	case i <= 15:
 		return _BalanceChangeReason_name_0[_BalanceChangeReason_index_0[i]:_BalanceChangeReason_index_0[i+1]]
-	case 180 <= i && i <= 183:
+	case 180 <= i && i <= 182:
 		i -= 180
 		return _BalanceChangeReason_name_1[_BalanceChangeReason_index_1[i]:_BalanceChangeReason_index_1[i+1]]
 	default:
