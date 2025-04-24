@@ -53,23 +53,7 @@ func getFeeMarketGenesisAlloc(maxRewards, maxEvents uint8, maxGas uint32) (accou
 	}
 }
 
-// addNewFeeMarketFullFlowTxs Add all the transactions for the full flow of the fee market. That is add contract, add fee market configuration, call contract.
-func addNewFeeMarketFullFlowTxs(t testing.TB, feeMarketAddress common.Address, rewardRecipient common.Address, nonce uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction, contractAddress common.Address) {
-	// Deploy counter contract
-	tx, counterContractAddress := addFeeMarketTestContract(t, nonce, gasPrice, chain, b, signer)
-	fmt.Println("counterContractAddress:", counterContractAddress)
-
-	// Add configuration for the deployed contract
-	addFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, rewardRecipient, nonce, gasPrice, chain, b, signer)
-
-	// Call contract
-	callData := createContractCallData("increment()", nil)
-	addFeeMarketContractCall(t, counterContractAddress, callData, nonce, nil, gasPrice, chain, b, signer)
-
-	return
-}
-
-// addFeeMarketTestContract Deploy a test contract
+// addFeeMarketTestContract deploy a test contract
 func addFeeMarketTestContract(t testing.TB, nonce uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction, contractAddress common.Address) {
 	/*
 		pragma solidity ^0.8.4;
