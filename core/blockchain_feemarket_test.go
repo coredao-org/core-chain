@@ -151,7 +151,7 @@ func updateFeeMarketConfigurationTx(t testing.TB, feeMarketAddress common.Addres
 	// Update configuration for the deployed contract
 	// configurationUpdateConfig := "6b3ab955000000000000000000000000<contract_address>"
 
-	configurationUpdateConfig := "6911c8a7000000000000000000000000<contract_address>0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000024000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000010051af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a81000000000000000000000000000000000000000000000000000000000000271000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000<reward_recipient>0000000000000000000000000000000000000000000000000000000000002710ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000000000000000000000000000000000000000004e2000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000<reward_recipient>00000000000000000000000000000000000000000000000000000000000027100000000000000000000000000000000000000000000000000000000000000000"
+	configurationUpdateConfig := "6911c8a7000000000000000000000000<contract_address>0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000024000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000010051af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a810000000000000000000000000000000000000000000000000000000000004e2000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000<reward_recipient>0000000000000000000000000000000000000000000000000000000000002710ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000000000000000000000000000000000000000004e2000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001000000000000000000000000<reward_recipient>00000000000000000000000000000000000000000000000000000000000027100000000000000000000000000000000000000000000000000000000000000000"
 
 	// Replace the configuredContractAddress in add config call data
 	configurationUpdateConfig = strings.ReplaceAll(configurationUpdateConfig, "<contract_address>", configuredContractAddress.Hex()[2:])
@@ -162,7 +162,7 @@ func updateFeeMarketConfigurationTx(t testing.TB, feeMarketAddress common.Addres
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
-		Gas:      75_000,
+		Gas:      100_000,
 		To:       &feeMarketAddress,
 		Data:     common.Hex2Bytes(configurationUpdateConfig),
 	})
@@ -181,7 +181,7 @@ func removeFeeMarketConfigurationTx(t testing.TB, feeMarketAddress common.Addres
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
-		Gas:      60_000,
+		Gas:      250_000,
 		To:       &feeMarketAddress,
 		Data:     common.Hex2Bytes(configurationRemoveConfig),
 	})
@@ -229,6 +229,148 @@ func addFeeMarketContractCall(t testing.TB, contractAddress common.Address, data
 	})
 	b.AddTxWithChain(chain, tx)
 	return tx
+}
+
+// TestFeeMarketAddUpdateRemoveConfiguration tests that Add, Update and Remove fee market configuration works as expected
+func TestFeeMarketAddUpdateRemoveConfiguration(t *testing.T) {
+	blockGasLimit := uint64(3_000_000)
+	rewardRecipient := common.HexToAddress("0x123")
+	rewardRecipientOnUpdate := common.HexToAddress("0x456")
+	callData := createContractCallData("increment()", 0)
+	var counterContractAddress common.Address
+
+	createGenFn := func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(i int, gen *BlockGen) {
+		return func(i int, gen *BlockGen) {
+			signer := types.LatestSigner(config)
+			fee := big.NewInt(1)
+			gen.SetCoinbase(common.Address{1})
+
+			if i == 0 {
+				_, counterContractAddress = addFeeMarketTestContract(t, gen.TxNonce(testAddr), fee, chain, gen, signer)
+				// We don't need the output of this call, it's just to warm up the storage and we have a predicatable gas used on next calls
+				addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), nil, fee, chain, gen, signer)
+			}
+
+			if i == 1 {
+				// Call contract without configuration
+				addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), nil, fee, chain, gen, signer)
+			}
+
+			if i == 2 {
+				// Add configuration for the deployed contract
+				addFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, rewardRecipient, gen.TxNonce(testAddr), fee, chain, gen, signer)
+
+				// Call contract with configuration
+				addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), nil, fee, chain, gen, signer)
+			}
+
+			if i == 3 {
+				// Update configuration for the deployed contract
+				updateFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, rewardRecipientOnUpdate, gen.TxNonce(testAddr), fee, chain, gen, signer)
+
+				// Call contract with updated configuration
+				addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), nil, fee, chain, gen, signer)
+			}
+
+			if i == 4 {
+				// Remove configuration for the deployed contract
+				removeFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, gen.TxNonce(testAddr), fee, chain, gen, signer)
+
+				// Call contract with removed configuration
+				addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), nil, fee, chain, gen, signer)
+			}
+		}
+	}
+
+	chainTesterFn := func(chain *BlockChain, blocks []*types.Block) {
+		// Keep some state between blocks to verify stuff
+		var (
+			nonConfiguredTxGasUsed             uint64
+			prevRewardRecipientBalance         *uint256.Int
+			prevRewardRecipientOnUpdateBalance *uint256.Int
+		)
+
+		for _, block := range blocks {
+			stateDB, err := chain.StateAt(block.Root())
+			if err != nil {
+				t.Fatalf("failed to get state: %v", err)
+			}
+
+			// All transactions in all block shall pass
+			receipts := chain.GetReceiptsByHash(block.Hash())
+
+			// Calculate full gas used from receipts
+			for _, receipt := range receipts {
+				if receipt.Status == types.ReceiptStatusFailed {
+					t.Errorf("transaction failed tx_hash: %s, status: %d, block number: %d", receipt.TxHash.Hex(), receipt.Status, block.Number().Uint64())
+				}
+			}
+
+			// We care about the last transaction in each block
+			receipt := receipts[len(receipts)-1]
+
+			blockNumber := block.Number().Uint64()
+			switch blockNumber {
+			case 2:
+				// Contract called without configuration
+				rewardRecipientBalance := stateDB.GetBalance(rewardRecipient)
+				if rewardRecipientBalance.Uint64() != 0 {
+					t.Errorf("rewardRecipientBalance should be 0, but is %d", rewardRecipientBalance.Uint64())
+				}
+
+				// Store the gas used for non configured txs
+				nonConfiguredTxGasUsed = receipt.GasUsed
+				continue
+			case 3:
+				// Contract called with configuration, the reward recipient will receive 10000 reward per event
+				rewardRecipientBalance := stateDB.GetBalance(rewardRecipient)
+				expectedBalance := uint64(10000)
+				if rewardRecipientBalance.Uint64() != expectedBalance {
+					t.Errorf("rewardRecipientBalance should be %d, but is %d", expectedBalance, rewardRecipientBalance.Uint64())
+				}
+
+				// Store the reward recipient balance for next blocks
+				prevRewardRecipientBalance = rewardRecipientBalance
+
+				// Pre check for the next block that the updated reward recipient has no balance
+				rewardRecipientOnUpdateBalance := stateDB.GetBalance(rewardRecipientOnUpdate)
+				if rewardRecipientOnUpdateBalance.Uint64() != 0 {
+					t.Errorf("rewardRecipientOnUpdateBalance should be 0, but is %d", rewardRecipientOnUpdateBalance.Uint64())
+				}
+				continue
+			case 4:
+				fmt.Println("Block:", blockNumber, receipt.GasUsed, receipt)
+
+				// Contract called with updated configuration, the updated reward recipient will receive 20000 reward per event
+				rewardRecipientOnUpdateBalance := stateDB.GetBalance(rewardRecipientOnUpdate)
+				expectedBalance := uint64(20000)
+				if rewardRecipientOnUpdateBalance.Uint64() != expectedBalance {
+					t.Errorf("rewardRecipientOnUpdateBalance should be %d, but is %d", expectedBalance, rewardRecipientOnUpdateBalance.Uint64())
+				}
+
+				// Store the reward recipient balance for next blocks
+				prevRewardRecipientOnUpdateBalance = rewardRecipientOnUpdateBalance
+				continue
+			case 5:
+				// Contract called with removed configuration
+				if receipt.GasUsed != nonConfiguredTxGasUsed {
+					t.Errorf("gas used should be %d, but is %d", nonConfiguredTxGasUsed, receipt.GasUsed)
+				}
+
+				rewardRecipientBalance := stateDB.GetBalance(rewardRecipient)
+				if rewardRecipientBalance.Uint64() != prevRewardRecipientBalance.Uint64() {
+					t.Errorf("rewardRecipientBalance should not have changed")
+				}
+
+				rewardRecipientOnUpdateBalance := stateDB.GetBalance(rewardRecipientOnUpdate)
+				if rewardRecipientOnUpdateBalance.Uint64() != prevRewardRecipientOnUpdateBalance.Uint64() {
+					t.Errorf("rewardRecipientOnUpdateBalance should not have changed")
+				}
+				continue
+			}
+		}
+	}
+	testFeeMarketBlock(t, blockGasLimit, 5, createGenFn, chainTesterFn)
 }
 
 // TestFeeMarketGasPoolExpansion tests that the fee market expands the block beyond its limits for the amount of distributed gas
