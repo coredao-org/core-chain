@@ -195,7 +195,6 @@ func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPo
 	}
 	*usedGas += result.UsedGas
 
-	cumulativeGasUsed := *usedGas
 
 	if config.IsTheseus(blockNumber, evm.Context.Time) {
 		// We remove the distributed gas from the block used gas, as we don't want the distribution gas to be counted towards the block gas limit
@@ -204,7 +203,7 @@ func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPo
 		}
 	}
 
-	return MakeReceipt(evm, result, statedb, blockNumber, blockHash, tx, cumulativeGasUsed, root, receiptProcessors...), nil
+	return MakeReceipt(evm, result, statedb, blockNumber, blockHash, tx, *usedGas, root, receiptProcessors...), nil
 }
 
 // MakeReceipt generates the receipt object for a transaction given its execution result.
