@@ -461,9 +461,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// If no rewards, the gas is refunded to the user.
 	isTheseus := st.evm.ChainConfig().IsTheseus(st.evm.Context.BlockNumber, st.evm.Context.Time)
 	if st.evm.ChainConfig().Satoshi != nil && isTheseus {
-		// Keep track of the remaining gas before the fee market distribution
-		preFeeMarketRemainingGas := st.gasRemaining
-
 		// Check if is a contract call
 		isContractCall := contractCreation || (msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0)
 		if vmerr == nil && isContractCall {
@@ -567,9 +564,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 				}
 
 				if vmerr != nil {
-					// Revert the gas remaining to the pre-distribution gas
+					// Revert the distributed gas.
 					// This way the user will be refunded the fee market rewards
-					st.gasRemaining = preFeeMarketRemainingGas
+					st.gasRemaining += distributedGas
 
 					// Revert the state to the pre-distribution state
 					st.state.RevertToSnapshot(snapshot)
