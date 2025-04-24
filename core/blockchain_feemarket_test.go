@@ -455,11 +455,6 @@ func TestFeeMarketMultiContractsBlock(t *testing.T) {
 // - when there is no fee market configuration, validator receives all txs profit
 // - when there is a fee market configuration, the fee market rewards are distributed to fee market recipients and validator receives the rest
 func TestFeeMarketValidatorAndRecipientRewards(t *testing.T) {
-	// Set up logger to write to stdout at trace level
-	// glogger := log.NewGlogHandler(log.NewTerminalHandler(os.Stdout, false))
-	// glogger.Verbosity(log.LevelTrace)
-	// log.SetDefault(log.NewLogger(glogger))
-
 	blockGasLimit := uint64(3_000_000)
 	rewardRecipient := common.HexToAddress("0x123")
 
@@ -492,20 +487,12 @@ func TestFeeMarketValidatorAndRecipientRewards(t *testing.T) {
 			}
 
 			for _, block := range blocks {
-				// txs := block.Transactions()
 				receipts := chain.GetReceiptsByHash(block.Hash())
 
 				// Calculate full gas used from receipts
 				txGasUsed := uint64(0)
-				// txAddConfGasUsed := uint64(0)
 				for _, receipt := range receipts {
-					// tx := txs[idx]
-					// if tx.To() != nil && *tx.To() == common.HexToAddress(systemcontracts.FeeMarketContract) {
-					// 	// fmt.Println("receipt:", "gasUsed:", receipt.GasUsed, "toAddr:", tx.To(), "status:", receipt.Status, "logs:", len(receipt.Logs))
-					// 	txAddConfGasUsed += receipt.GasUsed
-					// }
 					txGasUsed += receipt.GasUsed
-
 					if receipt.Status == types.ReceiptStatusFailed {
 						t.Errorf("transaction failed tx_hash: %s, status: %d, block number: %d", receipt.TxHash.Hex(), receipt.Status, block.Number().Uint64())
 					}
@@ -554,8 +541,8 @@ func TestFeeMarketValidatorAndRecipientRewards(t *testing.T) {
 	})
 }
 
-// TestFeeMarketOutOfGasForComputationalGas tests that on TX failure because of out of gas the reward fees are distributed to the user
-func TestFeeMarketOutOfGasForComputationalGas(t *testing.T) {
+// TestFeeMarketOutOfGas tests that on TX failure because of out of gas the distributed fees are distributed back to the user
+func TestFeeMarketOutOfGas(t *testing.T) {
 	var counterContractAddress common.Address
 	rewardRecipient := common.HexToAddress("0x123")
 	// The important part of this test is that we reduce the Tx gas so as it has enough gas to distribute the fees but not for paying the computational gas
@@ -629,10 +616,6 @@ func TestFeeMarketOutOfGasForComputationalGas(t *testing.T) {
 	}
 
 	testFeeMarketBlock(t, 1_000_000, 2, createGenFn, chainTesterFn)
-}
-
-// TestFeeMarketOutOfGasForDistributionGas tests that on TX failure because of out of gas the remaining reward fees are distributed to the user
-func TestFeeMarketOutOfGasForDistributionGas(t *testing.T) {
 }
 
 // TestFeeMarketMultipleEventsInTx tests functionality when multiple events are emitted in a single tx
