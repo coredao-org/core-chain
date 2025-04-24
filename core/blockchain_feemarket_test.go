@@ -122,7 +122,7 @@ func addFeeMarketConfigurationTx(t testing.TB, feeMarketAddress common.Address, 
 	tx, _ = types.SignNewTx(testKey, signer, &types.LegacyTx{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
-		Gas:      303_500,
+		Gas:      325_000,
 		To:       &feeMarketAddress,
 		Data:     common.Hex2Bytes(configurationAddConfig),
 	})
@@ -280,13 +280,13 @@ func TestFeeMarketAddUpdateRemoveConfiguration(t *testing.T) {
 				t.Fatalf("failed to get state: %v", err)
 			}
 
-			// All transactions in all block shall pass
+			// All transactions in all blocks shall pass
 			receipts := chain.GetReceiptsByHash(block.Hash())
 
 			// Calculate full gas used from receipts
 			for _, receipt := range receipts {
 				if receipt.Status == types.ReceiptStatusFailed {
-					t.Errorf("transaction failed tx_hash: %s, status: %d, block number: %d", receipt.TxHash.Hex(), receipt.Status, block.Number().Uint64())
+					t.Errorf("transaction failed tx_hash: %s, block number: %d", receipt.TxHash.Hex(), block.Number().Uint64())
 				}
 			}
 
@@ -323,8 +323,6 @@ func TestFeeMarketAddUpdateRemoveConfiguration(t *testing.T) {
 				}
 				continue
 			case 4:
-				fmt.Println("Block:", blockNumber, receipt.GasUsed, receipt)
-
 				// Contract called with updated configuration, the updated reward recipient will receive 20000 reward per event
 				rewardRecipientOnUpdateBalance := stateDB.GetBalance(rewardRecipientOnUpdate)
 				expectedBalance := uint64(20000)
@@ -749,7 +747,7 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 	var counterContractAddress common.Address
 	rewardRecipient := common.HexToAddress("0x123")
 
-	createGenFn := func(eventsToEmitted uint64, callGasPrice *big.Int) func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
+	createGenFn := func(eventsToBeEmitted uint64, callGasPrice *big.Int) func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
 		return func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(int, *BlockGen) {
 			return func(i int, gen *BlockGen) {
 				signer := types.LatestSigner(config)
@@ -765,7 +763,7 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 
 				if i == 1 {
 					// Call contract
-					callData := createContractCallData("eventsEmitter(uint256)", new(big.Int).SetUint64(eventsToEmitted))
+					callData := createContractCallData("eventsEmitter(uint256)", new(big.Int).SetUint64(eventsToBeEmitted))
 					txGas := uint64(40_000_000)
 					addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), &txGas, callGasPrice, chain, gen, signer)
 				}
@@ -782,12 +780,12 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 			preBalances[params.SystemAddress] = stateDB.GetBalance(params.SystemAddress)
 
 			// Parse last block with the contract that distributes the fees
-			stateDB, err := chain.State()
+			block := blocks[len(blocks)-1]
+			stateDB, err := chain.StateAt(block.Root())
 			if err != nil {
 				t.Fatalf("failed to get state: %v", err)
 			}
 
-			block := blocks[len(blocks)-1]
 			receipts := chain.GetReceiptsByHash(block.Hash())
 			receipt := receipts[0]
 
@@ -831,7 +829,7 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 				// Check if the recipient received the correct amount of fees
 				recipientBalance := stateDB.GetBalance(rewardRecipient)
 				if recipientBalance.Uint64() != 0 {
-					t.Errorf("recipient balance %d is different zeor", recipientBalance.Uint64())
+					t.Errorf("recipient balance %d is different zero", recipientBalance.Uint64())
 				}
 			}),
 		},

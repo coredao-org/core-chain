@@ -496,10 +496,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					config, foundInCache := configs[eventLog.Address]
 					if !foundInCache {
 						freshConfig, configReadGas, found := fm.GetActiveConfig(eventLog.Address, st.state)
-						if !found {
-							continue
-						}
-
 						if st.gasRemaining < configReadGas {
 							vmerr = ErrFeeMarketOutOfGas
 							break LOOP
@@ -508,10 +504,19 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						// Remove the computational gas for reading the config from storage
 						st.gasRemaining -= configReadGas
 
+						// Cache the config, even if it's not found, we need to keep it in the cache
+						// to avoid reading the config from storage again.
+						configs[eventLog.Address] = freshConfig
+
+						if !found {
+							continue
+						}
+
 						config = freshConfig
 
-						// Cache the config
-						configs[eventLog.Address] = config
+						// Check if config is active as we keep non found configs in the cache
+					} else if !config.IsActive {
+						continue
 					}
 
 					var feeMarketEvent types.FeeMarketEvent
