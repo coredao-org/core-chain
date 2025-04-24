@@ -711,6 +711,21 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 				}
 			}),
 		},
+		{
+			name:     "Fail",
+			createFn: createGenFn(3000, big.NewInt(1)),
+			testerFn: chainTesterFn(func(receipt *types.Receipt, preBalances map[common.Address]*uint256.Int, stateDB vm.StateDB) {
+				if receipt.Status != types.ReceiptStatusFailed {
+					t.Errorf("transaction should fail with out of gas")
+				}
+
+				// Check if the recipient received the correct amount of fees
+				recipientBalance := stateDB.GetBalance(rewardRecipient)
+				if recipientBalance.Uint64() != 0 {
+					t.Errorf("recipient balance %d is different zeor", recipientBalance.Uint64())
+				}
+			}),
+		},
 	}
 
 	for _, testCase := range testCases {
