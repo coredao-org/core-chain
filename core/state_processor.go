@@ -135,6 +135,11 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		statedb.SetTxContext(tx.Hash(), i)
 
 		receipt, err := ApplyTransactionWithEVM(msg, p.config, gp, statedb, blockNumber, blockHash, tx, usedGas, evm, bloomProcessors)
+		if len(receipts) == 0 {
+			receipt.CumulativeGasUsed = receipt.GasUsed
+		} else {
+			receipt.CumulativeGasUsed = receipts[len(receipts)-1].CumulativeGasUsed + receipt.GasUsed
+		}
 		if err != nil {
 			bloomProcessors.Close()
 			return statedb, nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
