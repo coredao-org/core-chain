@@ -34,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
@@ -897,9 +896,6 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	cx := chainContext{Chain: chain, satoshi: p}
 
-	if bc, ok := chain.(*core.BlockChain); ok {
-		cx.feemarket = bc.FeeMarket()
-	}
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
 	}
@@ -1579,9 +1575,8 @@ func (s *Satoshi) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header 
 
 // chain context
 type chainContext struct {
-	Chain     consensus.ChainHeaderReader
-	satoshi   consensus.Engine
-	feemarket *feemarket.FeeMarket
+	Chain   consensus.ChainHeaderReader
+	satoshi consensus.Engine
 }
 
 func (c chainContext) Engine() consensus.Engine {
@@ -1590,10 +1585,6 @@ func (c chainContext) Engine() consensus.Engine {
 
 func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
 	return c.Chain.GetHeader(hash, number)
-}
-
-func (c chainContext) FeeMarket() *feemarket.FeeMarket {
-	return c.feemarket
 }
 
 // apply message

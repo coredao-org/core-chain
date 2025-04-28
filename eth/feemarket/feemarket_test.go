@@ -34,10 +34,6 @@ func TestIsValidConfig(t *testing.T) {
 	})
 
 	stateDB := &mockStateDB{storage: storage}
-	provider, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create provider: %v", err)
-	}
 
 	testCases := []struct {
 		name        string
@@ -167,7 +163,7 @@ func TestIsValidConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := tc.config.IsValidConfig(
-				provider.GetConstants(stateDB),
+				getConstants(stateDB),
 				DENOMINATOR,
 			)
 			if result != tc.expected {
@@ -192,12 +188,8 @@ func TestConstants(t *testing.T) {
 	writeConstants(storage, expectedConstants)
 
 	stateDB := &mockStateDB{storage: storage}
-	provider, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create provider: %v", err)
-	}
 
-	actualConstants := provider.GetConstants(stateDB)
+	actualConstants := getConstants(stateDB)
 	if actualConstants != expectedConstants {
 		t.Errorf("Expected constants %v, got %v", expectedConstants, actualConstants)
 	}
@@ -380,13 +372,9 @@ func TestStorageLayoutParsing(t *testing.T) {
 	writeConstants(storage, constants)
 
 	stateDB := &mockStateDB{storage: storage}
-	fm, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create storage FeeMarket: %v", err)
-	}
 
 	contractAddr1 := common.HexToAddress("0x96c4a1421b494e0cf1bb1e41911ec3251df94223")
-	_, gas1, found := fm.GetActiveConfig(contractAddr1, stateDB)
+	_, gas1, found := GetActiveConfig(contractAddr1, stateDB)
 	if !found {
 		t.Errorf("Config not found for address %s", contractAddr1.Hex())
 	}
@@ -396,7 +384,7 @@ func TestStorageLayoutParsing(t *testing.T) {
 	}
 
 	contractAddr2 := common.HexToAddress("0x13261a11f2C6c6318240818de0Ddc3DB70a1B3bF")
-	if _, _, found := fm.GetActiveConfig(contractAddr2, stateDB); !found {
+	if _, _, found := GetActiveConfig(contractAddr2, stateDB); !found {
 		t.Errorf("Config not found for address %s", contractAddr2.Hex())
 	}
 
@@ -405,7 +393,7 @@ func TestStorageLayoutParsing(t *testing.T) {
 	genConfig1 := writeRandomConfiguration(storage, testAddr, constants)
 
 	// Verify generated config can be read correctly
-	config, _, found := fm.GetActiveConfig(testAddr, stateDB)
+	config, _, found := GetActiveConfig(testAddr, stateDB)
 	if !found {
 		t.Fatal("Generated config not found")
 	}
@@ -462,12 +450,8 @@ func TestTypeBoundariesEdgeCases(t *testing.T) {
 	writeConfiguration(storage, common.HexToAddress("0x1234"), constants, false)
 
 	stateDB := &mockStateDB{storage: storage}
-	fm, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create storage FeeMarket: %v", err)
-	}
 
-	config, _, found := fm.GetActiveConfig(common.HexToAddress("0x1234"), stateDB)
+	config, _, found := GetActiveConfig(common.HexToAddress("0x1234"), stateDB)
 	if !found {
 		t.Fatal("Config not found")
 	}
@@ -566,16 +550,12 @@ func TestGetActiveConfigGas(t *testing.T) {
 			writeConstants(storage, tc.constants)
 
 			stateDB := &mockStateDB{storage: storage}
-			fm, err := NewFeeMarket()
-			if err != nil {
-				t.Fatalf("Failed to create storage FeeMarket: %v", err)
-			}
 
 			testAddr := common.HexToAddress("0x1234")
 			genConfig1 := writeConfiguration(storage, testAddr, tc.constants, false)
 
 			// Verify generated config can be read correctly
-			config, gas, found := fm.GetActiveConfig(testAddr, stateDB)
+			config, gas, found := GetActiveConfig(testAddr, stateDB)
 			if !found {
 				t.Fatal("Generated config not found")
 			}

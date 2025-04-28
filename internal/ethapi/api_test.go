@@ -53,7 +53,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/ethereum/go-ethereum/eth/feemarket"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/blocktest"
@@ -482,10 +481,6 @@ func (b testBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 
 func (b testBackend) Chain() *core.BlockChain {
 	return b.chain
-}
-
-func (b testBackend) FeeMarket() *feemarket.FeeMarket {
-	return nil
 }
 
 func (b testBackend) FeeHistory(ctx context.Context, blockCount uint64, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error) {

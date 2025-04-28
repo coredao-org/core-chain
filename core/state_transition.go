@@ -369,6 +369,22 @@ func (st *StateTransition) preCheck() error {
 	return st.buyGas()
 }
 
+func (st *StateTransition) isEnableFeeMarket() bool {
+	if st.evm.ChainConfig().Satoshi == nil {
+		return false
+	}
+
+	if !st.evm.ChainConfig().IsTheseus(st.evm.Context.BlockNumber, st.evm.Context.Time) {
+		return false
+	}
+
+	if st.msg.To == nil {
+		return true
+	}
+
+	return st.state.GetCodeSize(*st.msg.To) > 0
+}
+
 // TransitionDb will transition the state by applying the current message and
 // returning the evm execution result with following fields.
 //
@@ -459,11 +475,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	// For Satoshi consensus engine, we need to distribute the fee market rewards.
 	// If no rewards, the gas is refunded to the user.
-	isTheseus := st.evm.ChainConfig().IsTheseus(st.evm.Context.BlockNumber, st.evm.Context.Time)
-	if st.evm.ChainConfig().Satoshi != nil && isTheseus {
-		// Check if is a contract call
-		isContractCall := contractCreation || (msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0)
-		if vmerr == nil && isContractCall {
+	if vmerr == nil {
+		if st.isEnableFeeMarket() {
 			// Get a snapshot of the state before the distribution
 			snapshot := st.state.Snapshot()
 
@@ -471,11 +484,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			// are only being filled in the logs, we can ignore them in this specific use case.
 			logs := st.state.GetLogs(st.evm.StateDB.TxHash(), st.evm.Context.BlockNumber.Uint64(), common.Hash{})
 
-			fm := st.evm.Context.FeeMarket
-
-			if len(logs) > 0 && fm != nil {
-				feeMarketDenominator := feemarket.DENOMINATOR
-
+			if len(logs) > 0 {
 				// Cache of the configs for this transaction only, we consider that only our governance contract
 				// can add/update/remove configs and for this reason we don't need to check and invalidate for config changes.
 				configs := make(map[common.Address]types.FeeMarketConfig)
@@ -486,7 +495,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						continue
 					}
 
-					// Check if is a precompile
+					// Check if is a precompile TODO ??? nested for loop
 					if isPrecompile := slices.Contains(vm.ActivePrecompiles(rules), eventLog.Address); isPrecompile {
 						continue
 					}
@@ -495,7 +504,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					// Get configuration from the fee market
 					config, foundInCache := configs[eventLog.Address]
 					if !foundInCache {
-						freshConfig, configReadGas, found := fm.GetActiveConfig(eventLog.Address, st.state)
+						freshConfig, configReadGas, _ := feemarket.GetActiveConfig(eventLog.Address, st.state)
 						if st.gasRemaining < configReadGas {
 							vmerr = ErrFeeMarketOutOfGas
 							break LOOP
@@ -507,32 +516,28 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 						// Cache the config, even if it's not found, we need to keep it in the cache
 						// to avoid reading the config from storage again.
 						configs[eventLog.Address] = freshConfig
-
-						if !found {
-							continue
-						}
-
 						config = freshConfig
+					}
 
-						// Check if config is active as we keep non found configs in the cache
-					} else if !config.IsActive {
+					// Check if config is active as we keep non found configs in the cache
+					if !config.IsActive {
 						continue
 					}
 
 					var feeMarketEvent types.FeeMarketEvent
-					for _, event := range config.Events {
+					for _, event := range config.Events { // TODO ??? nested for loop
 						if event.EventSignature == eventLog.Topics[0] {
 							feeMarketEvent = event
 							break
 						}
 					}
-					if len(feeMarketEvent.Rewards) == 0 {
+					if len(feeMarketEvent.Rewards) == 0 { // TODO ??? redundancy check
 						continue
 					}
 
 					for _, reward := range feeMarketEvent.Rewards {
 						// Gas to reward for this specific address
-						rewardGas := (uint64(feeMarketEvent.Gas) * uint64(reward.RewardPercentage)) / uint64(feeMarketDenominator)
+						rewardGas := (uint64(feeMarketEvent.Gas) * uint64(reward.RewardPercentage)) / uint64(feemarket.DENOMINATOR)
 
 						// Check if we have enough gas to distribute the fees
 						if st.gasRemaining < rewardGas+params.FeeMarketDistributeGas {

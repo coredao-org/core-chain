@@ -25,25 +25,12 @@ const (
 	DENOMINATOR = uint16(10000)
 )
 
-// FeeMarket represents the fee market integration which is used to get the fee market config for an address.
-// It directly reads from storage to avoid the overhead of calling the contract.
-type FeeMarket struct {
-	// contractAddress is the address of the FeeMarketContract
-	contractAddress common.Address
-}
+var feeMarketContractAddress = common.HexToAddress(systemcontracts.FeeMarketContract)
 
-// NewFeeMarket creates a new fee market integration using storage access
-func NewFeeMarket() (*FeeMarket, error) {
-	feeMarketContractAddress := common.HexToAddress(systemcontracts.FeeMarketContract)
-	return &FeeMarket{
-		contractAddress: feeMarketContractAddress,
-	}, nil
-}
-
-// GetConstants reads the contracts constants
-func (fm *FeeMarket) GetConstants(state StateReader) types.FeeMarketConstants {
+// getConstants reads the contracts constants
+func getConstants(state StateReader) types.FeeMarketConstants {
 	constantsSlot := common.BigToHash(big.NewInt(CONSTANTS_STORAGE_SLOT))
-	constantsBytes := state.GetState(fm.contractAddress, constantsSlot)
+	constantsBytes := state.GetState(feeMarketContractAddress, constantsSlot)
 
 	maxGas := binary.BigEndian.Uint32(constantsBytes[24:28])
 	maxEvents := constantsBytes[29]
@@ -57,18 +44,18 @@ func (fm *FeeMarket) GetConstants(state StateReader) types.FeeMarketConstants {
 }
 
 // GetActiveConfig returns configuration for a specific address
-func (fm *FeeMarket) GetActiveConfig(address common.Address, state StateReader) (config types.FeeMarketConfig, gas uint64, found bool) {
+func GetActiveConfig(address common.Address, state StateReader) (config types.FeeMarketConfig, gas uint64, found bool) {
 	if state == nil {
 		return types.FeeMarketConfig{}, 0, false
 	}
 
-	config, gas, err := fm.readConfigForAddress(address, state)
+	config, gas, err := readConfigForAddress(address, state)
 	if err != nil {
 		return types.FeeMarketConfig{}, gas, false
 	}
 
 	// Validate the config
-	if valid, err := config.IsValidConfig(fm.GetConstants(state), DENOMINATOR); !valid || err != nil {
+	if valid, err := config.IsValidConfig(getConstants(state), DENOMINATOR); !valid || err != nil {
 		log.Debug("FeeMarket invalid config found in mapping", "address", address, "config", config, "err", err)
 		return types.FeeMarketConfig{}, gas, false
 	}
@@ -77,11 +64,11 @@ func (fm *FeeMarket) GetActiveConfig(address common.Address, state StateReader) 
 }
 
 // readConfigForAddress reads a config from storage for a specific address
-func (fm *FeeMarket) readConfigForAddress(address common.Address, state StateReader) (config types.FeeMarketConfig, gas uint64, err error) {
+func readConfigForAddress(address common.Address, state StateReader) (config types.FeeMarketConfig, gas uint64, err error) {
 	readStateFn := func(slot common.Hash) common.Hash {
 		// Add Sload gas for each GetState read
 		gas += params.FeeMarketSloadGas
-		return state.GetState(fm.contractAddress, slot)
+		return state.GetState(feeMarketContractAddress, slot)
 	}
 
 	configsMapSlot := common.BigToHash(big.NewInt(CONFIGS_MAP_STORAGE_SLOT))
@@ -106,7 +93,7 @@ func (fm *FeeMarket) readConfigForAddress(address common.Address, state StateRea
 	}
 
 	// Get the constants from the contract
-	constants := fm.GetConstants(state)
+	constants := getConstants(state)
 
 	// Read events array length (right-aligned)
 	eventsLengthSlot := incrementHash(packedSlot)
@@ -142,7 +129,7 @@ func (fm *FeeMarket) readConfigForAddress(address common.Address, state StateRea
 			return types.FeeMarketConfig{}, gas, fmt.Errorf("rewards length is greater than max rewards")
 		}
 
-		rewards, rewardsGas := readRewards(fm.contractAddress, rewardsLengthSlot, uint8(rewardsLength), state)
+		rewards, rewardsGas := readRewards(feeMarketContractAddress, rewardsLengthSlot, uint8(rewardsLength), state)
 		gas += rewardsGas
 
 		events[i] = types.FeeMarketEvent{
