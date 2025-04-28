@@ -140,6 +140,15 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return statedb, nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 
+		// Recalculate the cumulative gas used for each receipt, because of the fee market distributed gas
+		if p.config.IsTheseus(blockNumber, evm.Context.Time) {
+			if len(receipts) == 0 {
+				receipt.CumulativeGasUsed = receipt.GasUsed
+			} else {
+				receipt.CumulativeGasUsed = receipts[len(receipts)-1].CumulativeGasUsed + receipt.GasUsed
+			}
+		}
+
 		commonTxs = append(commonTxs, tx)
 		receipts = append(receipts, receipt)
 	}
@@ -194,7 +203,6 @@ func ApplyTransactionWithEVM(msg *Message, config *params.ChainConfig, gp *GasPo
 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
 	*usedGas += result.UsedGas
-
 
 	if config.IsTheseus(blockNumber, evm.Context.Time) {
 		// We remove the distributed gas from the block used gas, as we don't want the distribution gas to be counted towards the block gas limit
