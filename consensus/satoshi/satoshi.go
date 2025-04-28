@@ -906,6 +906,18 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 	if receipts == nil {
 		receipts = make([]*types.Receipt, 0)
 	}
+
+	// Recalculate the cumulative gas used for each receipt, because of the fee market distributed gas
+	if p.chainConfig.IsTheseus(header.Number, header.Time) {
+		for i, receipt := range receipts {
+			if i == 0 {
+				receipt.CumulativeGasUsed = receipt.GasUsed
+			} else {
+				receipt.CumulativeGasUsed = receipts[i-1].CumulativeGasUsed + receipt.GasUsed
+			}
+		}
+	}
+
 	if header.Number.Cmp(common.Big1) == 0 {
 		err := p.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true, tracer)
 		if err != nil {
@@ -1459,6 +1471,12 @@ func (p *Satoshi) applyTransaction(
 	tracingReceipt = types.NewReceipt(root, false, *usedGas)
 	tracingReceipt.TxHash = expectedTx.Hash()
 	tracingReceipt.GasUsed = gasUsed
+	if p.chainConfig.IsTheseus(header.Number, header.Time) {
+		tracingReceipt.DistributedGas = 0
+		if len(*receipts) > 0 {
+			tracingReceipt.CumulativeGasUsed = (*receipts)[len(*receipts)-1].CumulativeGasUsed + gasUsed
+		}
+	}
 
 	// Set the receipt logs and create a bloom for filtering
 	tracingReceipt.Logs = state.GetLogs(expectedTx.Hash(), header.Number.Uint64(), header.Hash())
