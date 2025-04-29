@@ -405,11 +405,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 
 	// Initialize the fee market provider
 	if bc.chainConfig.Satoshi != nil {
-		feeMarket, err := feemarket.NewFeeMarket()
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize fee market: %w", err)
-		}
-		bc.feeMarket = feeMarket
+		bc.feeMarket = feemarket.NewFeeMarket()
 	}
 
 	// Update chain info data metrics

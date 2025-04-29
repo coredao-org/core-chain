@@ -34,10 +34,7 @@ func TestIsValidConfig(t *testing.T) {
 	})
 
 	stateDB := &mockStateDB{storage: storage}
-	provider, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create provider: %v", err)
-	}
+	fm := NewFeeMarket()
 
 	testCases := []struct {
 		name        string
@@ -167,7 +164,7 @@ func TestIsValidConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := tc.config.IsValidConfig(
-				provider.GetConstants(stateDB),
+				fm.GetConstants(stateDB),
 				DENOMINATOR,
 			)
 			if result != tc.expected {
@@ -192,12 +189,9 @@ func TestConstants(t *testing.T) {
 	writeConstants(storage, expectedConstants)
 
 	stateDB := &mockStateDB{storage: storage}
-	provider, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create provider: %v", err)
-	}
+	fm := NewFeeMarket()
 
-	actualConstants := provider.GetConstants(stateDB)
+	actualConstants := fm.GetConstants(stateDB)
 	if actualConstants != expectedConstants {
 		t.Errorf("Expected constants %v, got %v", expectedConstants, actualConstants)
 	}
@@ -380,10 +374,7 @@ func TestStorageLayoutParsing(t *testing.T) {
 	writeConstants(storage, constants)
 
 	stateDB := &mockStateDB{storage: storage}
-	fm, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create storage FeeMarket: %v", err)
-	}
+	fm := NewFeeMarket()
 
 	contractAddr1 := common.HexToAddress("0x96c4a1421b494e0cf1bb1e41911ec3251df94223")
 	_, gas1, found := fm.GetActiveConfig(contractAddr1, stateDB)
@@ -462,10 +453,7 @@ func TestTypeBoundariesEdgeCases(t *testing.T) {
 	writeConfiguration(storage, common.HexToAddress("0x1234"), constants, false)
 
 	stateDB := &mockStateDB{storage: storage}
-	fm, err := NewFeeMarket()
-	if err != nil {
-		t.Fatalf("Failed to create storage FeeMarket: %v", err)
-	}
+	fm := NewFeeMarket()
 
 	config, _, found := fm.GetActiveConfig(common.HexToAddress("0x1234"), stateDB)
 	if !found {
@@ -566,10 +554,7 @@ func TestGetActiveConfigGas(t *testing.T) {
 			writeConstants(storage, tc.constants)
 
 			stateDB := &mockStateDB{storage: storage}
-			fm, err := NewFeeMarket()
-			if err != nil {
-				t.Fatalf("Failed to create storage FeeMarket: %v", err)
-			}
+			fm := NewFeeMarket()
 
 			testAddr := common.HexToAddress("0x1234")
 			genConfig1 := writeConfiguration(storage, testAddr, tc.constants, false)

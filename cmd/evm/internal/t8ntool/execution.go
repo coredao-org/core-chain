@@ -164,11 +164,7 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 	}
 	// Initialize the fee market provider
 	if chainConfig.Satoshi != nil {
-		feeMarket, err := feemarket.NewFeeMarket()
-		if err != nil {
-			log.Error("failed to initialize fee market", "error", err)
-		}
-		vmContext.FeeMarket = feeMarket
+		vmContext.FeeMarket = feemarket.NewFeeMarket()
 	}
 	// If currentBaseFee is defined, add it to the vmContext.
 	if pre.Env.BaseFee != nil {

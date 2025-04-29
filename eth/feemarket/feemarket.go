@@ -33,11 +33,10 @@ type FeeMarket struct {
 }
 
 // NewFeeMarket creates a new fee market integration using storage access
-func NewFeeMarket() (*FeeMarket, error) {
-	feeMarketContractAddress := common.HexToAddress(systemcontracts.FeeMarketContract)
+func NewFeeMarket() *FeeMarket {
 	return &FeeMarket{
-		contractAddress: feeMarketContractAddress,
-	}, nil
+		contractAddress: common.HexToAddress(systemcontracts.FeeMarketContract),
+	}
 }
 
 // GetConstants reads the contracts constants
