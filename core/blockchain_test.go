@@ -4391,6 +4391,17 @@ func (c *mockSatoshi) Finalize(chain consensus.ChainHeaderReader, header *types.
 
 func (c *mockSatoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt, withdrawals []*types.Withdrawal, tracer *tracing.Hooks) (*types.Block, []*types.Receipt, error) {
+	// Recalculate the cumulative gas used for each receipt, because of the fee market distributed gas
+	if chain.Config().IsTheseus(header.Number, header.Time) {
+		for i, receipt := range receipts {
+			if i == 0 {
+				receipt.CumulativeGasUsed = receipt.GasUsed
+			} else {
+				receipt.CumulativeGasUsed = receipts[i-1].CumulativeGasUsed + receipt.GasUsed
+			}
+		}
+	}
+
 	// Finalize block
 	c.Finalize(chain, header, state, &txs, uncles, nil, nil, nil, nil, tracer)
 

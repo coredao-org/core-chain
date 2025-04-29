@@ -842,6 +842,88 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 	}
 }
 
+// TestFeeMarketReorg tests the fee market reorg functionality, which verifies that CumulativeGasUsed is correct
+func TestFeeMarketReorg(t *testing.T) {
+	t.Parallel()
+
+	blockGasLimit := uint64(3_000_000)
+	recipientA := common.HexToAddress("0x123")
+	recipientB := common.HexToAddress("0x456")
+	var counterContractAddress common.Address
+
+	config := params.SatoshiTestChainConfig
+	gspec := &Genesis{
+		Config:   config,
+		GasLimit: blockGasLimit,
+		Alloc: types.GenesisAlloc{
+			testAddr: {Balance: new(big.Int).SetUint64(15 * params.Ether)},
+		},
+	}
+	feeMarketAddress, feeMarketAccount := getFeeMarketGenesisAlloc(2, 2, 1000000)
+	gspec.Alloc[feeMarketAddress] = feeMarketAccount
+
+	engine := &mockSatoshi{}
+	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), t.TempDir(), "", false, false, false, false, false)
+	require.NoError(t, err)
+	chain, _ := NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
+
+	// Build canonical chain (4 blocks, all reward recipientA)
+	genDb, canonBlocks, _ := GenerateChainWithGenesis(gspec, engine, 4, func(i int, gen *BlockGen) {
+		signer := types.LatestSigner(config)
+		fee := big.NewInt(1)
+		gen.SetCoinbase(common.Address{1})
+
+		if i == 0 {
+			_, counterContractAddress = addFeeMarketTestContract(t, gen.TxNonce(testAddr), fee, chain, gen, signer)
+
+			// Set reward recipientA and reward gas to 10000
+			addFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, recipientA, gen.TxNonce(testAddr), fee, chain, gen, signer)
+		}
+		callData := createContractCallData("increment()", 0)
+		addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), nil, fee, chain, gen, signer)
+	})
+	_, err = chain.InsertChain(canonBlocks)
+	require.NoError(t, err)
+
+	stateDB, err := chain.State()
+	require.NoError(t, err)
+	balanceA := stateDB.GetBalance(recipientA)
+	balanceB := stateDB.GetBalance(recipientB)
+
+	// Before reorg, check balances
+	require.Equal(t, uint64(40000), balanceA.Uint64(), "recipientA should have 4 reward (40000)")
+	require.Equal(t, uint64(0), balanceB.Uint64(), "recipientB should have 0 rewards")
+
+	// Fork from block 2, build a longer side chain (4 blocks: 1 shared + 4 new, 4 of which reward recipientB)
+	parent := canonBlocks[1]
+	sideBlocks, _ := GenerateChain(config, parent, engine, genDb, 4, func(i int, gen *BlockGen) {
+		signer := types.LatestSigner(config)
+		fee := big.NewInt(1)
+		gen.SetCoinbase(common.Address{2})
+
+		if i == 0 {
+			// Update recipient to recipientB and change the reward gas to 20000
+			updateFeeMarketConfigurationTx(t, feeMarketAddress, counterContractAddress, recipientB, gen.TxNonce(testAddr), fee, chain, gen, signer)
+		}
+		callData := createContractCallData("increment()", 0)
+		addFeeMarketContractCall(t, counterContractAddress, callData, gen.TxNonce(testAddr), nil, fee, chain, gen, signer)
+	})
+	_, err = chain.InsertChain(sideBlocks)
+	require.NoError(t, err)
+
+	head := chain.CurrentBlock()
+	require.Equal(t, sideBlocks[len(sideBlocks)-1].Hash(), head.Hash(), "chain head should be the tip of the side chain")
+
+	// After reorg, check balances
+	stateDB, err = chain.State()
+	require.NoError(t, err)
+	balanceA = stateDB.GetBalance(recipientA)
+	balanceB = stateDB.GetBalance(recipientB)
+
+	require.Equal(t, uint64(20000), balanceA.Uint64(), "recipientA should have 2 rewards (20000)")
+	require.Equal(t, uint64(80000), balanceB.Uint64(), "recipientB should have 4 rewards (80000)")
+}
+
 // testFeeMarketBlock is a helper function to test the fee market
 func testFeeMarketBlock(t *testing.T, gasLimit uint64, numberOfBlocks int, genFn func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(i int, gen *BlockGen), chainTesterFn func(chain *BlockChain, blocks []*types.Block)) {
 	config := params.SatoshiTestChainConfig
