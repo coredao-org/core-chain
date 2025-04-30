@@ -12,8 +12,17 @@ import (
 )
 
 // FuzzFeeMarketConfigStorage fuzzes GetActiveConfig and IsValidConfig for random storage layouts.
+//
+// Invariants checked:
+//   - No panics or crashes for any input.
+//   - If a config is found, IsValidConfig should not panic.
+//   - If IsValidConfig returns true, all event reward percentages sum to 10000.
+//   - All fields in a valid config are within the expected bounds.
 func FuzzFeeMarketConfigStorage(f *testing.F) {
-	f.Add(uint64(1000), uint8(2), uint8(2), uint32(1000000)) // seed corpus
+	f.Add(uint64(1000), uint8(2), uint8(2), uint32(1000000)) // typical
+	f.Add(uint64(0), uint8(0), uint8(0), uint32(0))          // all zero
+	f.Add(^uint64(0), ^uint8(0), ^uint8(0), ^uint32(0))      // all max
+	f.Add(uint64(1), uint8(1), uint8(1), uint32(1))          // all one
 
 	f.Fuzz(func(t *testing.T, addrSeed uint64, maxEvents uint8, maxRewards uint8, maxGas uint32) {
 		t.Parallel()
