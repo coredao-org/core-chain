@@ -275,9 +275,7 @@ func TestFeeMarketAddUpdateRemoveConfiguration(t *testing.T) {
 
 		for _, block := range blocks {
 			stateDB, err := chain.StateAt(block.Root())
-			if err != nil {
-				t.Fatalf("failed to get state: %v", err)
-			}
+			require.NoError(t, err)
 
 			// All transactions in all blocks shall pass
 			receipts := chain.GetReceiptsByHash(block.Hash())
@@ -397,9 +395,7 @@ func TestFeeMarketGasPoolExpansion(t *testing.T) {
 	chainTesterFn := func(withConfig bool) func(chain *BlockChain, blocks []*types.Block) {
 		return func(chain *BlockChain, blocks []*types.Block) {
 			stateDB, err := chain.State()
-			if err != nil {
-				t.Fatalf("failed to get state: %v", err)
-			}
+			require.NoError(t, err)
 
 			for _, block := range blocks {
 				receipts := chain.GetReceiptsByHash(block.Hash())
@@ -520,9 +516,7 @@ func TestFeeMarketMultiContractsBlock(t *testing.T) {
 	chainTesterFn := func(withConfig bool) func(chain *BlockChain, blocks []*types.Block) {
 		return func(chain *BlockChain, blocks []*types.Block) {
 			stateDB, err := chain.State()
-			if err != nil {
-				t.Fatalf("failed to get state: %v", err)
-			}
+			require.NoError(t, err)
 
 			for _, block := range blocks {
 				receipts := chain.GetReceiptsByHash(block.Hash())
@@ -601,9 +595,7 @@ func TestFeeMarketValidatorAndRecipientRewards(t *testing.T) {
 	chainTesterFn := func(withConfig bool) func(chain *BlockChain, blocks []*types.Block) {
 		return func(chain *BlockChain, blocks []*types.Block) {
 			stateDB, err := chain.State()
-			if err != nil {
-				t.Fatalf("failed to get state: %v", err)
-			}
+			require.NoError(t, err)
 
 			for _, block := range blocks {
 				receipts := chain.GetReceiptsByHash(block.Hash())
@@ -696,9 +688,7 @@ func TestFeeMarketOutOfGas(t *testing.T) {
 
 		// Parse last block with the contract that distributes the fees
 		stateDB, err := chain.State()
-		if err != nil {
-			t.Fatalf("failed to get state: %v", err)
-		}
+		require.NoError(t, err)
 
 		block := blocks[len(blocks)-1]
 		receipts := chain.GetReceiptsByHash(block.Hash())
@@ -777,9 +767,7 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 			// Parse last block with the contract that distributes the fees
 			block := blocks[len(blocks)-1]
 			stateDB, err := chain.StateAt(block.Root())
-			if err != nil {
-				t.Fatalf("failed to get state: %v", err)
-			}
+			require.NoError(t, err)
 
 			receipts := chain.GetReceiptsByHash(block.Hash())
 			receipt := receipts[0]
@@ -936,9 +924,8 @@ func testFeeMarketBlock(t *testing.T, gasLimit uint64, numberOfBlocks int, genFn
 	// Initialize blockchain
 	frdir := t.TempDir()
 	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false, false, false)
-	if err != nil {
-		t.Fatalf("failed to create database with ancient backend")
-	}
+	require.NoError(t, err)
+
 	engine := &mockSatoshi{}
 	chain, _ := NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
 
@@ -946,9 +933,8 @@ func testFeeMarketBlock(t *testing.T, gasLimit uint64, numberOfBlocks int, genFn
 	_, bs, _ := GenerateChainWithGenesis(gspec, engine, numberOfBlocks, genFn(config, chain, feeMarketAddress))
 
 	// Insert chain
-	if _, err := chain.InsertChain(bs); err != nil {
-		t.Fatalf("failed to insert chain: %v", err)
-	}
+	_, err = chain.InsertChain(bs)
+	require.NoError(t, err)
 
 	// Verify the chain
 	chainTesterFn(chain, bs)
@@ -1055,9 +1041,8 @@ func benchmarkFeeMarketBlock(b *testing.B, gasLimit uint64, numberOfBlocks int, 
 	// Initialize blockchain
 	frdir := b.TempDir()
 	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false, false, false)
-	if err != nil {
-		b.Fatalf("failed to create database with ancient backend")
-	}
+	require.NoError(b, err)
+
 	engine := &mockSatoshi{}
 	chain, _ := NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
 
@@ -1070,9 +1055,8 @@ func benchmarkFeeMarketBlock(b *testing.B, gasLimit uint64, numberOfBlocks int, 
 	// Actual benchmark: Insert chain
 	for i := 0; i < b.N; i++ {
 		b.StartTimer()
-		if _, err := chain.InsertChain(bs); err != nil {
-			b.Fatalf("failed to insert chain: %v", err)
-		}
+		_, err := chain.InsertChain(bs)
+		require.NoError(b, err)
 		b.StopTimer()
 	}
 }
