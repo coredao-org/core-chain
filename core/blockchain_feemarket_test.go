@@ -435,7 +435,6 @@ func TestFeeMarketGasPoolExpansion(t *testing.T) {
 						actual := stateDB.GetBalance(recipient)
 						distributedAmount.Add(distributedAmount, actual)
 
-						// TODO: make gas 100000 configurable
 						expect := numberOfTxs * 10_000
 						require.Equal(t, expect, actual.Uint64(),
 							fmt.Sprintf("recipient (%s) balance %d is different that expected fee market reward %d (numberOfTxs: %d)", recipient.Hex(), actual.Uint64(), expect, numberOfTxs))
@@ -494,9 +493,7 @@ func TestFeeMarketMultiContractsBlock(t *testing.T) {
 				blockNumber := gen.Number().Uint64()
 				rewardRecipientMap[blockNumber] = make(map[common.Address]uint64)
 
-				// TODO: this test will randomly update and delete configs
 				callData := createContractCallData("increment()", 0)
-
 				for y := 0; gen.gasPool.Gas() > 550_000; y++ {
 					var counterContractAddress common.Address
 					rewardRecipient := common.BytesToAddress(crypto.Keccak256([]byte(fmt.Sprintf("recipient-%d", y))))
@@ -556,7 +553,6 @@ func TestFeeMarketMultiContractsBlock(t *testing.T) {
 						actual := stateDB.GetBalance(recipient)
 						distributedAmount.Add(distributedAmount, actual)
 
-						// TODO: make gas 100000 configurable
 						expect := numberOfTxs * 10_000
 						require.Equal(t, expect, actual.Uint64(),
 							fmt.Sprintf("recipient (%s) balance %d is different that expected fee market reward %d (numberOfTxs: %d)", recipient.Hex(), actual.Uint64(), expect, numberOfTxs))

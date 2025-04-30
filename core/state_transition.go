@@ -490,7 +490,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 					if isPrecompile := slices.Contains(vm.ActivePrecompiles(rules), eventLog.Address); isPrecompile {
 						continue
 					}
-					// TODO: check for our built-in precompiles
 
 					// Get configuration from the fee market
 					config, foundInCache := configs[eventLog.Address]
@@ -542,12 +541,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 						// Remove the computational gas for fees distributions, no need to add a gas reason with hooks
 						st.gasRemaining -= params.FeeMarketDistributeGas
-
-						// TODO: in case of error, this will not be reverted.
-						// We can keep this in a variable and call it only on success, or we can skip reasoning about this
-						// if st.evm.Config.Tracer != nil && st.evm.Config.Tracer.OnGasChange != nil && rewardGas > 0 {
-						// 	st.evm.Config.Tracer.OnGasChange(st.gasRemaining, st.gasRemaining-rewardGas, tracing.GasChangeFeeMarketDistributedGas)
-						// }
 
 						// Remove the distributed gas for fees distributions (this is the pumped gas for the fees)
 						st.gasRemaining -= rewardGas
