@@ -194,7 +194,6 @@ func createContractCallData(name string, value interface{}) []byte {
 
 // addFeeMarketContractCall Call a contract
 func addFeeMarketContractCall(t testing.TB, contractAddress common.Address, data []byte, nonce uint64, specificGasLimit *uint64, gasPrice *big.Int, chain *BlockChain, b *BlockGen, signer types.Signer) (tx *types.Transaction) {
-	// fmt.Println("data:", common.Bytes2Hex(data))
 	// func						| funcSig 	| Gas
 	// increment			| 3fb5c1cb	| 42516
 	// transfer				| ddf252ad	| 16000
@@ -405,7 +404,7 @@ func TestFeeMarketGasPoolExpansion(t *testing.T) {
 			for _, block := range blocks {
 				receipts := chain.GetReceiptsByHash(block.Hash())
 
-				fmt.Println("Start Block number:", block.Number().Uint64(), "txs:", len(receipts), "withConfig:", withConfig)
+				t.Logf("Start Block number: %d, txs: %d, withConfig: %t", block.Number().Uint64(), len(receipts), withConfig)
 
 				// Calculate full gas used from receipts
 				txGasUsed := uint64(0)
@@ -456,7 +455,7 @@ func TestFeeMarketGasPoolExpansion(t *testing.T) {
 					}
 				}
 
-				fmt.Println("End Block number:", block.Number().Uint64(), "withConfig:", withConfig, "txGasUsed:", txGasUsed, "distributedAmountU64:", distributedAmountU64, "remainingBlockPoolGas:", remainingBlockPoolGas)
+				t.Logf("End Block number: %d, withConfig: %t, txGasUsed: %d, distributedAmountU64: %d, remainingBlockPoolGas: %d", block.Number().Uint64(), withConfig, txGasUsed, distributedAmountU64, remainingBlockPoolGas)
 			}
 		}
 	}
@@ -528,7 +527,7 @@ func TestFeeMarketMultiContractsBlock(t *testing.T) {
 			for _, block := range blocks {
 				receipts := chain.GetReceiptsByHash(block.Hash())
 
-				fmt.Println("Block number:", block.Number().Uint64(), "txs:", len(receipts), "withConfig:", withConfig)
+				t.Logf("Block number: %d, txs: %d, withConfig: %t", block.Number().Uint64(), len(receipts), withConfig)
 
 				// Calculate full gas used from receipts
 				txGasUsed := uint64(0)
