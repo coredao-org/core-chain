@@ -5,9 +5,7 @@ package feemarket
 
 import (
 	"math/big"
-	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -15,7 +13,6 @@ import (
 
 // FuzzFeeMarketConfigStorage fuzzes GetActiveConfig and IsValidConfig for random storage layouts.
 func FuzzFeeMarketConfigStorage(f *testing.F) {
-	rand.Seed(time.Now().UnixNano())
 	f.Add(uint64(1000), uint8(2), uint8(2), uint32(1000000)) // seed corpus
 
 	f.Fuzz(func(t *testing.T, addrSeed uint64, maxEvents uint8, maxRewards uint8, maxGas uint32) {
