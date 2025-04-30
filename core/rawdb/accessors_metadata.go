@@ -60,6 +60,17 @@ func WriteDatabaseVersion(db ethdb.KeyValueWriter, version uint64) {
 	}
 }
 
+func initConfig(cfg *params.ChainConfig) {
+	cfg.LondonBlock = common.Big0
+	cfg.BerlinBlock = common.Big0
+	value := uint64(1731999600)
+	cfg.ShanghaiTime = &value
+	cfg.KeplerTime = &value
+	cfg.DemeterTime = &value
+	cfg.AthenaTime = &value
+	cfg.TheseusTime = &value
+}
+
 // ReadChainConfig retrieves the consensus settings based on the given genesis hash.
 func ReadChainConfig(db ethdb.KeyValueReader, hash common.Hash) *params.ChainConfig {
 	data, _ := db.Get(configKey(hash))
@@ -71,6 +82,8 @@ func ReadChainConfig(db ethdb.KeyValueReader, hash common.Hash) *params.ChainCon
 		log.Error("Invalid chain config JSON", "hash", hash, "err", err)
 		return nil
 	}
+
+	initConfig(&config)
 	return &config
 }
 

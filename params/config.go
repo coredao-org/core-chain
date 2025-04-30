@@ -810,8 +810,7 @@ func (c *ChainConfig) IsOnAthena(currentBlockNumber *big.Int, lastBlockTime uint
 
 // IsTheseus returns whether time is either equal to the theseus fork time or greater.
 func (c *ChainConfig) IsTheseus(num *big.Int, time uint64) bool {
-	// return c.IsLondon(num) && isTimestampForked(c.TheseusTime, time)
-	return true
+	return c.IsLondon(num) && isTimestampForked(c.TheseusTime, time)
 }
 
 // IsOnTheseus returns whether currentBlockTime is either equal to the theseus fork time or greater firstly.
