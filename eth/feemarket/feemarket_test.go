@@ -211,6 +211,16 @@ func writeConstants(storage map[common.Hash]common.Hash, constants types.FeeMark
 
 // writeRandomConfiguration writes a random config for the given address at the given index
 func writeRandomConfiguration(storage map[common.Hash]common.Hash, addr common.Address, maxConstants types.FeeMarketConstants) types.FeeMarketConfig {
+	// Guard against zero values to avoid rand.Intn(0) panics
+	if maxConstants.MaxEvents == 0 {
+		maxConstants.MaxEvents = 1
+	}
+	if maxConstants.MaxRewards == 0 {
+		maxConstants.MaxRewards = 1
+	}
+	if maxConstants.MaxGas == 0 {
+		maxConstants.MaxGas = 1
+	}
 	constants := types.FeeMarketConstants{
 		MaxEvents:  uint8(rand.Intn(int(maxConstants.MaxEvents))) + 1,
 		MaxRewards: uint8(rand.Intn(int(maxConstants.MaxRewards))) + 1,
@@ -251,10 +261,10 @@ func writeConfiguration(storage map[common.Hash]common.Hash, addr common.Address
 		// Generate random event data
 		eventSig := common.Hash{byte(rand.Intn(255) + 1)} // Random signature
 		var gas uint32
-		if eventIdx == constants.MaxEvents-1 {
-			gas = constants.MaxGas // Use max gas for last event
-		} else {
+		if constants.MaxGas > 1000 && eventIdx < constants.MaxEvents-1 {
 			gas = uint32(rand.Intn(int(constants.MaxGas-1000))) + 1000 // Random gas between 1000 and maxGas
+		} else {
+			gas = constants.MaxGas // Use max gas for last event
 		}
 
 		// Each Event takes 3 slots (eventSignature, gas, rewards.length)
