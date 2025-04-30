@@ -16,6 +16,32 @@ import (
 	"github.com/holiman/uint256"
 )
 
+// Fee Market Contract Storage Layout
+// ----------------------------------
+//
+// This implementation reads the storage layout of the Fee Market [Configuration.sol](https://github.com/coredao-org/core-genesis-contract/blob/master/contracts/Configuration.sol) contract as deployed on-chain.
+// The layout is tightly coupled to the Solidity contract.
+//
+// Storage Slots:
+//
+//	Slot 0: CONSTANTS_STORAGE_SLOT
+//	  - [24:28] uint32 MaxGas
+//	  - [29]    uint8  MaxEvents
+//	  - [30]    uint8  MaxRewards
+//	Slot 1: CONFIGS_MAP_STORAGE_SLOT (mapping base)
+//	  - keccak256(leftpad(address,32) + Slot1): packed config for address
+//	      - [11]   bool isActive (lowest bit)
+//	      - [12:32] address configAddress
+//	  - (slot+1): uint eventsLength
+//	  - keccak256(slot+1): events array base
+//	      - Each event: 3 slots (eventSignature, gas, rewardsLength)
+//	      - Each event's rewards: keccak256(rewardsLengthSlot) as base, 1 slot per reward (rewardAddress, rewardPercentage)
+//
+// Upgrade Path:
+//   - Any change to slot packing/order is a breaking change.
+//   - Only append new fields to the end of packed slots, or use new slots.
+//   - For breaking changes, deploy a new contract and migrate configs.
+
 const (
 	// Storage slots for the fee market contract
 	CONSTANTS_STORAGE_SLOT   = 0
