@@ -136,10 +136,8 @@ const (
 	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
 
 	// Precompiled contract gas prices
-
-	//TODO need further discussion
-	BitcoinHeaderValidateGas   uint64 = 20000 // Gas for validate bitcoin consensus state
-	IAVLMerkleProofValidateGas uint64 = 100   // Gas for validate merkle proof
+	BitcoinHeaderValidateBaseGas    uint64 = 20000 // Base price for a validate header operation
+	BitcoinHeaderValidatePerWordGas uint64 = 100   // Per-word price for a validate header operation
 
 	EcrecoverGas                uint64 = 3000  // Elliptic curve sender recovery gas price
 	Sha256BaseGas               uint64 = 60    // Base price for a SHA256 operation
