@@ -202,6 +202,7 @@ func (t *prestateTracer) OnTxEnd(receipt *types.Receipt, err error) {
 	}
 }
 
+// OnBalanceChange implements the EVMLogger interface to trace a single step of VM execution.
 func (t *prestateTracer) OnBalanceChange(a common.Address, prev, new *big.Int, reason tracing.BalanceChangeReason) {
 	// Skip if tracing was interrupted
 	if t.interrupt.Load() {
@@ -212,8 +213,11 @@ func (t *prestateTracer) OnBalanceChange(a common.Address, prev, new *big.Int, r
 		return
 	}
 
+	// Fee market accounts can't be set as prestate, for this reason we initialize their prestate on first seen of OnBalanceChange hook
+	// We check if the account exists before lookupAccount, which initates the t.pre map entry
+	_, accountExists := t.pre[a]
 	t.lookupAccount(a)
-	if s := t.pre[a]; s != nil {
+	if s := t.pre[a]; s != nil && !accountExists {
 		t.pre[a].Balance = prev
 	}
 
