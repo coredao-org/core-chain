@@ -61,14 +61,11 @@ var (
 		ArgsUsage: "<genesisPath>",
 		Flags: slices.Concat([]cli.Flag{
 			utils.CachePreimagesFlag,
-<<<<<<< HEAD
 			utils.OverrideCancun,
 			utils.OverrideHaber,
-=======
 			utils.OverridePassedForkTime,
 			utils.OverrideLorentz,
 			utils.OverrideMaxwell,
->>>>>>> bsc/v1.5.12
 			utils.OverrideVerkle,
 			utils.MultiDataBaseFlag,
 		}, utils.DatabaseFlags),
@@ -269,13 +266,10 @@ func initGenesis(ctx *cli.Context) error {
 		v := ctx.Uint64(utils.OverrideLorentz.Name)
 		overrides.OverrideLorentz = &v
 	}
-<<<<<<< HEAD
-=======
 	if ctx.IsSet(utils.OverrideMaxwell.Name) {
 		v := ctx.Uint64(utils.OverrideMaxwell.Name)
 		overrides.OverrideMaxwell = &v
 	}
->>>>>>> bsc/v1.5.12
 	if ctx.IsSet(utils.OverrideVerkle.Name) {
 		v := ctx.Uint64(utils.OverrideVerkle.Name)
 		overrides.OverrideVerkle = &v

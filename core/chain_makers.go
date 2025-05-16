@@ -336,7 +336,7 @@ func (b *BlockGen) collectRequests(readonly bool) (requests [][]byte) {
 		statedb = statedb.Copy()
 	}
 
-	if b.cm.config.IsPrague(b.header.Number, b.header.Time) && b.cm.config.Parlia == nil {
+	if b.cm.config.IsPrague(b.header.Number, b.header.Time) && b.cm.config.Satoshi == nil {
 		requests = [][]byte{}
 		// EIP-6110 deposits
 		var blockLogs []*types.Log
@@ -411,9 +411,6 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			misc.ApplyDAOHardFork(statedb)
 		}
 
-<<<<<<< HEAD
-		systemcontracts.UpgradeBuildInSystemContract(config, b.header.Number, parent.Time(), b.header.Time, statedb)
-=======
 		systemcontracts.TryUpdateBuildInSystemContract(config, b.header.Number, parent.Time(), b.header.Time, statedb, true)
 		if config.IsPrague(b.header.Number, b.header.Time) || config.IsVerkle(b.header.Number, b.header.Time) {
 			// EIP-2935
@@ -422,7 +419,6 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			evm := vm.NewEVM(blockContext, statedb, cm.config, vm.Config{})
 			ProcessParentBlockHash(b.header.ParentHash, evm)
 		}
->>>>>>> bsc/v1.5.12
 
 		// Execute any user modifications to the block
 		if gen != nil {
@@ -631,13 +627,8 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 	}
 
 	if cm.config.IsLondon(header.Number) {
-<<<<<<< HEAD
-		header.BaseFee = eip1559.CalcBaseFee(cm.config, parent.Header())
-		if cm.config.Satoshi == nil && !cm.config.IsLondon(parent.Number()) {
-=======
 		header.BaseFee = eip1559.CalcBaseFee(cm.config, parentHeader)
-		if cm.config.Parlia == nil && !cm.config.IsLondon(parent.Number()) {
->>>>>>> bsc/v1.5.12
+		if cm.config.Satoshi == nil && !cm.config.IsLondon(parent.Number()) {
 			parentGasLimit := parent.GasLimit() * cm.config.ElasticityMultiplier()
 			header.GasLimit = CalcGasLimit(parentGasLimit, parentGasLimit)
 		}
@@ -646,14 +637,7 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		excessBlobGas := eip4844.CalcExcessBlobGas(cm.config, parentHeader, time)
 		header.ExcessBlobGas = &excessBlobGas
 		header.BlobGasUsed = new(uint64)
-<<<<<<< HEAD
-		if cm.config.Satoshi != nil {
-			header.WithdrawalsHash = &types.EmptyWithdrawalsHash
-		}
 		if cm.config.Satoshi == nil {
-=======
-		if cm.config.Parlia == nil {
->>>>>>> bsc/v1.5.12
 			header.ParentBeaconRoot = new(common.Hash)
 		} else {
 			header.WithdrawalsHash = &types.EmptyWithdrawalsHash

@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/parlia"
+	"github.com/ethereum/go-ethereum/consensus/satoshi"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -147,7 +147,7 @@ func (voteManager *VoteManager) loop() {
 			}
 
 			curHead := cHead.Header
-			if p, ok := voteManager.engine.(*parlia.Parlia); ok {
+			if p, ok := voteManager.engine.(*satoshi.Satoshi); ok {
 				// Approximately equal to the block interval of next block, except for the switch block.
 				blockInterval, err := p.BlockInterval(voteManager.chain, curHead)
 				if err != nil {

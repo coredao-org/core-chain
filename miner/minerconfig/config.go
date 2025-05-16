@@ -56,6 +56,7 @@ type Config struct {
 
 // DefaultConfig contains default settings for miner.
 var DefaultConfig = Config{
+	// TODO(cz): set this to 40000000
 	GasCeil:  0,
 	GasPrice: big.NewInt(params.GWei),
 
@@ -63,7 +64,8 @@ var DefaultConfig = Config{
 	// consensus-layer usually will wait a half slot of time(6s)
 	// for payload generation. It should be enough for Geth to
 	// run 3 rounds.
-	Recommit:      3 * time.Second,
+	Recommit: 3 * time.Second,
+	// TODO(cz): check why NewPayloadTimeout is removed
 	DelayLeftOver: &defaultDelayLeftOver,
 
 	// The default value is set to 30 seconds.

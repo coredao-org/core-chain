@@ -41,6 +41,12 @@ profile.cov
 
 # VS Code
 .vscode
+*.code-workspace
+
+# Cursor
+.cursor
+.cursorrules
+.cursorignore
 
 cmd/geth/node/
 cmd/geth/__debug_bin

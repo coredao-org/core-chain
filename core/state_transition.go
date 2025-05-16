@@ -17,11 +17,8 @@
 package core
 
 import (
-<<<<<<< HEAD
-=======
 	"bytes"
 	"errors"
->>>>>>> bsc/v1.5.12
 	"fmt"
 	"math"
 	"math/big"
@@ -540,15 +537,9 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 
 	fee := new(uint256.Int).SetUint64(st.gasUsed())
 	fee.Mul(fee, effectiveTipU256)
-<<<<<<< HEAD
-	// consensus engine is satoshi
+	// consensus engine is Satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
-		st.state.AddBalance(consensus.SystemAddress, fee)
-=======
-	// consensus engine is parlia
-	if st.evm.ChainConfig().Parlia != nil {
 		st.state.AddBalance(consensus.SystemAddress, fee, tracing.BalanceIncreaseRewardTransactionFee)
->>>>>>> bsc/v1.5.12
 		// add extra blob fee reward
 		if rules.IsCancun {
 			blobFee := new(big.Int).SetUint64(st.blobGasUsed())

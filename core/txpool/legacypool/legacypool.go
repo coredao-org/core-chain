@@ -624,22 +624,7 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 // rules, but does not check state-dependent validation such as sufficient balance.
 // This check is meant as an early check which only needs to be performed once,
 // and does not require the pool mutex to be held.
-<<<<<<< HEAD
-func (pool *LegacyPool) validateTxBasics(tx *types.Transaction, local bool) error {
-=======
 func (pool *LegacyPool) validateTxBasics(tx *types.Transaction) error {
-	sender, err := types.Sender(pool.signer, tx)
-	if err != nil {
-		return err
-	}
-	for _, blackAddr := range types.NanoBlackList {
-		if sender == blackAddr || (tx.To() != nil && *tx.To() == blackAddr) {
-			log.Error("blacklist account detected", "account", blackAddr, "tx", tx.Hash())
-			return txpool.ErrInBlackList
-		}
-	}
-
->>>>>>> bsc/v1.5.12
 	opts := &txpool.ValidationOptions{
 		Config: pool.chainconfig,
 		Accept: 0 |
@@ -659,24 +644,7 @@ func (pool *LegacyPool) validateTxBasics(tx *types.Transaction) error {
 
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
-<<<<<<< HEAD
-func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
-	if !local && tx.GasTipCapIntCmp(pool.gasTip.Load().ToBig()) < 0 {
-		return txpool.ErrUnderpriced
-=======
 func (pool *LegacyPool) validateTx(tx *types.Transaction) error {
-	sender, err := types.Sender(pool.signer, tx)
-	if err != nil {
-		return err
-	}
-	for _, blackAddr := range types.NanoBlackList {
-		if sender == blackAddr || (tx.To() != nil && *tx.To() == blackAddr) {
-			log.Error("blacklist account detected", "account", blackAddr, "tx", tx.Hash())
-			return txpool.ErrInBlackList
-		}
->>>>>>> bsc/v1.5.12
-	}
-
 	opts := &txpool.ValidationOptionsWithState{
 		State: pool.currentState,
 

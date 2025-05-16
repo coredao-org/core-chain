@@ -63,14 +63,11 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RPCGasCap               uint64
 		RPCEVMTimeout           time.Duration
 		RPCTxFeeCap             float64
-<<<<<<< HEAD
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideHaber           *uint64 `toml:",omitempty"`
-=======
 		OverridePassedForkTime  *uint64 `toml:",omitempty"`
 		OverrideLorentz         *uint64 `toml:",omitempty"`
 		OverrideMaxwell         *uint64 `toml:",omitempty"`
->>>>>>> bsc/v1.5.12
 		OverrideVerkle          *uint64 `toml:",omitempty"`
 		BlobExtraReserve        uint64
 	}
@@ -122,14 +119,12 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RPCGasCap = c.RPCGasCap
 	enc.RPCEVMTimeout = c.RPCEVMTimeout
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
-<<<<<<< HEAD
-	enc.OverrideCancun = c.OverrideCancun
-	enc.OverrideHaber = c.OverrideHaber
-=======
+	// TODO(cz): check to remove them
+	// enc.OverrideCancun = c.OverrideCancun
+	// enc.OverrideHaber = c.OverrideHaber
 	enc.OverridePassedForkTime = c.OverridePassedForkTime
 	enc.OverrideLorentz = c.OverrideLorentz
 	enc.OverrideMaxwell = c.OverrideMaxwell
->>>>>>> bsc/v1.5.12
 	enc.OverrideVerkle = c.OverrideVerkle
 	enc.BlobExtraReserve = c.BlobExtraReserve
 	return &enc, nil
@@ -185,14 +180,11 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RPCGasCap               *uint64
 		RPCEVMTimeout           *time.Duration
 		RPCTxFeeCap             *float64
-<<<<<<< HEAD
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideHaber           *uint64 `toml:",omitempty"`
-=======
 		OverridePassedForkTime  *uint64 `toml:",omitempty"`
 		OverrideLorentz         *uint64 `toml:",omitempty"`
 		OverrideMaxwell         *uint64 `toml:",omitempty"`
->>>>>>> bsc/v1.5.12
 		OverrideVerkle          *uint64 `toml:",omitempty"`
 		BlobExtraReserve        *uint64
 	}
@@ -347,12 +339,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.OverrideLorentz != nil {
 		c.OverrideLorentz = dec.OverrideLorentz
 	}
-<<<<<<< HEAD
-=======
 	if dec.OverrideMaxwell != nil {
 		c.OverrideMaxwell = dec.OverrideMaxwell
 	}
->>>>>>> bsc/v1.5.12
 	if dec.OverrideVerkle != nil {
 		c.OverrideVerkle = dec.OverrideVerkle
 	}

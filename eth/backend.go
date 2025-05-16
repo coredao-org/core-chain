@@ -32,15 +32,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
-<<<<<<< HEAD
-	"github.com/ethereum/go-ethereum/consensus/beacon"
-	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/satoshi"
-=======
-	"github.com/ethereum/go-ethereum/consensus/parlia"
->>>>>>> bsc/v1.5.12
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
+	"github.com/ethereum/go-ethereum/core/monitor"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/pruner"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -54,6 +49,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
+	"github.com/ethereum/go-ethereum/eth/protocols/bsc"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 	"github.com/ethereum/go-ethereum/eth/protocols/trust"
@@ -105,19 +101,8 @@ type Ethereum struct {
 	localTxTracker *locals.TxTracker
 	blockchain     *core.BlockChain
 
-<<<<<<< HEAD
-	// Handlers
-	txPool              *txpool.TxPool
-	blockchain          *core.BlockChain
-	handler             *handler
-	ethDialCandidates   enode.Iterator
-	snapDialCandidates  enode.Iterator
-	trustDialCandidates enode.Iterator
-	merger              *consensus.Merger
-=======
 	handler *handler
 	discmix *enode.FairMix
->>>>>>> bsc/v1.5.12
 
 	// DB interfaces
 	chainDb ethdb.Database // Block chain database
@@ -228,13 +213,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		chainConfig.LorentzTime = config.OverrideLorentz
 		overrides.OverrideLorentz = config.OverrideLorentz
 	}
-<<<<<<< HEAD
-=======
 	if config.OverrideMaxwell != nil {
 		chainConfig.MaxwellTime = config.OverrideMaxwell
 		overrides.OverrideMaxwell = config.OverrideMaxwell
 	}
->>>>>>> bsc/v1.5.12
 	if config.OverrideVerkle != nil {
 		chainConfig.VerkleTime = config.OverrideVerkle
 		overrides.OverrideVerkle = config.OverrideVerkle
@@ -410,40 +392,19 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 	eth.miner.SetPrioAddresses(config.TxPool.Locals)
 
-<<<<<<< HEAD
-	gpoParams := config.GPO
-	if gpoParams.Default == nil {
-		gpoParams.Default = config.Miner.GasPrice
-	}
-	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
-
-	// Setup DNS discovery iterators.
-	dnsclient := dnsdisc.NewClient(dnsdisc.Config{})
-	eth.ethDialCandidates, err = dnsclient.NewIterator(eth.config.EthDiscoveryURLs...)
-	if err != nil {
-		return nil, err
-	}
-	eth.snapDialCandidates, err = dnsclient.NewIterator(eth.config.SnapDiscoveryURLs...)
-	if err != nil {
-		return nil, err
-	}
-	eth.trustDialCandidates, err = dnsclient.NewIterator(eth.config.TrustDiscoveryURLs...)
-	if err != nil {
-		return nil, err
-	}
-=======
 	// Create voteManager instance
 	if posa, ok := eth.engine.(consensus.PoSA); ok {
 		// Create votePool instance
+		// TODO(cz): Do we want the VotePool in Satoshi?
 		votePool := vote.NewVotePool(eth.blockchain, posa)
 		eth.votePool = votePool
-		if parlia, ok := eth.engine.(*parlia.Parlia); ok {
+		if satoshi, ok := eth.engine.(*satoshi.Satoshi); ok {
 			if !config.Miner.DisableVoteAttestation {
-				// if there is no VotePool in Parlia Engine, the miner can't get votes for assembling
-				parlia.VotePool = votePool
+				// if there is no VotePool in Satoshi Engine, the miner can't get votes for assembling
+				satoshi.VotePool = votePool
 			}
 		} else {
-			return nil, errors.New("Engine is not Parlia type")
+			return nil, errors.New("Engine is not Satoshi type")
 		}
 		log.Info("Create votePool successfully")
 		eth.handler.votepool = votePool
@@ -465,7 +426,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		}
 	}
 	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, config.GPO, config.Miner.GasPrice)
->>>>>>> bsc/v1.5.12
 
 	// Start the RPC service
 	eth.netRPCService = ethapi.NewNetAPI(eth.p2pServer, networkID)
@@ -548,66 +508,6 @@ func (s *Ethereum) Etherbase() (eb common.Address, err error) {
 	return common.Address{}, errors.New("etherbase must be explicitly specified")
 }
 
-<<<<<<< HEAD
-// isLocalBlock checks whether the specified block is mined
-// by local miner accounts.
-//
-// We regard two types of accounts as local miner account: etherbase
-// and accounts specified via `txpool.locals` flag.
-func (s *Ethereum) isLocalBlock(header *types.Header) bool {
-	author, err := s.engine.Author(header)
-	if err != nil {
-		log.Warn("Failed to retrieve block author", "number", header.Number.Uint64(), "hash", header.Hash(), "err", err)
-		return false
-	}
-	// Check whether the given address is etherbase.
-	s.lock.RLock()
-	etherbase := s.etherbase
-	s.lock.RUnlock()
-	if author == etherbase {
-		return true
-	}
-	// Check whether the given address is specified by `txpool.local`
-	// CLI flag.
-	for _, account := range s.config.TxPool.Locals {
-		if account == author {
-			return true
-		}
-	}
-	return false
-}
-
-// shouldPreserve checks whether we should preserve the given block
-// during the chain reorg depending on whether the author of block
-// is a local account.
-func (s *Ethereum) shouldPreserve(header *types.Header) bool {
-	// The reason we need to disable the self-reorg preserving for clique
-	// is it can be probable to introduce a deadlock.
-	//
-	// e.g. If there are 7 available signers
-	//
-	// r1   A
-	// r2     B
-	// r3       C
-	// r4         D
-	// r5   A      [X] F G
-	// r6    [X]
-	//
-	// In the round5, the in-turn signer E is offline, so the worst case
-	// is A, F and G sign the block of round5 and reject the block of opponents
-	// and in the round6, the last available signer B is offline, the whole
-	// network is stuck.
-	if _, ok := s.engine.(*clique.Clique); ok {
-		return false
-	}
-	if _, ok := s.engine.(*satoshi.Satoshi); ok {
-		return false
-	}
-	return s.isLocalBlock(header)
-}
-
-=======
->>>>>>> bsc/v1.5.12
 // SetEtherbase sets the mining reward address.
 func (s *Ethereum) SetEtherbase(etherbase common.Address) {
 	s.lock.Lock()
@@ -635,42 +535,13 @@ func (s *Ethereum) StartMining() error {
 			log.Error("Cannot start mining without etherbase", "err", err)
 			return fmt.Errorf("etherbase missing: %v", err)
 		}
-<<<<<<< HEAD
-		var cli *clique.Clique
-		if c, ok := s.engine.(*clique.Clique); ok {
-			cli = c
-		} else if cl, ok := s.engine.(*beacon.Beacon); ok {
-			if c, ok := cl.InnerEngine().(*clique.Clique); ok {
-				cli = c
-			}
-		}
-		if cli != nil {
-			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
-			if wallet == nil || err != nil {
-				log.Error("Etherbase account unavailable locally", "err", err)
-				return fmt.Errorf("signer missing: %v", err)
-			}
-			cli.Authorize(eb, wallet.SignData)
-		}
 		if satoshi, ok := s.engine.(*satoshi.Satoshi); ok {
-=======
-		if parlia, ok := s.engine.(*parlia.Parlia); ok {
->>>>>>> bsc/v1.5.12
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
-<<<<<<< HEAD
 			satoshi.Authorize(eb, wallet.SignData, wallet.SignTx)
-
-			minerInfo := metrics.Get("miner-info")
-			if minerInfo != nil {
-				minerInfo.(metrics.Label).Value()["Etherbase"] = eb.String()
-			}
-=======
-			parlia.Authorize(eb, wallet.SignData, wallet.SignTx)
->>>>>>> bsc/v1.5.12
 		}
 
 		go s.miner.Start()
@@ -723,10 +594,8 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.config.EnableTrustProtocol {
 		protos = append(protos, trust.MakeProtocols((*trustHandler)(s.handler))...)
 	}
-<<<<<<< HEAD
-=======
+	// TODO(cz): Do we want the BSC protocol in Satoshi?
 	protos = append(protos, bsc.MakeProtocols((*bscHandler)(s.handler))...)
->>>>>>> bsc/v1.5.12
 
 	return protos
 }
@@ -807,13 +676,7 @@ func (s *Ethereum) Stop() error {
 		s.miner.TryWaitProposalDoneWhenStopping()
 	}
 	// Stop all the peer-related stuff first.
-<<<<<<< HEAD
-	s.ethDialCandidates.Close()
-	s.snapDialCandidates.Close()
-	s.trustDialCandidates.Close()
-=======
 	s.discmix.Close()
->>>>>>> bsc/v1.5.12
 	s.handler.Stop()
 
 	// Then stop everything else.

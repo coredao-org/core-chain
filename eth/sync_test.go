@@ -114,20 +114,15 @@ func testChainSyncWithBlobs(t *testing.T, mode downloader.SyncMode, preCancunBlk
 	cancunTime := (preCancunBlks + 1) * 10
 	config.CancunTime = &cancunTime
 
-<<<<<<< HEAD
-	// Create a full handler and ensure snap sync ends up disabled
-	full := newTestSatoshiHandlerAfterCancun(t, &config, mode, preCancunBlks, postCancunBlks)
-=======
 	// Create an empty handler
-	empty := newTestParliaHandlerAfterCancun(t, &config, mode, 0, 0)
+	empty := newTestSatoshiHandlerAfterCancun(t, &config, mode, 0, 0)
 	defer empty.close()
 	if ethconfig.SnapSync == mode && !empty.handler.snapSync.Load() {
 		t.Fatalf("snap sync disabled on pristine blockchain")
 	}
 
 	// Create a full handler
-	full := newTestParliaHandlerAfterCancun(t, &config, mode, preCancunBlks, postCancunBlks)
->>>>>>> bsc/v1.5.12
+	full := newTestSatoshiHandlerAfterCancun(t, &config, mode, preCancunBlks, postCancunBlks)
 	defer full.close()
 	if ethconfig.SnapSync == mode && full.handler.snapSync.Load() {
 		t.Fatalf("snap sync not disabled on non-empty blockchain")
@@ -136,16 +131,6 @@ func testChainSyncWithBlobs(t *testing.T, mode downloader.SyncMode, preCancunBlk
 	// check blocks and blobs
 	checkChainWithBlobs(t, full.chain, preCancunBlks, postCancunBlks)
 
-<<<<<<< HEAD
-	// Create an empty handler and ensure it's in snap sync mode
-	empty := newTestSatoshiHandlerAfterCancun(t, &config, mode, 0, 0)
-	defer empty.close()
-	if downloader.SnapSync == mode && !empty.handler.snapSync.Load() {
-		t.Fatalf("snap sync disabled on pristine blockchain")
-	}
-
-=======
->>>>>>> bsc/v1.5.12
 	// Sync up the two handlers via both `eth` and `snap`
 	ethVer := uint(eth.ETH68)
 	snapVer := uint(snap.SNAP1)

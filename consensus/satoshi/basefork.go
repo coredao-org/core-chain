@@ -1,4 +1,4 @@
-package parlia
+package satoshi
 
 import (
 	"math/rand"
@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	wiggleTimeBeforeFork       = 500 * time.Millisecond // Random delay (per signer) to allow concurrent signers
-	fixedBackOffTimeBeforeFork = 200 * time.Millisecond
-	millisecondsUnit           = 500 // Set to 250 if block interval is 750ms; not enforced at the consensus level
+	wiggleTimeBeforeFork       = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
+	fixedBackOffTimeBeforeFork = 1000 * time.Millisecond
+	millisecondsUnit           = 1000 // Set to 250 if block interval is 750ms; not enforced at the consensus level
 )
 
-func (p *Parlia) delayForRamanujanFork(snap *Snapshot, header *types.Header) time.Duration {
+func (p *Satoshi) delayForRamanujanFork(snap *Snapshot, header *types.Header) time.Duration {
 	delay := time.Until(time.UnixMilli(int64(header.MilliTimestamp()))) // nolint: gosimple
 	if p.chainConfig.IsRamanujan(header.Number) {
 		return delay
@@ -28,7 +28,7 @@ func (p *Parlia) delayForRamanujanFork(snap *Snapshot, header *types.Header) tim
 	return delay
 }
 
-func (p *Parlia) blockTimeForRamanujanFork(snap *Snapshot, header, parent *types.Header) uint64 {
+func (p *Satoshi) blockTimeForRamanujanFork(snap *Snapshot, header, parent *types.Header) uint64 {
 	blockTime := parent.MilliTimestamp() + snap.BlockInterval
 	if p.chainConfig.IsRamanujan(header.Number) {
 		blockTime = blockTime + p.backOffTime(snap, parent, header, p.val)
@@ -40,7 +40,7 @@ func (p *Parlia) blockTimeForRamanujanFork(snap *Snapshot, header, parent *types
 	return blockTime
 }
 
-func (p *Parlia) blockTimeVerifyForRamanujanFork(snap *Snapshot, header, parent *types.Header) error {
+func (p *Satoshi) blockTimeVerifyForRamanujanFork(snap *Snapshot, header, parent *types.Header) error {
 	if p.chainConfig.IsRamanujan(header.Number) {
 		if header.MilliTimestamp() < parent.MilliTimestamp()+snap.BlockInterval+p.backOffTime(snap, parent, header, header.Coinbase) {
 			return consensus.ErrFutureBlock

@@ -532,9 +532,9 @@ func (api *BlockChainAPI) Health() bool {
 }
 
 func (api *BlockChainAPI) getFinalizedNumber(ctx context.Context, verifiedValidatorNum int64) (int64, error) {
-	parliaConfig := api.b.ChainConfig().Parlia
-	if parliaConfig == nil {
-		return 0, fmt.Errorf("only parlia engine supported")
+	satoshiConfig := api.b.ChainConfig().Satoshi
+	if satoshiConfig == nil {
+		return 0, fmt.Errorf("only satoshi engine supported")
 	}
 
 	curValidators, err := api.b.CurrentValidators()

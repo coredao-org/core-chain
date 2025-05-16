@@ -18,52 +18,52 @@
 package web3ext
 
 var Modules = map[string]string{
-	"admin":  AdminJs,
-	"parlia": ParliaJs,
-	"debug":  DebugJs,
-	"eth":    EthJs,
-	"miner":  MinerJs,
-	"net":    NetJs,
-	"rpc":    RpcJs,
-	"txpool": TxpoolJs,
-	"dev":    DevJs,
+	"admin":   AdminJs,
+	"satoshi": SatoshiJs,
+	"debug":   DebugJs,
+	"eth":     EthJs,
+	"miner":   MinerJs,
+	"net":     NetJs,
+	"rpc":     RpcJs,
+	"txpool":  TxpoolJs,
+	"dev":     DevJs,
 }
 
-const ParliaJs = `
+const SatoshiJs = `
 web3._extend({
-	property: 'parlia',
+	property: 'satoshi',
 	methods: [
 		new web3._extend.Method({
 			name: 'getSnapshot',
-			call: 'parlia_getSnapshot',
+			call: 'satoshi_getSnapshot',
 			params: 1,
 			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'getSnapshotAtHash',
-			call: 'parlia_getSnapshotAtHash',
+			call: 'satoshi_getSnapshotAtHash',
 			params: 1
 		}),
 		new web3._extend.Method({
 			name: 'getValidators',
-			call: 'parlia_getValidators',
+			call: 'satoshi_getValidators',
 			params: 1,
 			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'getValidatorsAtHash',
-			call: 'parlia_getValidatorsAtHash',
+			call: 'satoshi_getValidatorsAtHash',
 			params: 1
 		}),
 		new web3._extend.Method({
 			name: 'getJustifiedNumber',
-			call: 'parlia_getJustifiedNumber',
+			call: 'satoshi_getJustifiedNumber',
 			params: 1,
 			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),
 		new web3._extend.Method({
 			name: 'getFinalizedNumber',
-			call: 'parlia_getFinalizedNumber',
+			call: 'satoshi_getFinalizedNumber',
 			params: 1,
 			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),

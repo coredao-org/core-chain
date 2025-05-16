@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/bidutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
-	"github.com/ethereum/go-ethereum/consensus/parlia"
+	"github.com/ethereum/go-ethereum/consensus/satoshi"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -480,10 +480,10 @@ func (b *bidSimulator) getBlockInterval(parentHeader *types.Header) uint64 {
 	if parentHeader == nil {
 		return 1500 // lorentzBlockInterval
 	}
-	parlia, _ := b.engine.(*parlia.Parlia)
+	satoshi, _ := b.engine.(*satoshi.Satoshi)
 	// only `Number` and `ParentHash` are used when `BlockInterval`
 	tmpHeader := &types.Header{ParentHash: parentHeader.Hash(), Number: new(big.Int).Add(parentHeader.Number, common.Big1)}
-	blockInterval, err := parlia.BlockInterval(b.chain, tmpHeader)
+	blockInterval, err := satoshi.BlockInterval(b.chain, tmpHeader)
 	if err != nil {
 		log.Debug("failed to get BlockInterval when bidBetterBefore")
 	}
@@ -492,11 +492,7 @@ func (b *bidSimulator) getBlockInterval(parentHeader *types.Header) uint64 {
 
 func (b *bidSimulator) bidBetterBefore(parentHash common.Hash) time.Time {
 	parentHeader := b.chain.GetHeaderByHash(parentHash)
-<<<<<<< HEAD
-	return bidutil.BidBetterBefore(parentHeader, b.chainConfig.Satoshi.Period, b.delayLeftOver, b.config.BidSimulationLeftOver)
-=======
 	return bidutil.BidBetterBefore(parentHeader, b.getBlockInterval(parentHeader), b.delayLeftOver, *b.config.BidSimulationLeftOver)
->>>>>>> bsc/v1.5.12
 }
 
 func (b *bidSimulator) clearLoop() {
@@ -691,7 +687,7 @@ func (b *bidSimulator) simBid(interruptCh chan int32, bidRuntime *BidRuntime) {
 	gasLimit := bidRuntime.env.header.GasLimit
 	if bidRuntime.env.gasPool == nil {
 		bidRuntime.env.gasPool = new(core.GasPool).AddGas(gasLimit)
-		if p, ok := b.engine.(*parlia.Parlia); ok {
+		if p, ok := b.engine.(*satoshi.Satoshi); ok {
 			bidRuntime.env.gasPool.SubGas(p.EstimateGasReservedForSystemTxs(b.chain, bidRuntime.env.header))
 		}
 		bidRuntime.env.gasPool.SubGas(params.PayBidTxGasLimit)

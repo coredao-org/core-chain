@@ -4187,15 +4187,11 @@ func (c *mockSatoshi) VerifyUncles(chain consensus.ChainReader, block *types.Blo
 	return nil
 }
 
-<<<<<<< HEAD
-func (c *mockSatoshi) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header) error {
-=======
-func (c *mockParlia) VerifyRequests(header *types.Header, Requests [][]byte) error {
+func (c *mockSatoshi) VerifyRequests(header *types.Header, Requests [][]byte) error {
 	return nil
 }
 
-func (c *mockParlia) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header) error {
->>>>>>> bsc/v1.5.12
+func (c *mockSatoshi) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header) error {
 	return nil
 }
 
@@ -4208,22 +4204,12 @@ func (c *mockSatoshi) VerifyHeaders(chain consensus.ChainHeaderReader, headers [
 	return abort, results
 }
 
-<<<<<<< HEAD
-func (c *mockSatoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, _ *[]*types.Transaction, uncles []*types.Header, withdrawals []*types.Withdrawal,
-	_ *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64) (err error) {
-	return
-}
-
-func (c *mockSatoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, receipts []*types.Receipt, withdrawals []*types.Withdrawal) (*types.Block, []*types.Receipt, error) {
-=======
-func (c *mockParlia) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, _ *[]*types.Transaction, uncles []*types.Header, withdrawals []*types.Withdrawal,
+func (c *mockSatoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, _ *[]*types.Transaction, uncles []*types.Header, withdrawals []*types.Withdrawal,
 	_ *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64, tracer *tracing.Hooks) (err error) {
 	return
 }
 
-func (c *mockParlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body, receipts []*types.Receipt, tracer *tracing.Hooks) (*types.Block, []*types.Receipt, error) {
->>>>>>> bsc/v1.5.12
+func (c *mockSatoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, body *types.Body, receipts []*types.Receipt, tracer *tracing.Hooks) (*types.Block, []*types.Receipt, error) {
 	// Finalize block
 	c.Finalize(chain, header, state, &body.Transactions, body.Uncles, body.Withdrawals, nil, nil, nil, tracer)
 

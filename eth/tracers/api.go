@@ -35,11 +35,8 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
-<<<<<<< HEAD
-=======
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/tracing"
->>>>>>> bsc/v1.5.12
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
@@ -291,11 +288,8 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 									task.statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
 									task.statedb.AddBalance(blockCtx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 								}
-<<<<<<< HEAD
-=======
 
 								systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), task.block.Number(), task.parent.Time(), task.block.Time(), task.statedb, false)
->>>>>>> bsc/v1.5.12
 								beforeSystemTx = false
 							}
 						}
@@ -564,12 +558,9 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 	}
 	defer release()
 
-<<<<<<< HEAD
-=======
 	// upgrade build-in system contract before normal txs if Feynman is not enabled
 	systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, true)
 
->>>>>>> bsc/v1.5.12
 	var (
 		roots              []common.Hash
 		signer             = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
@@ -595,14 +586,11 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 					statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
 					statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 				}
-<<<<<<< HEAD
-=======
 
 				if beforeSystemTx {
 					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
 					beforeSystemTx = false
 				}
->>>>>>> bsc/v1.5.12
 			}
 		}
 
@@ -660,8 +648,6 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	}
 	defer release()
 
-<<<<<<< HEAD
-=======
 	// upgrade build-in system contract before normal txs if Feynman is not enabled
 	systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, true)
 	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
@@ -673,7 +659,6 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		core.ProcessParentBlockHash(block.ParentHash(), evm)
 	}
 
->>>>>>> bsc/v1.5.12
 	// JS tracers have high overhead. In this case run a parallel
 	// process that generates states in one thread and traces txes
 	// in separate worker threads.
@@ -702,10 +687,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 						statedb.AddBalance(blockCtx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 					}
 
-<<<<<<< HEAD
-=======
 					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
->>>>>>> bsc/v1.5.12
 					beforeSystemTx = false
 				}
 			}
@@ -793,10 +775,7 @@ txloop:
 						statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
 					}
 
-<<<<<<< HEAD
-=======
 					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
->>>>>>> bsc/v1.5.12
 					beforeSystemTx = false
 				}
 			}
@@ -860,12 +839,9 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 	}
 	defer release()
 
-<<<<<<< HEAD
-=======
 	// upgrade build-in system contract before normal txs if Feynman is not enabled
 	systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, true)
 
->>>>>>> bsc/v1.5.12
 	// Retrieve the tracing configurations, or use default values
 	var (
 		logConfig logger.Config
@@ -912,10 +888,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 						statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 					}
 
-<<<<<<< HEAD
-=======
 					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
->>>>>>> bsc/v1.5.12
 					beforeSystemTx = false
 				}
 			}
@@ -1089,8 +1062,6 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 	}
 	defer release()
 
-<<<<<<< HEAD
-=======
 	// upgrade build-in system contract before tracing if Feynman is not enabled
 	if block.NumberU64() > 0 {
 		parent, err := api.blockByNumberAndHash(ctx, rpc.BlockNumber(block.NumberU64()-1), block.ParentHash())
@@ -1100,7 +1071,6 @@ func (api *API) TraceCall(ctx context.Context, args ethapi.TransactionArgs, bloc
 		systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, true)
 	}
 
->>>>>>> bsc/v1.5.12
 	vmctx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	// Apply the customization rules if required.
 	if config != nil {

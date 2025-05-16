@@ -21,12 +21,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-<<<<<<< HEAD:consensus/satoshi/snapshot.go
-	"math/big"
-=======
 	"fmt"
 	"math"
->>>>>>> bsc/v1.5.12:consensus/parlia/snapshot.go
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -34,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -44,13 +41,6 @@ type Snapshot struct {
 	ethAPI   *ethapi.BlockChainAPI
 	sigCache *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
 
-<<<<<<< HEAD:consensus/satoshi/snapshot.go
-	Number           uint64                      `json:"number"`             // Block number where the snapshot was created
-	Hash             common.Hash                 `json:"hash"`               // Block hash where the snapshot was created
-	Validators       map[common.Address]struct{} `json:"validators"`         // Set of authorized validators at this moment
-	Recents          map[uint64]common.Address   `json:"recents"`            // Set of recent validators for spam protections
-	RecentForkHashes map[uint64]string           `json:"recent_fork_hashes"` // Set of recent forkHash
-=======
 	Number           uint64                            `json:"number"`                // Block number where the snapshot was created
 	Hash             common.Hash                       `json:"hash"`                  // Block hash where the snapshot was created
 	EpochLength      uint64                            `json:"epoch_length"`          // Number of Blocks in one epoch
@@ -65,7 +55,6 @@ type Snapshot struct {
 type ValidatorInfo struct {
 	Index       int                `json:"index:omitempty"` // The index should offset by 1
 	VoteAddress types.BLSPublicKey `json:"vote_address,omitempty"`
->>>>>>> bsc/v1.5.12:consensus/parlia/snapshot.go
 }
 
 // newSnapshot creates a new snapshot with the specified startup parameters. This
@@ -149,14 +138,10 @@ func (s *Snapshot) copy() *Snapshot {
 		sigCache:         s.sigCache,
 		Number:           s.Number,
 		Hash:             s.Hash,
-<<<<<<< HEAD:consensus/satoshi/snapshot.go
-		Validators:       make(map[common.Address]struct{}),
-=======
 		EpochLength:      s.EpochLength,
 		BlockInterval:    s.BlockInterval,
 		TurnLength:       s.TurnLength,
 		Validators:       make(map[common.Address]*ValidatorInfo),
->>>>>>> bsc/v1.5.12:consensus/parlia/snapshot.go
 		Recents:          make(map[uint64]common.Address),
 		RecentForkHashes: make(map[uint64]string),
 	}
@@ -183,9 +168,6 @@ func (s *Snapshot) isMajorityFork(forkHash string) bool {
 	return ally > len(s.RecentForkHashes)/2
 }
 
-<<<<<<< HEAD:consensus/satoshi/snapshot.go
-func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderReader, parents []*types.Header, chainId *big.Int) (*Snapshot, error) {
-=======
 func (s *Snapshot) updateAttestation(header *types.Header, chainConfig *params.ChainConfig, epochLength uint64) {
 	if !chainConfig.IsLuban(header.Number) {
 		return
@@ -260,7 +242,6 @@ func (s *Snapshot) SignRecently(validator common.Address) bool {
 }
 
 func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderReader, parents []*types.Header, chainConfig *params.ChainConfig) (*Snapshot, error) {
->>>>>>> bsc/v1.5.12:consensus/parlia/snapshot.go
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
 		return s, nil
@@ -338,11 +319,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				return nil, consensus.ErrUnknownAncestor
 			}
 
-<<<<<<< HEAD:consensus/satoshi/snapshot.go
-			validatorBytes := checkpointHeader.Extra[extraVanity : len(checkpointHeader.Extra)-extraSeal]
-			// get validators from headers and use that for new validator set
-			newValArr, err := ParseValidators(validatorBytes)
-=======
 			oldVersionsLen := snap.versionHistoryCheckLen()
 			// get turnLength from headers and use that for new turnLength
 			turnLength, err := parseTurnLength(checkpointHeader, chainConfig, epochLength)
@@ -356,7 +332,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 
 			// get validators from headers and use that for new validator set
 			newValArr, voteAddrs, err := parseValidators(checkpointHeader, chainConfig, epochLength)
->>>>>>> bsc/v1.5.12:consensus/parlia/snapshot.go
 			if err != nil {
 				return nil, err
 			}
@@ -379,10 +354,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 			}
 			snap.Validators = newVals
-<<<<<<< HEAD:consensus/satoshi/snapshot.go
-		}
-		snap.RecentForkHashes[number] = hex.EncodeToString(header.Extra[extraVanity-nextForkHashSize : extraVanity])
-=======
 			if chainConfig.IsLuban(header.Number) {
 				validators := snap.validators()
 				for idx, val := range validators {
@@ -393,7 +364,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				delete(snap.RecentForkHashes, number-i)
 			}
 		}
->>>>>>> bsc/v1.5.12:consensus/parlia/snapshot.go
 	}
 	snap.Number += uint64(len(headers))
 	snap.Hash = headers[len(headers)-1].Hash()
@@ -489,22 +459,10 @@ func (s *Snapshot) indexOfVal(validator common.Address) int {
 	return -1
 }
 
-<<<<<<< HEAD:consensus/satoshi/snapshot.go
-func (s *Snapshot) supposeValidator() common.Address {
-	validators := s.validators()
-	index := (s.Number + 1) % uint64(len(validators))
-	return validators[index]
-}
-
-func ParseValidators(validatorsBytes []byte) ([]common.Address, error) {
-	if len(validatorsBytes)%validatorBytesLength != 0 {
-		return nil, errors.New("invalid validators bytes")
-=======
 func parseValidators(header *types.Header, chainConfig *params.ChainConfig, epochLength uint64) ([]common.Address, []types.BLSPublicKey, error) {
 	validatorsBytes := getValidatorBytesFromHeader(header, chainConfig, epochLength)
 	if len(validatorsBytes) == 0 {
 		return nil, nil, errors.New("invalid validators bytes")
->>>>>>> bsc/v1.5.12:consensus/parlia/snapshot.go
 	}
 	n := len(validatorsBytes) / validatorBytesLength
 	result := make([]common.Address, n)

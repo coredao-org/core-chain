@@ -159,13 +159,6 @@ func newTestBackend(t *testing.T, londonBlock *big.Int, cancunBlock *big.Int, pe
 	config.LondonBlock = londonBlock
 	config.ArrowGlacierBlock = londonBlock
 	config.GrayGlacierBlock = londonBlock
-<<<<<<< HEAD
-	config.LubanBlock = nil
-	config.PlatoBlock = nil
-	config.HertzBlock = nil
-	config.TerminalTotalDifficulty = common.Big0
-	engine := ethash.NewFaker()
-=======
 
 	engine := beacon.New(ethash.NewFaker())
 	engine.TestingTTDBlock(testHead + 1)
@@ -179,7 +172,6 @@ func newTestBackend(t *testing.T, londonBlock *big.Int, cancunBlock *big.Int, pe
 		config.BlobScheduleConfig = params.DefaultBlobSchedule
 		signer = types.LatestSigner(gspec.Config)
 	}
->>>>>>> bsc/v1.5.12
 
 	// Generate testing blocks
 	db, blocks, _ := core.GenerateChainWithGenesis(gspec, engine, testHead+1, func(i int, b *core.BlockGen) {

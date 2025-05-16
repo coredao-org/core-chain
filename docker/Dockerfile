@@ -1,14 +1,10 @@
-<<<<<<< HEAD
-FROM golang:1.21-alpine as core
-=======
-FROM golang:1.23-alpine as bsc
->>>>>>> bsc/v1.5.12
+FROM golang:1.23-alpine as core
 
 RUN apk add --no-cache make cmake gcc musl-dev linux-headers git bash build-base libc-dev
 
 ADD . /core
 WORKDIR /core
-ENV CGO_CFLAGS="-O -D__BLST_PORTABLE__" 
+ENV CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 ENV CGO_CFLAGS_ALLOW="-O -D__BLST_PORTABLE__"
 RUN make geth
 RUN mv /core/build/bin/geth /usr/local/bin/geth

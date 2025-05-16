@@ -75,16 +75,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	lastBlock := p.chain.GetHeaderByHash(block.ParentHash())
 	if lastBlock == nil {
-<<<<<<< HEAD
-		return statedb, nil, nil, 0, errors.New("could not get parent block")
-	}
-	systemcontracts.UpgradeBuildInSystemContract(p.config, blockNumber, lastBlock.Time(), block.Time(), statedb)
-=======
 		return nil, errors.New("could not get parent block")
 	}
 	// Handle upgrade build-in system contract code
 	systemcontracts.TryUpdateBuildInSystemContract(p.config, blockNumber, lastBlock.Time, block.Time(), statedb, true)
->>>>>>> bsc/v1.5.12
 
 	var (
 		context vm.BlockContext
@@ -121,18 +115,13 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	for _, tx := range block.Transactions() {
 		if isPoSA {
 			if isSystemTx, err := posa.IsSystemTransaction(tx, block.Header()); err != nil {
-<<<<<<< HEAD
-				return statedb, nil, nil, 0, err
-=======
 				bloomProcessors.Close()
 				return nil, err
->>>>>>> bsc/v1.5.12
 			} else if isSystemTx {
 				systemTxs = append(systemTxs, tx)
 				continue
 			}
 		}
-<<<<<<< HEAD
 	}
 	err := p.engine.BeforeValidateTx(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
 	if err != nil {
@@ -142,13 +131,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		if isPoSA {
 			if isSystemTx, _ := posa.IsSystemTransaction(tx, block.Header()); isSystemTx {
 				continue
-=======
+			}
+		}
+		// TODO(cz): Do we want this check? It will break for turnRound. Also if we keep it, move it to another hardfork and not Cancun (is already activated)
 		if p.config.IsCancun(block.Number(), block.Time()) {
 			if len(systemTxs) > 0 {
 				bloomProcessors.Close()
 				// systemTxs should be always at the end of block.
 				return nil, fmt.Errorf("normal tx %d [%v] after systemTx", i, tx.Hash().Hex())
->>>>>>> bsc/v1.5.12
 			}
 		}
 		msg, err := TransactionToMessage(tx, signer, header.BaseFee)
@@ -171,7 +161,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// Read requests if Prague is enabled.
 	var requests [][]byte
-	if p.config.IsPrague(block.Number(), block.Time()) && p.chain.config.Parlia == nil {
+	if p.config.IsPrague(block.Number(), block.Time()) && p.chain.config.Satoshi == nil {
 		var allCommonLogs []*types.Log
 		for _, receipt := range receipts {
 			allCommonLogs = append(allCommonLogs, receipt.Logs...)
@@ -188,11 +178,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-<<<<<<< HEAD
-	err = p.engine.Finalize(p.bc, header, statedb, &commonTxs, block.Uncles(), withdrawals, &receipts, &systemTxs, usedGas)
-=======
 	err = p.chain.engine.Finalize(p.chain, header, tracingStateDB, &commonTxs, block.Uncles(), block.Withdrawals(), &receipts, &systemTxs, usedGas, cfg.Tracer)
->>>>>>> bsc/v1.5.12
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +282,7 @@ func ApplyTransaction(evm *vm.EVM, gp *GasPool, statedb *state.StateDB, header *
 func ProcessBeaconBlockRoot(beaconRoot common.Hash, evm *vm.EVM) {
 	// Return immediately if beaconRoot equals the zero hash when using the Parlia engine.
 	if beaconRoot == (common.Hash{}) {
-		if chainConfig := evm.ChainConfig(); chainConfig != nil && chainConfig.Parlia != nil {
+		if chainConfig := evm.ChainConfig(); chainConfig != nil && chainConfig.Satoshi != nil {
 			return
 		}
 	}

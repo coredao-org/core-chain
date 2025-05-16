@@ -1,4 +1,4 @@
-package parlia
+package satoshi
 
 const validatorSetABIBeforeLuban = `
 [

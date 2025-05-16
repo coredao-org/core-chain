@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
-	"github.com/ethereum/go-ethereum/consensus/parlia"
+	"github.com/ethereum/go-ethereum/consensus/satoshi"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -444,10 +444,10 @@ func (b *EthAPIBackend) Engine() consensus.Engine {
 }
 
 func (b *EthAPIBackend) CurrentValidators() ([]common.Address, error) {
-	if p, ok := b.eth.engine.(*parlia.Parlia); ok {
+	if p, ok := b.eth.engine.(*satoshi.Satoshi); ok {
 		service := p.APIs(b.Chain())[0].Service
 		currentHead := rpc.LatestBlockNumber
-		return service.(*parlia.API).GetValidators(&currentHead)
+		return service.(*satoshi.API).GetValidators(&currentHead)
 	}
 
 	return []common.Address{}, errors.New("not supported")

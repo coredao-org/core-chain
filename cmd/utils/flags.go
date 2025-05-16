@@ -296,11 +296,11 @@ var (
 		Value:    ethconfig.Defaults.TriesVerifyMode.String(),
 		Category: flags.FastNodeCategory,
 	}
-<<<<<<< HEAD
 	OverrideCancun = &cli.Uint64Flag{
 		Name:     "override.cancun",
 		Usage:    "Manually specify the Cancun fork timestamp, overriding the bundled setting",
-=======
+		Category: flags.EthCategory,
+	}
 	RialtoHash = &cli.StringFlag{
 		Name:     "rialtohash",
 		Usage:    "Manually specify the Rialto Genesis Hash, to trigger builtin network logic",
@@ -309,7 +309,6 @@ var (
 	OverridePassedForkTime = &cli.Uint64Flag{
 		Name:     "override.passedforktime",
 		Usage:    "Manually specify the hard fork timestamps which have passed on the mainnet, overriding the bundled setting",
->>>>>>> bsc/v1.5.12
 		Category: flags.EthCategory,
 	}
 	OverrideLorentz = &cli.Uint64Flag{
@@ -317,14 +316,11 @@ var (
 		Usage:    "Manually specify the Lorentz fork timestamp, overriding the bundled setting",
 		Category: flags.EthCategory,
 	}
-<<<<<<< HEAD
-=======
 	OverrideMaxwell = &cli.Uint64Flag{
 		Name:     "override.maxwell",
 		Usage:    "Manually specify the Maxwell fork timestamp, overriding the bundled setting",
 		Category: flags.EthCategory,
 	}
->>>>>>> bsc/v1.5.12
 	OverrideVerkle = &cli.Uint64Flag{
 		Name:     "override.verkle",
 		Usage:    "Manually specify the Verkle fork timestamp, overriding the bundled setting",
@@ -2178,15 +2174,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1116
 		}
-<<<<<<< HEAD
 		cfg.Genesis = core.DefaultCOREGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.CoreGenesisHash)
 	case ctx.Bool(BuffaloFlag.Name):
-=======
-		cfg.Genesis = core.DefaultBSCGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.BSCGenesisHash)
-	case ctx.Bool(ChapelFlag.Name) || cfg.NetworkId == 97:
->>>>>>> bsc/v1.5.12
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1115
 		}

@@ -30,22 +30,8 @@ all:
 test: all
 	$(GORUN) build/ci.go test -timeout 1h
 
-<<<<<<< HEAD
-=======
-#? truffle-test: Run the integration test.
-truffle-test:
-	docker build . -f ./docker/Dockerfile --target bsc -t bsc
-	docker build . -f ./docker/Dockerfile --target bsc-genesis -t bsc-genesis
-	docker build . -f ./docker/Dockerfile.truffle -t truffle-test
-	docker compose -f ./tests/truffle/docker-compose.yml up genesis
-	docker compose -f ./tests/truffle/docker-compose.yml up -d bsc-rpc bsc-validator1
-	sleep 30
-	docker compose -f ./tests/truffle/docker-compose.yml up --exit-code-from truffle-test truffle-test
-	docker compose -f ./tests/truffle/docker-compose.yml down
-
 #? lint: Run certain pre-selected linters.
->>>>>>> bsc/v1.5.12
-lint: ## Run linters.
+lint:
 	$(GORUN) build/ci.go lint
 
 #? fmt: Ensure consistent code formatting.

@@ -263,11 +263,8 @@ func (e *GenesisMismatchError) Error() string {
 // ChainOverrides contains the changes to chain config
 // Typically, these modifications involve hardforks that are not enabled on the CORE mainnet, intended for testing purposes.
 type ChainOverrides struct {
-<<<<<<< HEAD
-	OverrideCancun *uint64
-	OverrideHaber  *uint64
-	OverrideVerkle *uint64
-=======
+	OverrideCancun         *uint64
+	OverrideHaber          *uint64
 	OverridePassedForkTime *uint64
 	OverrideLorentz        *uint64
 	OverrideMaxwell        *uint64
@@ -297,11 +294,17 @@ func (o *ChainOverrides) apply(cfg *params.ChainConfig) error {
 	if o.OverrideMaxwell != nil {
 		cfg.MaxwellTime = o.OverrideMaxwell
 	}
+	if o.OverrideCancun != nil {
+		cfg.CancunTime = o.OverrideCancun
+	}
+	if o.OverrideHaber != nil {
+		cfg.HaberTime = o.OverrideHaber
+	}
 	if o.OverrideVerkle != nil {
 		cfg.VerkleTime = o.OverrideVerkle
 	}
+
 	return cfg.CheckConfigForkOrder()
->>>>>>> bsc/v1.5.12
 }
 
 // SetupGenesisBlock writes or updates the genesis block in db.
@@ -327,28 +330,9 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	if genesis != nil && genesis.Config == nil {
 		return nil, common.Hash{}, nil, errGenesisNoConfig
 	}
-<<<<<<< HEAD
-	applyOverrides := func(config *params.ChainConfig) {
-		if config != nil {
-			if overrides != nil && overrides.OverrideCancun != nil {
-				config.CancunTime = overrides.OverrideCancun
-			}
-			if overrides != nil && overrides.OverrideHaber != nil {
-				config.HaberTime = overrides.OverrideHaber
-			}
-			if overrides != nil && overrides.OverrideVerkle != nil {
-				config.VerkleTime = overrides.OverrideVerkle
-			}
-		}
-	}
-	// Just commit the new block if there is no stored genesis block.
-	stored := rawdb.ReadCanonicalHash(db, 0)
-	if (stored == common.Hash{}) {
-=======
 	// Commit the genesis if the database is empty
 	ghash := rawdb.ReadCanonicalHash(db, 0)
 	if (ghash == common.Hash{}) {
->>>>>>> bsc/v1.5.12
 		if genesis == nil {
 			log.Info("Writing default CORE mainnet genesis block")
 			genesis = DefaultCOREGenesisBlock()
@@ -376,14 +360,10 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		// networks must explicitly specify the genesis in the config file, mainnet
 		// genesis will be used as default and the initialization will always fail.
 		if genesis == nil {
-<<<<<<< HEAD
-			genesis = DefaultCOREGenesisBlock()
-=======
 			log.Info("Writing default main-net genesis block")
-			genesis = DefaultGenesisBlock()
+			genesis = DefaultCOREGenesisBlock()
 		} else {
 			log.Info("Writing custom genesis block")
->>>>>>> bsc/v1.5.12
 		}
 		if err := overrides.apply(genesis.Config); err != nil {
 			return nil, common.Hash{}, nil, err
@@ -409,32 +389,6 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		if hash := genesis.ToBlock().Hash(); hash != ghash {
 			return nil, common.Hash{}, nil, &GenesisMismatchError{ghash, hash}
 		}
-<<<<<<< HEAD
-	}
-	// Get the existing chain configuration.
-	newcfg := genesis.configOrDefault(stored)
-	applyOverrides(newcfg)
-	if err := newcfg.CheckConfigForkOrder(); err != nil {
-		return newcfg, common.Hash{}, err
-	}
-	storedcfg := rawdb.ReadChainConfig(db, stored)
-	if storedcfg == nil {
-		log.Warn("Found genesis block without chain config")
-		rawdb.WriteChainConfig(db, stored, newcfg)
-		return newcfg, stored, nil
-	}
-	storedData, _ := json.Marshal(storedcfg)
-	// Special case: if a private network is being used (no genesis and also no
-	// mainnet hash in the database), we must not apply the `configOrDefault`
-	// chain config as that would be AllProtocolChanges (applying any new fork
-	// on top of an existing private network genesis block). In that case, only
-	// apply the overrides.
-	if genesis == nil && stored != params.MainnetGenesisHash && stored != params.BuffaloGenesisHash &&
-		stored != params.PigeonGenesisHash && stored != params.CoreGenesisHash {
-		newcfg = storedcfg
-		applyOverrides(newcfg)
-=======
->>>>>>> bsc/v1.5.12
 	}
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
@@ -586,11 +540,7 @@ func (g *Genesis) toBlockWithRoot(root common.Hash) *types.Block {
 			// EIP-4788: The parentBeaconBlockRoot of the genesis block is always
 			// the zero hash. This is because the genesis block does not have a parent
 			// by definition.
-<<<<<<< HEAD
-			if conf.Satoshi == nil {
-=======
-			if conf.Parlia == nil || conf.IsBohr(num, g.Timestamp) {
->>>>>>> bsc/v1.5.12
+			if conf.Satoshi == nil || conf.IsBohr(num, g.Timestamp) {
 				head.ParentBeaconRoot = new(common.Hash)
 			}
 

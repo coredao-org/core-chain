@@ -81,7 +81,7 @@ func (api *API) GetJustifiedNumber(number *rpc.BlockNumber) (uint64, error) {
 	if header == nil {
 		return 0, errUnknownBlock
 	}
-	snap, err := api.parlia.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
+	snap, err := api.satoshi.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 	if err != nil || snap.Attestation == nil {
 		return 0, err
 	}
@@ -94,7 +94,7 @@ func (api *API) GetTurnLength(number *rpc.BlockNumber) (uint8, error) {
 	if header == nil {
 		return 0, errUnknownBlock
 	}
-	snap, err := api.parlia.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
+	snap, err := api.satoshi.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 	if err != nil || snap.TurnLength == 0 {
 		return 0, err
 	}
@@ -107,7 +107,7 @@ func (api *API) GetFinalizedNumber(number *rpc.BlockNumber) (uint64, error) {
 	if header == nil {
 		return 0, errUnknownBlock
 	}
-	snap, err := api.parlia.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
+	snap, err := api.satoshi.snapshot(api.chain, header.Number.Uint64(), header.Hash(), nil)
 	if err != nil || snap.Attestation == nil {
 		return 0, err
 	}
@@ -120,13 +120,13 @@ func (api *API) getHeader(number *rpc.BlockNumber) (header *types.Header) {
 	if number == nil || *number == rpc.LatestBlockNumber {
 		header = currentHeader // current if none requested
 	} else if *number == rpc.SafeBlockNumber {
-		justifiedNumber, _, err := api.parlia.GetJustifiedNumberAndHash(api.chain, []*types.Header{currentHeader})
+		justifiedNumber, _, err := api.satoshi.GetJustifiedNumberAndHash(api.chain, []*types.Header{currentHeader})
 		if err != nil {
 			return nil
 		}
 		header = api.chain.GetHeaderByNumber(justifiedNumber)
 	} else if *number == rpc.FinalizedBlockNumber {
-		header = api.parlia.GetFinalizedHeader(api.chain, currentHeader)
+		header = api.satoshi.GetFinalizedHeader(api.chain, currentHeader)
 	} else if *number == rpc.PendingBlockNumber {
 		return nil // no pending blocks on bsc
 	} else if *number == rpc.EarliestBlockNumber {

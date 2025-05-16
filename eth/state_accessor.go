@@ -27,11 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
-<<<<<<< HEAD
-=======
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/tracing"
->>>>>>> bsc/v1.5.12
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
@@ -244,8 +241,6 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 	if err != nil {
 		return nil, vm.BlockContext{}, nil, nil, err
 	}
-<<<<<<< HEAD
-=======
 	// upgrade build-in system contract before normal txs if Feynman is not enabled
 	systemcontracts.TryUpdateBuildInSystemContract(eth.blockchain.Config(), block.Number(), parent.Time(), block.Time(), statedb, true)
 	// Insert parent beacon block root in the state as per EIP-4788.
@@ -258,7 +253,6 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 	if eth.blockchain.Config().IsPrague(block.Number(), block.Time()) {
 		core.ProcessParentBlockHash(block.ParentHash(), evm)
 	}
->>>>>>> bsc/v1.5.12
 	if txIndex == 0 && len(block.Transactions()) == 0 {
 		return nil, vm.BlockContext{}, statedb, release, nil
 	}
@@ -277,10 +271,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 						statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
 					}
 
-<<<<<<< HEAD
-=======
 					systemcontracts.TryUpdateBuildInSystemContract(eth.blockchain.Config(), block.Number(), parent.Time(), block.Time(), statedb, false)
->>>>>>> bsc/v1.5.12
 					beforeSystemTx = false
 				}
 			}

@@ -166,7 +166,7 @@ type (
 	// this hook will subtract intrinsic gas from the total gas used.
 	OnSystemTxFixIntrinsicGasHook = func(uint64)
 
-	// OnSystemTxStartHook is called when a system transaction is about to be executed within the Parlia consensus
+	// OnSystemTxStartHook is called when a system transaction is about to be executed within the Satoshi consensus
 	// engine, like before upgrading system contracts, distribution of rewards, and other "chain" related transactions.
 	//
 	// This will be called in addition to the `OnTxStart` hook so the flow of event you will receive in your tracer will
@@ -182,7 +182,7 @@ type (
 	// system state to do something different when OnTxEnd is called.
 	OnSystemTxStartHook func()
 
-	// OnSystemTxEnd is called when a system transaction is about to completed its execution within the Parlia consensus
+	// OnSystemTxEnd is called when a system transaction is about to completed its execution within the Satoshi consensus
 	// engine, like after upgrading system contracts, distribution of rewards, and other "chain" related transactions.
 	//
 	// This will be called in addition to the `OnTxStart` hook so the flow of event you will receive in your tracer will

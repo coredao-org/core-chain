@@ -92,30 +92,12 @@ var PrecompiledContractsIstanbul = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
 
-<<<<<<< HEAD
-	common.BytesToAddress([]byte{100}): &btcValidate{},
+	common.BytesToAddress([]byte{0x64}): &btcValidate{},
 }
 
-// PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
+// PrecompiledContractsHashPower contains the default set of pre-compiled Ethereum
 // contracts used in the HashPower release.
 var PrecompiledContractsHashPower = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{},
-	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}): &blake2F{},
-
-	common.BytesToAddress([]byte{100}): &btcValidateV2{},
-=======
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidate{},
-}
-
-var PrecompiledContractsNano = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x1}): &ecrecover{},
 	common.BytesToAddress([]byte{0x2}): &sha256hash{},
 	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
@@ -126,171 +108,47 @@ var PrecompiledContractsNano = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
 
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidateNano{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidateNano{},
-}
-
-var PrecompiledContractsMoran = PrecompiledContracts{
-	common.BytesToAddress([]byte{0x1}): &ecrecover{},
-	common.BytesToAddress([]byte{0x2}): &sha256hash{},
-	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: false},
-	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{0x9}): &blake2F{},
-
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidateMoran{},
-}
-
-var PrecompiledContractsPlanck = PrecompiledContracts{
-	common.BytesToAddress([]byte{0x1}): &ecrecover{},
-	common.BytesToAddress([]byte{0x2}): &sha256hash{},
-	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: false},
-	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{0x9}): &blake2F{},
-
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlanck{},
-}
-
-// PrecompiledContractsLuban contains the default set of pre-compiled Ethereum
-// contracts used in the Luban release.
-var PrecompiledContractsLuban = PrecompiledContracts{
-	common.BytesToAddress([]byte{0x1}): &ecrecover{},
-	common.BytesToAddress([]byte{0x2}): &sha256hash{},
-	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: false},
-	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{0x9}): &blake2F{},
-
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlanck{},
-	common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
-	common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidate{},
-}
-
-// PrecompiledContractsPlato contains the default set of pre-compiled Ethereum
-// contracts used in the Plato release.
-var PrecompiledContractsPlato = PrecompiledContracts{
-	common.BytesToAddress([]byte{0x1}): &ecrecover{},
-	common.BytesToAddress([]byte{0x2}): &sha256hash{},
-	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: false},
-	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{0x9}): &blake2F{},
-
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
-	common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
-	common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidate{},
->>>>>>> bsc/v1.5.12
+	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
 }
 
 // PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
 // contracts used in the Berlin release.
-<<<<<<< HEAD
 var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}): &blake2F{},
-
-	common.BytesToAddress([]byte{100}): &btcValidateV2{},
-=======
-var PrecompiledContractsBerlin = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x1}): &ecrecover{},
 	common.BytesToAddress([]byte{0x2}): &sha256hash{},
 	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
 	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{0x9}): &blake2F{},
-}
-
-// PrecompiledContractsHertz contains the default set of pre-compiled Ethereum
-// contracts used in the Hertz release.
-var PrecompiledContractsHertz = PrecompiledContracts{
-	common.BytesToAddress([]byte{0x1}): &ecrecover{},
-	common.BytesToAddress([]byte{0x2}): &sha256hash{},
-	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: false},
 	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
 	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
 
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
-	common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
-	common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
-}
-
-// PrecompiledContractsFeynman contains the default set of pre-compiled Ethereum
-// contracts used in the Feynman release.
-var PrecompiledContractsFeynman = PrecompiledContracts{
-	common.BytesToAddress([]byte{0x1}): &ecrecover{},
-	common.BytesToAddress([]byte{0x2}): &sha256hash{},
-	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{0x9}): &blake2F{},
-
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
-	common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
-	common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
-	common.BytesToAddress([]byte{0x68}): &verifyDoubleSignEvidence{},
-	common.BytesToAddress([]byte{0x69}): &secp256k1SignatureRecover{},
->>>>>>> bsc/v1.5.12
+	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
 }
 
 // PrecompiledContractsCancun contains the default set of pre-compiled Ethereum
 // contracts used in the Cancun release.
 var PrecompiledContractsCancun = PrecompiledContracts{
-	common.BytesToAddress([]byte{0x1}):  &ecrecover{},
-	common.BytesToAddress([]byte{0x2}):  &sha256hash{},
-	common.BytesToAddress([]byte{0x3}):  &ripemd160hash{},
-	common.BytesToAddress([]byte{0x4}):  &dataCopy{},
-	common.BytesToAddress([]byte{0x5}):  &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{0x6}):  &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{0x7}):  &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{0x8}):  &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{0x9}):  &blake2F{},
-	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
+	common.BytesToAddress([]byte{0x1}): &ecrecover{},
+	common.BytesToAddress([]byte{0x2}): &sha256hash{},
+	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
+	common.BytesToAddress([]byte{0x4}): &dataCopy{},
+	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{0x9}): &blake2F{},
+	common.BytesToAddress([]byte{0xa}): &kzgPointEvaluation{},
 
-<<<<<<< HEAD
-	common.BytesToAddress([]byte{100}): &btcValidateV2{},
-=======
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
-	common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
-	common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
-	common.BytesToAddress([]byte{0x68}): &verifyDoubleSignEvidence{},
-	common.BytesToAddress([]byte{0x69}): &secp256k1SignatureRecover{},
+	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
+
+	// common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
+	// common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
+	// common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
+	// common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
+	// common.BytesToAddress([]byte{0x68}): &verifyDoubleSignEvidence{},
+	// common.BytesToAddress([]byte{0x69}): &secp256k1SignatureRecover{},
 }
 
 // PrecompiledContractsHaber contains the default set of pre-compiled Ethereum
@@ -307,14 +165,14 @@ var PrecompiledContractsHaber = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x9}):  &blake2F{},
 	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
 
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
-	common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
-	common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
-	common.BytesToAddress([]byte{0x68}): &verifyDoubleSignEvidence{},
-	common.BytesToAddress([]byte{0x69}): &secp256k1SignatureRecover{},
+	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
 
-	common.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
+	// common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
+	// common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
+	// common.BytesToAddress([]byte{0x68}): &verifyDoubleSignEvidence{},
+	// common.BytesToAddress([]byte{0x69}): &secp256k1SignatureRecover{},
+
+	// common.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
 }
 
 // PrecompiledContractsPrague contains the set of pre-compiled Ethereum
@@ -330,6 +188,8 @@ var PrecompiledContractsPrague = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x08}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x09}): &blake2F{},
 	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
+
+	// Pre-compiled Ethereum contracts specified in EIP-2537
 	common.BytesToAddress([]byte{0x0b}): &bls12381G1Add{},
 	common.BytesToAddress([]byte{0x0c}): &bls12381G1MultiExp{},
 	common.BytesToAddress([]byte{0x0d}): &bls12381G2Add{},
@@ -338,15 +198,16 @@ var PrecompiledContractsPrague = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x10}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x11}): &bls12381MapG2{},
 
-	common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
-	common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
-	common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
-	common.BytesToAddress([]byte{0x68}): &verifyDoubleSignEvidence{},
-	common.BytesToAddress([]byte{0x69}): &secp256k1SignatureRecover{},
+	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
 
-	common.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
->>>>>>> bsc/v1.5.12
+	// common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
+	// common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
+	// common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
+	// common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
+	// common.BytesToAddress([]byte{0x68}): &verifyDoubleSignEvidence{},
+	// common.BytesToAddress([]byte{0x69}): &secp256k1SignatureRecover{},
+
+	// common.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
 }
 
 var PrecompiledContractsBLS = PrecompiledContractsPrague
@@ -354,11 +215,8 @@ var PrecompiledContractsBLS = PrecompiledContractsPrague
 var PrecompiledContractsVerkle = PrecompiledContractsPrague
 
 var (
-<<<<<<< HEAD
-=======
 	PrecompiledAddressesPrague    []common.Address
 	PrecompiledAddressesHaber     []common.Address
->>>>>>> bsc/v1.5.12
 	PrecompiledAddressesCancun    []common.Address
 	PrecompiledAddressesHashPower []common.Address
 	PrecompiledAddressesBerlin    []common.Address
@@ -386,15 +244,12 @@ func init() {
 	for k := range PrecompiledContractsCancun {
 		PrecompiledAddressesCancun = append(PrecompiledAddressesCancun, k)
 	}
-<<<<<<< HEAD
-=======
 	for k := range PrecompiledContractsHaber {
 		PrecompiledAddressesHaber = append(PrecompiledAddressesHaber, k)
 	}
 	for k := range PrecompiledContractsPrague {
 		PrecompiledAddressesPrague = append(PrecompiledAddressesPrague, k)
 	}
->>>>>>> bsc/v1.5.12
 }
 
 func activePrecompiledContracts(rules params.Rules) PrecompiledContracts {
@@ -407,22 +262,10 @@ func activePrecompiledContracts(rules params.Rules) PrecompiledContracts {
 		return PrecompiledContractsHaber
 	case rules.IsCancun:
 		return PrecompiledContractsCancun
-	case rules.IsFeynman:
-		return PrecompiledContractsFeynman
-	case rules.IsHertz:
-		return PrecompiledContractsHertz
+	case rules.IsHashPower:
+		return PrecompiledContractsHashPower
 	case rules.IsBerlin:
 		return PrecompiledContractsBerlin
-	case rules.IsPlato:
-		return PrecompiledContractsPlato
-	case rules.IsLuban:
-		return PrecompiledContractsLuban
-	case rules.IsPlanck:
-		return PrecompiledContractsPlanck
-	case rules.IsMoran:
-		return PrecompiledContractsMoran
-	case rules.IsNano:
-		return PrecompiledContractsNano
 	case rules.IsIstanbul:
 		return PrecompiledContractsIstanbul
 	case rules.IsByzantium:
@@ -440,13 +283,10 @@ func ActivePrecompiledContracts(rules params.Rules) PrecompiledContracts {
 // ActivePrecompiles returns the precompile addresses enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
-<<<<<<< HEAD
-=======
 	case rules.IsPrague:
 		return PrecompiledAddressesPrague
 	case rules.IsHaber:
 		return PrecompiledAddressesHaber
->>>>>>> bsc/v1.5.12
 	case rules.IsCancun:
 		return PrecompiledAddressesCancun
 	case rules.IsHashPower:

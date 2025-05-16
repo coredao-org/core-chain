@@ -1,23 +1,16 @@
 package systemcontracts
 
 import (
-<<<<<<< HEAD
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"testing"
-=======
-	"crypto/sha256"
-	"math/big"
-	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/stretchr/testify/require"
->>>>>>> bsc/v1.5.12
 )
 
 type Config struct {

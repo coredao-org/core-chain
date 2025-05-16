@@ -1,4 +1,4 @@
-package parlia
+package satoshi
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func (p *Parlia) getTurnLength(chain consensus.ChainHeaderReader, header *types.Header) (*uint8, error) {
+func (p *Satoshi) getTurnLength(chain consensus.ChainHeaderReader, header *types.Header) (*uint8, error) {
 	parent := chain.GetHeaderByHash(header.ParentHash)
 	if parent == nil {
 		return nil, errors.New("parent not found")
@@ -42,7 +42,7 @@ func (p *Parlia) getTurnLength(chain consensus.ChainHeaderReader, header *types.
 	return &turnLength, nil
 }
 
-func (p *Parlia) getTurnLengthFromContract(header *types.Header) (turnLength *big.Int, err error) {
+func (p *Satoshi) getTurnLengthFromContract(header *types.Header) (turnLength *big.Int, err error) {
 	// mock to get turnLength from the contract
 	if params.FixedTurnLength >= 1 && params.FixedTurnLength <= 9 {
 		if params.FixedTurnLength == 2 {
@@ -83,7 +83,7 @@ func (p *Parlia) getTurnLengthFromContract(header *types.Header) (turnLength *bi
 }
 
 // getRandTurnLength returns a random valid value, used to test switching turn length
-func (p *Parlia) getRandTurnLength(header *types.Header) (turnLength *big.Int, err error) {
+func (p *Satoshi) getRandTurnLength(header *types.Header) (turnLength *big.Int, err error) {
 	turnLengths := [8]uint8{1, 3, 4, 5, 6, 7, 8, 9}
 	r := mrand.New(mrand.NewSource(int64(header.Time)))
 	lengthIndex := int(r.Int31n(int32(len(turnLengths))))

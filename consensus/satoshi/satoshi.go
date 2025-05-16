@@ -17,6 +17,8 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/holiman/uint256"
+	"github.com/prysmaticlabs/prysm/crypto/bls"
+	"github.com/willf/bitset"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -40,6 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -49,41 +52,22 @@ const (
 	inMemorySignatures = 4096  // Number of recent block signatures to keep in memory
 	inMemoryHeaders    = 86400 // Number of recent headers to keep in memory for double sign detection,
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	checkpointInterval   = 1024        // Number of blocks after which to save the snapshot to the database
-	defaultEpochLength   = uint64(100) // Default number of blocks of checkpoint to update validatorSet from contract
-	defaultRoundInterval = 86400       // Default number of seconds to turn round
-=======
 	checkpointInterval = 1024 // Number of blocks after which to save the snapshot to the database
 
-	defaultEpochLength   uint64 = 200  // Default number of blocks of checkpoint to update validatorSet from contract
-	lorentzEpochLength   uint64 = 500  // Epoch length starting from the Lorentz hard fork
-	maxwellEpochLength   uint64 = 1000 // Epoch length starting from the Maxwell hard fork
-	defaultBlockInterval uint64 = 3000 // Default block interval in milliseconds
-	lorentzBlockInterval uint64 = 1500 // Block interval starting from the Lorentz hard fork
-	defaultTurnLength    uint8  = 1    // Default consecutive number of blocks a validator receives priority for block production
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
+	// TODO(cz): defaultEpochLength on core is 100, on bsc is 200
+	defaultEpochLength   uint64 = 200   // Default number of blocks of checkpoint to update validatorSet from contract
+	lorentzEpochLength   uint64 = 500   // Epoch length starting from the Lorentz hard fork
+	maxwellEpochLength   uint64 = 1000  // Epoch length starting from the Maxwell hard fork
+	defaultBlockInterval uint64 = 3000  // Default block interval in milliseconds
+	lorentzBlockInterval uint64 = 1500  // Block interval starting from the Lorentz hard fork
+	defaultTurnLength    uint8  = 1     // Default consecutive number of blocks a validator receives priority for block production
+	defaultRoundInterval        = 86400 // Default number of seconds to turn round
 
 	extraVanity      = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraSeal        = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 	nextForkHashSize = 4  // Fixed number of extra-data suffix bytes reserved for nextForkHash.
 	turnLengthSize   = 1  // Fixed number of extra-data suffix bytes reserved for turnLength
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	validatorBytesLength = common.AddressLength
-	wiggleTime           = uint64(1) // second, Random delay (per signer) to allow concurrent signers
-	initialBackOffTime   = uint64(1) // second
-	processBackOffTime   = uint64(1) // second
-)
-
-var (
-	CoreBlockReward = big.NewInt(3e+18)        // Block reward in wei for successfully mining a block
-	uncleHash       = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
-	diffInTurn      = big.NewInt(2)            // Block difficulty for in-turn signatures
-	diffNoTurn      = big.NewInt(1)            // Block difficulty for out-of-turn signatures
-
-	doubleSignCounter = metrics.NewRegisteredCounter("satoshi/doublesign", nil)
-=======
 	validatorBytesLengthBeforeLuban = common.AddressLength
 	validatorBytesLength            = common.AddressLength + types.BLSPublicKeyLength
 	validatorNumberSize             = 1 // Fixed number of extra prefix bytes reserved for validator number after Luban
@@ -103,16 +87,18 @@ var (
 )
 
 var (
-	diffInTurn = big.NewInt(2) // Block difficulty for in-turn signatures
-	diffNoTurn = big.NewInt(1) // Block difficulty for out-of-turn signatures
+	// TODO:(cz): check CoreBlockReward and uncleHash usage
+	CoreBlockReward = big.NewInt(3e+18)        // Block reward in wei for successfully mining a block
+	uncleHash       = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
+	diffInTurn      = big.NewInt(2)            // Block difficulty for in-turn signatures
+	diffNoTurn      = big.NewInt(1)            // Block difficulty for out-of-turn signatures
 	// 100 native token
 	maxSystemBalance                  = new(uint256.Int).Mul(uint256.NewInt(100), uint256.NewInt(params.Ether))
-	verifyVoteAttestationErrorCounter = metrics.NewRegisteredCounter("parlia/verifyVoteAttestation/error", nil)
-	updateAttestationErrorCounter     = metrics.NewRegisteredCounter("parlia/updateAttestation/error", nil)
-	validVotesfromSelfCounter         = metrics.NewRegisteredCounter("parlia/VerifyVote/self", nil)
-	doubleSignCounter                 = metrics.NewRegisteredCounter("parlia/doublesign", nil)
-	intentionalDelayMiningCounter     = metrics.NewRegisteredCounter("parlia/intentionalDelayMining", nil)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
+	verifyVoteAttestationErrorCounter = metrics.NewRegisteredCounter("satoshi/verifyVoteAttestation/error", nil)
+	updateAttestationErrorCounter     = metrics.NewRegisteredCounter("satoshi/updateAttestation/error", nil)
+	validVotesfromSelfCounter         = metrics.NewRegisteredCounter("satoshi/VerifyVote/self", nil)
+	doubleSignCounter                 = metrics.NewRegisteredCounter("satoshi/doublesign", nil)
+	intentionalDelayMiningCounter     = metrics.NewRegisteredCounter("satoshi/intentionalDelayMining", nil)
 
 	systemContracts = map[common.Address]bool{
 		common.HexToAddress(systemcontracts.ValidatorContract):       true,
@@ -294,7 +280,6 @@ func New(
 	satoshiConfig := chainConfig.Satoshi
 	log.Info("satoshi", "chainConfig", chainConfig)
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
 	// Set any missing consensus parameters to their defaults
 	if satoshiConfig != nil {
 		if satoshiConfig.Epoch == 0 {
@@ -305,8 +290,6 @@ func New(
 		}
 	}
 
-=======
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	// Allocate the snapshot caches and create the engine
 	recentSnaps, err := lru.NewARC(inMemorySnapshots)
 	if err != nil {
@@ -350,17 +333,11 @@ func New(
 	return c
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
 func (p *Satoshi) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
-	// deploy a contract
-	if tx.To() == nil {
-=======
-func (p *Parlia) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
 	if tx.To() == nil || !isToSystemContract(*tx.To()) {
 		return false, nil
 	}
 	if tx.GasPrice().Sign() != 0 {
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 		return false, nil
 	}
 	sender, err := types.Sender(p.signer, tx)
@@ -424,8 +401,6 @@ func (p *Satoshi) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*ty
 	return abort, results
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-=======
 // getValidatorBytesFromHeader returns the validators bytes extracted from the header's extra field if exists.
 // The validators bytes would be contained only in the epoch block's header, and its each validator bytes length is fixed.
 // On luban fork, we introduce vote attestation into the header's extra field, so extra format is different from before.
@@ -494,7 +469,7 @@ func getVoteAttestationFromHeader(header *types.Header, chainConfig *params.Chai
 }
 
 // getParent returns the parent of a given block.
-func (p *Parlia) getParent(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (*types.Header, error) {
+func (p *Satoshi) getParent(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (*types.Header, error) {
 	var parent *types.Header
 	number := header.Number.Uint64()
 	if len(parents) > 0 {
@@ -510,7 +485,7 @@ func (p *Parlia) getParent(chain consensus.ChainHeaderReader, header *types.Head
 }
 
 // verifyVoteAttestation checks whether the vote attestation in the header is valid.
-func (p *Parlia) verifyVoteAttestation(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (p *Satoshi) verifyVoteAttestation(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	epochLength, err := p.epochLength(chain, header, parents)
 	if err != nil {
 		return err
@@ -606,7 +581,6 @@ func (p *Parlia) verifyVoteAttestation(chain consensus.ChainHeaderReader, header
 	return nil
 }
 
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 // verifyHeader checks whether a header conforms to the consensus rules.The
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
@@ -629,13 +603,6 @@ func (p *Satoshi) verifyHeader(chain consensus.ChainHeaderReader, header *types.
 		return errMissingSignature
 	}
 	// check extra data
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	isEpoch := number%p.config.Epoch == 0
-
-	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
-	signersBytes := len(header.Extra) - extraVanity - extraSeal
-	if !isEpoch && signersBytes != 0 {
-=======
 	number := header.Number.Uint64()
 	epochLength, err := p.epochLength(chain, header, parents)
 	if err != nil {
@@ -645,7 +612,6 @@ func (p *Satoshi) verifyHeader(chain consensus.ChainHeaderReader, header *types.
 	signersBytes := getValidatorBytesFromHeader(header, p.chainConfig, epochLength)
 	isEpoch := number%epochLength == 0
 	if !isEpoch && len(signersBytes) != 0 {
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 		return errExtraValidators
 	}
 
@@ -819,14 +785,6 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 		// piled up more headers than allowed to be reorged (chain reinit from a freezer),
 		// consider the checkpoint trusted and snapshot it.
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-				if len(checkpoint.Extra) <= extraVanity+extraSeal {
-					return nil, errors.New("invalid extra-data for genesis block, check the genesis.json file")
-				}
-				validatorBytes := checkpoint.Extra[extraVanity : len(checkpoint.Extra)-extraSeal]
-				// get validators from headers
-				validators, err := ParseValidators(validatorBytes)
-=======
 		// Unable to retrieve the exact EpochLength here.
 		// As known
 		// 		defaultEpochLength = 200 && turnLength = 1 or 4
@@ -867,15 +825,10 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 			if checkpoint != nil && blockHash != (common.Hash{}) {
 				// get validators from headers
 				validators, voteAddrs, err := parseValidators(checkpoint, p.chainConfig, epochLength)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 				if err != nil {
 					return nil, err
 				}
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-				// new snap shot
-				snap = newSnapshot(p.config, p.signatures, number, hash, validators, p.ethAPI)
-=======
 				// new snapshot
 				snap = newSnapshot(p.config, p.signatures, number, blockHash, validators, voteAddrs, p.ethAPI)
 
@@ -896,7 +849,6 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 				// c. This may cause a mismatch in the slash systemtx, but the transaction list is not verified during `snap.apply`.
 
 				// snap.Attestation is nil, but Snapshot.updateAttestation will handle it correctly.
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 				if err := snap.store(p.db); err != nil {
 					return nil, err
 				}
@@ -960,7 +912,7 @@ func (p *Satoshi) VerifyUncles(chain consensus.ChainReader, block *types.Block) 
 	return nil
 }
 
-func (p *Parlia) VerifyRequests(header *types.Header, Requests [][]byte) error {
+func (p *Satoshi) VerifyRequests(header *types.Header, Requests [][]byte) error {
 	return nil
 }
 
@@ -1034,9 +986,7 @@ func (p *Satoshi) verifySeal(chain consensus.ChainHeaderReader, header *types.He
 	return nil
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-=======
-func (p *Parlia) prepareValidators(chain consensus.ChainHeaderReader, header *types.Header) error {
+func (p *Satoshi) prepareValidators(chain consensus.ChainHeaderReader, header *types.Header) error {
 	epochLength, err := p.epochLength(chain, header, nil)
 	if err != nil {
 		return err
@@ -1072,7 +1022,7 @@ func (p *Parlia) prepareValidators(chain consensus.ChainHeaderReader, header *ty
 	return nil
 }
 
-func (p *Parlia) prepareTurnLength(chain consensus.ChainHeaderReader, header *types.Header) error {
+func (p *Satoshi) prepareTurnLength(chain consensus.ChainHeaderReader, header *types.Header) error {
 	epochLength, err := p.epochLength(chain, header, nil)
 	if err != nil {
 		return err
@@ -1094,7 +1044,7 @@ func (p *Parlia) prepareTurnLength(chain consensus.ChainHeaderReader, header *ty
 	return nil
 }
 
-func (p *Parlia) assembleVoteAttestation(chain consensus.ChainHeaderReader, header *types.Header) error {
+func (p *Satoshi) assembleVoteAttestation(chain consensus.ChainHeaderReader, header *types.Header) error {
 	if !p.chainConfig.IsLuban(header.Number) || header.Number.Uint64() < 2 {
 		return nil
 	}
@@ -1177,7 +1127,6 @@ func (p *Parlia) assembleVoteAttestation(chain consensus.ChainHeaderReader, head
 	return nil
 }
 
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 // NextInTurnValidator return the next in-turn validator for header
 func (p *Satoshi) NextInTurnValidator(chain consensus.ChainHeaderReader, header *types.Header) (common.Address, error) {
 	snap, err := p.snapshot(chain, header.Number.Uint64(), header.Hash(), nil)
@@ -1213,39 +1162,20 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	header.Time = parent.Time + p.config.Period + p.backOffTime(snap, header, p.val)
-	if header.Time < uint64(time.Now().Unix()) {
-		header.Time = uint64(time.Now().Unix())
-=======
 	blockTime := p.blockTimeForRamanujanFork(snap, header, parent)
 	header.Time = blockTime / 1000 // get seconds
 	if p.chainConfig.IsLorentz(header.Number, header.Time) {
 		header.SetMilliseconds(blockTime % 1000)
 	} else {
 		header.MixDigest = common.Hash{}
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	}
 
 	header.Extra = header.Extra[:extraVanity-nextForkHashSize]
 	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, chain.GenesisHeader().Time, number, header.Time)
 	header.Extra = append(header.Extra, nextForkHash[:]...)
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	if number%p.config.Epoch == 0 {
-		newValidators, err := p.getCurrentValidators(header.ParentHash)
-		if err != nil {
-			return err
-		}
-		// sort validator by address
-		sort.Sort(validatorsAscending(newValidators))
-		for _, validator := range newValidators {
-			header.Extra = append(header.Extra, validator.Bytes()...)
-		}
-=======
 	if err := p.prepareValidators(chain, header); err != nil {
 		return err
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	}
 
 	if err := p.prepareTurnLength(chain, header); err != nil {
@@ -1257,36 +1187,13 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	return nil
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
-	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) (err error) {
-	cx := chainContext{Chain: chain, satoshi: p}
-
-	parent := chain.GetHeaderByHash(header.ParentHash)
-	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
-		contracts := []string{
-			systemcontracts.StakeHubContract,
-			systemcontracts.CoreAgentContract,
-			systemcontracts.HashAgentContract,
-			systemcontracts.BTCAgentContract,
-			systemcontracts.BTCStakeContract,
-			systemcontracts.BTCLSTStakeContract,
-			systemcontracts.BTCLSTTokenContract,
-		}
-
-		err := p.initContractWithContracts(state, header, cx, txs, receipts, systemTxs, usedGas, false, contracts)
-		if err != nil {
-			log.Error("init contract failed on demeter fork")
-		}
-=======
-func (p *Parlia) verifyValidators(chain consensus.ChainHeaderReader, header *types.Header) error {
+func (p *Satoshi) verifyValidators(chain consensus.ChainHeaderReader, header *types.Header) error {
 	epochLength, err := p.epochLength(chain, header, nil)
 	if err != nil {
 		return err
 	}
 	if header.Number.Uint64()%epochLength != 0 {
 		return nil
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	}
 
 	// If the block is the last one in a round, execute turn round to update the validator set.
@@ -1299,35 +1206,13 @@ func (p *Parlia) verifyValidators(chain consensus.ChainHeaderReader, header *typ
 			log.Error("turn round failed", "block hash", header.Hash())
 		}
 	}
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	return
-}
-
-func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt) (err error) {
-	cx := chainContext{Chain: chain, satoshi: p}
-
-	parent := chain.GetHeaderByHash(header.ParentHash)
-	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
-		contracts := []string{
-			systemcontracts.StakeHubContract,
-			systemcontracts.CoreAgentContract,
-			systemcontracts.HashAgentContract,
-			systemcontracts.BTCAgentContract,
-			systemcontracts.BTCStakeContract,
-			systemcontracts.BTCLSTStakeContract,
-			systemcontracts.BTCLSTTokenContract,
-		}
-
-		err := p.initContractWithContracts(state, header, cx, txs, receipts, nil, &header.GasUsed, true, contracts)
-=======
 	if !bytes.Equal(getValidatorBytesFromHeader(header, p.chainConfig, epochLength), validatorsBytes) {
 		return errMismatchingEpochValidators
 	}
 	return nil
 }
 
-func (p *Parlia) verifyTurnLength(chain consensus.ChainHeaderReader, header *types.Header) error {
+func (p *Satoshi) verifyTurnLength(chain consensus.ChainHeaderReader, header *types.Header) error {
 	epochLength, err := p.epochLength(chain, header, nil)
 	if err != nil {
 		return err
@@ -1355,7 +1240,7 @@ func (p *Parlia) verifyTurnLength(chain consensus.ChainHeaderReader, header *typ
 	return errMismatchingEpochTurnLength
 }
 
-func (p *Parlia) distributeFinalityReward(chain consensus.ChainHeaderReader, state vm.StateDB, header *types.Header,
+func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, state vm.StateDB, header *types.Header,
 	cx core.ChainContext, txs *[]*types.Transaction, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction,
 	usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	currentHeight := header.Number.Uint64()
@@ -1375,7 +1260,6 @@ func (p *Parlia) distributeFinalityReward(chain consensus.ChainHeaderReader, sta
 			return err
 		}
 		voteAttestation, err := getVoteAttestationFromHeader(head, chain.Config(), epochLength)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 		if err != nil {
 			log.Error("init contract failed on demeter fork")
 		}
@@ -1391,9 +1275,6 @@ func (p *Parlia) distributeFinalityReward(chain consensus.ChainHeaderReader, sta
 			log.Error("turn round failed", "block hash", header.Hash())
 		}
 	}
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	return
-=======
 
 	validators := make([]common.Address, 0, len(accumulatedWeights))
 	weights := make([]*big.Int, 0, len(accumulatedWeights))
@@ -1416,7 +1297,7 @@ func (p *Parlia) distributeFinalityReward(chain consensus.ChainHeaderReader, sta
 	return p.applyTransaction(msg, state, header, cx, txs, receipts, systemTxs, usedGas, mining, tracer)
 }
 
-func (p *Parlia) EstimateGasReservedForSystemTxs(chain consensus.ChainHeaderReader, header *types.Header) uint64 {
+func (p *Satoshi) EstimateGasReservedForSystemTxs(chain consensus.ChainHeaderReader, header *types.Header) uint64 {
 	parent := chain.GetHeaderByHash(header.ParentHash)
 	if parent != nil {
 		// Mainnet and Chapel have both passed Feynman. Now, simplify the logic before and during the Feynman hard fork.
@@ -1452,18 +1333,12 @@ func (p *Parlia) EstimateGasReservedForSystemTxs(chain consensus.ChainHeaderRead
 
 	// params.SystemTxsGasHardLimit > (depositTxGas+slashTxGas+finalityRewardTxGas+updateValidatorTxGas)*150/100
 	return params.SystemTxsGasHardLimit
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 }
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
-	uncles []*types.Header, _ []*types.Withdrawal, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
-=======
-func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, txs *[]*types.Transaction,
+func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, _ []*types.Withdrawal, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64, tracer *tracing.Hooks) error {
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	// warn if not in majority fork
 	number := header.Number.Uint64()
 	snap, err := p.snapshot(chain, number-1, header.ParentHash, nil)
@@ -1476,10 +1351,6 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 	}
 	// If the block is a epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	if header.Number.Uint64()%p.config.Epoch == 0 {
-		newValidators, err := p.getCurrentValidators(header.ParentHash)
-=======
 	if err := p.verifyValidators(chain, header); err != nil {
 		return err
 	}
@@ -1488,7 +1359,7 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 		return err
 	}
 
-	cx := chainContext{Chain: chain, parlia: p}
+	cx := chainContext{Chain: chain, satoshi: p}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
 	if parent == nil {
@@ -1499,7 +1370,6 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 
 	if p.chainConfig.IsOnFeynman(header.Number, parent.Time, header.Time) {
 		err := p.initializeFeynmanContract(state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 		if err != nil {
 			return err
 		}
@@ -1537,11 +1407,7 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 			err = p.slash(spoiledVal, state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "err", err.Error())
-=======
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "err", err)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 			}
 		}
 	}
@@ -1559,8 +1425,6 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 	if err != nil {
 		return err
 	}
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-=======
 
 	if p.chainConfig.IsPlato(header.Number) {
 		if err := p.distributeFinalityReward(chain, state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer); err != nil {
@@ -1578,7 +1442,6 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 		}
 	}
 
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	if len(*systemTxs) > 0 {
 		return errors.New("the length of systemTxs do not match")
 	}
@@ -1587,28 +1450,17 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
 func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt, _ []*types.Withdrawal) (*types.Block, []*types.Receipt, error) {
-	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	cx := chainContext{Chain: chain, satoshi: p}
-	if txs == nil {
-		txs = make([]*types.Transaction, 0)
-=======
-func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	body *types.Body, receipts []*types.Receipt, tracer *tracing.Hooks) (*types.Block, []*types.Receipt, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	cx := chainContext{Chain: chain, parlia: p}
+	cx := chainContext{Chain: chain, satoshi: p}
 
 	if body.Transactions == nil {
 		body.Transactions = make([]*types.Transaction, 0)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	}
 	if receipts == nil {
 		receipts = make([]*types.Receipt, 0)
 	}
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-=======
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
 	if parent == nil {
@@ -1617,6 +1469,7 @@ func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 
 	systemcontracts.TryUpdateBuildInSystemContract(p.chainConfig, header.Number, parent.Time, header.Time, state, false)
 
+	// TODO(cz): check this, why is it separate than init?
 	if p.chainConfig.IsOnFeynman(header.Number, parent.Time, header.Time) {
 		err := p.initializeFeynmanContract(state, header, cx, &body.Transactions, &receipts, nil, &header.GasUsed, true, tracer)
 		if err != nil {
@@ -1624,7 +1477,6 @@ func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 		}
 	}
 
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	if header.Number.Cmp(common.Big1) == 0 {
 		err := p.initContract(state, header, cx, &body.Transactions, &receipts, nil, &header.GasUsed, true, tracer)
 		if err != nil {
@@ -1653,24 +1505,20 @@ func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 			}
 		}
 	}
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	err := p.distributeIncoming(p.val, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
-	if err != nil {
-		return nil, nil, err
-	}
-=======
 
 	err := p.distributeIncoming(p.val, state, header, cx, &body.Transactions, &receipts, nil, &header.GasUsed, true, tracer)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// TODO(cz): check this
 	if p.chainConfig.IsPlato(header.Number) {
 		if err := p.distributeFinalityReward(chain, state, header, cx, &body.Transactions, &receipts, nil, &header.GasUsed, true, tracer); err != nil {
 			return nil, nil, err
 		}
 	}
 
+	// TODO(cz): check this
 	// update validators every day
 	if p.chainConfig.IsFeynman(header.Number, header.Time) && isBreatheBlock(parent.Time, header.Time) {
 		// we should avoid update validators in the Feynman upgrade block
@@ -1681,7 +1529,6 @@ func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 		}
 	}
 
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
 		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
@@ -1705,9 +1552,7 @@ func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 	return blk, receipts, nil
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-=======
-func (p *Parlia) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header, checkVoteKeyFn func(bLSPublicKey *types.BLSPublicKey) bool) bool {
+func (p *Satoshi) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header, checkVoteKeyFn func(bLSPublicKey *types.BLSPublicKey) bool) bool {
 	number := header.Number.Uint64()
 	snap, err := p.snapshot(chain, number-1, header.ParentHash, nil)
 	if err != nil {
@@ -1721,7 +1566,7 @@ func (p *Parlia) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *
 }
 
 // VerifyVote will verify: 1. If the vote comes from valid validators 2. If the vote's sourceNumber and sourceHash are correct
-func (p *Parlia) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
+func (p *Satoshi) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
 	targetNumber := vote.Data.TargetNumber
 	targetHash := vote.Data.TargetHash
 	header := chain.GetVerifiedBlockByHash(targetHash)
@@ -1757,7 +1602,7 @@ func (p *Parlia) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteE
 			if addr == p.val {
 				validVotesfromSelfCounter.Inc(1)
 			}
-			metrics.GetOrRegisterCounter(fmt.Sprintf("parlia/VerifyVote/%s", addr.String()), nil).Inc(1)
+			metrics.GetOrRegisterCounter(fmt.Sprintf("satoshi/VerifyVote/%s", addr.String()), nil).Inc(1)
 			return nil
 		}
 	}
@@ -1765,7 +1610,6 @@ func (p *Parlia) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteE
 	return errors.New("vote verification failed")
 }
 
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 // Authorize injects a private key into the consensus engine to mint new blocks
 // with.
 func (p *Satoshi) Authorize(val common.Address, signFn SignerFn, signTxFn SignerTxFn) {
@@ -1914,13 +1758,8 @@ func (p *Satoshi) IsLocalBlock(header *types.Header) bool {
 	return p.val == header.Coinbase
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-func (p *Satoshi) SignRecently(chain consensus.ChainReader, parent *types.Block) (bool, error) {
-	snap, err := p.snapshot(chain, parent.NumberU64(), parent.Hash(), nil)
-=======
-func (p *Parlia) SignRecently(chain consensus.ChainReader, parent *types.Header) (bool, error) {
+func (p *Satoshi) SignRecently(chain consensus.ChainReader, parent *types.Header) (bool, error) {
 	snap, err := p.snapshot(chain, parent.Number.Uint64(), parent.Hash(), nil)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	if err != nil {
 		return true, err
 	}
@@ -1964,10 +1803,6 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 	return new(big.Int).Set(diffNoTurn)
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-// SealHash returns the hash of a block prior to it being sealed.
-func (p *Satoshi) SealHash(header *types.Header) (hash common.Hash) {
-=======
 func encodeSigHeaderWithoutVoteAttestation(w io.Writer, header *types.Header, chainId *big.Int) {
 	err := rlp.Encode(w, []interface{}{
 		chainId,
@@ -1994,8 +1829,7 @@ func encodeSigHeaderWithoutVoteAttestation(w io.Writer, header *types.Header, ch
 
 // SealHash returns the hash of a block without vote attestation prior to it being sealed.
 // So it's not the real hash of a block, just used as unique id to distinguish task
-func (p *Parlia) SealHash(header *types.Header) (hash common.Hash) {
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
+func (p *Satoshi) SealHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 	encodeSigHeaderWithoutVoteAttestation(hasher, header, p.chainConfig.ChainID)
 	hasher.Sum(hash[:0])
@@ -2081,16 +1915,7 @@ func (p *Satoshi) getCurrentValidators(blockHash common.Hash) ([]common.Address,
 	return valz, nil
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-// distributeIncoming collect transaction fees and distribute to validator contract
-func (p *Satoshi) distributeIncoming(val common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
-	coinbase := header.Coinbase
-	balance := state.GetBalance(consensus.SystemAddress)
-	state.SetBalance(consensus.SystemAddress, common.U2560)
-	state.AddBalance(coinbase, balance)
-=======
-func (p *Parlia) isIntentionalDelayMining(chain consensus.ChainHeaderReader, header *types.Header) (bool, error) {
+func (p *Satoshi) isIntentionalDelayMining(chain consensus.ChainHeaderReader, header *types.Header) (bool, error) {
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
 		return false, errors.New("parent not found")
@@ -2106,7 +1931,7 @@ func (p *Parlia) isIntentionalDelayMining(chain consensus.ChainHeaderReader, hea
 }
 
 // distributeIncoming distributes system incoming of the block
-func (p *Parlia) distributeIncoming(val common.Address, state vm.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) distributeIncoming(val common.Address, state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	coinbase := header.Coinbase
 
@@ -2134,19 +1959,13 @@ func (p *Parlia) distributeIncoming(val common.Address, state vm.StateDB, header
 
 	state.SetBalance(consensus.SystemAddress, common.U2560, tracing.BalanceDecreaseBSCDistributeReward)
 	state.AddBalance(coinbase, balance, tracing.BalanceIncreaseBSCDistributeReward)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
 	return p.distributeToValidator(balance.ToBig(), val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
 
 // slash spoiled validators
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-func (p *Satoshi) slash(spoiledVal common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
-=======
-func (p *Parlia) slash(spoiledVal common.Address, state vm.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) slash(spoiledVal common.Address, state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	// method
 	method := "slash"
 	// get packed data
@@ -2182,16 +2001,11 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 }
 
 // init contract
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-func (p *Satoshi) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
-=======
-func (p *Parlia) initContract(state vm.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) initContract(state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	// method
 	method := "init"
 	// contracts
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	contracts := []string{
 		systemcontracts.ValidatorContract,
 		systemcontracts.SlashContract,
@@ -2240,13 +2054,7 @@ func (p *Satoshi) initContractWithContracts(state *state.StateDB, header *types.
 	return nil
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-// distributeToValidator call validator contract to distribute reward
-func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Address,
-	state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
-=======
-func (p *Parlia) distributeToSystem(amount *big.Int, state vm.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) distributeToSystem(amount *big.Int, state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	// get system message
 	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SystemRewardContract), nil, amount)
@@ -2255,10 +2063,9 @@ func (p *Parlia) distributeToSystem(amount *big.Int, state vm.StateDB, header *t
 }
 
 // distributeToValidator deposits validator reward to validator contract
-func (p *Parlia) distributeToValidator(amount *big.Int, validator common.Address,
+func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Address,
 	state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	// method
 	method := "deposit"
 
@@ -2277,25 +2084,7 @@ func (p *Parlia) distributeToValidator(amount *big.Int, validator common.Address
 }
 
 // get system message
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-func (p *Satoshi) getSystemMessage(from, toAddress common.Address, gas uint64, data []byte, value *big.Int) callmsg {
-	return callmsg{
-		ethereum.CallMsg{
-			From:     from,
-			Gas:      gas,
-			GasPrice: big.NewInt(0),
-			Value:    value,
-			To:       &toAddress,
-			Data:     data,
-		},
-	}
-}
-
-func (p *Satoshi) applyTransaction(
-	msg callmsg,
-	state *state.StateDB,
-=======
-func (p *Parlia) getSystemMessage(from, toAddress common.Address, data []byte, value *big.Int) *core.Message {
+func (p *Satoshi) getSystemMessage(from, toAddress common.Address, data []byte, value *big.Int) *core.Message {
 	return &core.Message{
 		From:     from,
 		GasLimit: math.MaxUint64 / 2,
@@ -2306,10 +2095,9 @@ func (p *Parlia) getSystemMessage(from, toAddress common.Address, data []byte, v
 	}
 }
 
-func (p *Parlia) applyTransaction(
+func (p *Satoshi) applyTransaction(
 	msg *core.Message,
 	state vm.StateDB,
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	header *types.Header,
 	chainContext core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt,
@@ -2390,20 +2178,6 @@ func (p *Parlia) applyTransaction(
 		root = state.IntermediateRoot(p.chainConfig.IsEIP158(header.Number)).Bytes()
 	}
 	*usedGas += gasUsed
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	receipt := types.NewReceipt(root, err != nil, *usedGas)
-	receipt.TxHash = expectedTx.Hash()
-	receipt.GasUsed = gasUsed
-
-	// Set the receipt logs and create a bloom for filtering
-	receipt.Logs = state.GetLogs(expectedTx.Hash(), header.Number.Uint64(), header.Hash())
-	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-	receipt.BlockHash = header.Hash()
-	receipt.BlockNumber = header.Number
-	receipt.TransactionIndex = uint(state.TxIndex())
-	*receipts = append(*receipts, receipt)
-	state.SetNonce(msg.From(), nonce+1)
-=======
 	tracingReceipt = types.NewReceipt(root, false, *usedGas)
 	tracingReceipt.TxHash = expectedTx.Hash()
 	tracingReceipt.GasUsed = gasUsed
@@ -2415,7 +2189,6 @@ func (p *Parlia) applyTransaction(
 	tracingReceipt.BlockNumber = header.Number
 	tracingReceipt.TransactionIndex = uint(state.TxIndex())
 	*receipts = append(*receipts, tracingReceipt)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	return nil
 }
 
@@ -2436,11 +2209,7 @@ func (p *Satoshi) isRoundEnd(chain consensus.ChainHeaderReader, header *types.He
 }
 
 // ===========================     utility function        ==========================
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-func (s *Satoshi) backOffTime(snap *Snapshot, header *types.Header, val common.Address) uint64 {
-=======
-func (p *Parlia) backOffTime(snap *Snapshot, parent, header *types.Header, val common.Address) uint64 {
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
+func (s *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val common.Address) uint64 {
 	if snap.inturn(val) {
 		log.Debug("backOffTime", "blockNumber", header.Number, "in turn validator", val)
 		return 0
@@ -2456,25 +2225,11 @@ func (p *Parlia) backOffTime(snap *Snapshot, parent, header *types.Header, val c
 			delay = lorentzInitialBackOffTime
 		}
 		validators := snap.validators()
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
+		// TODO(cz): was IsPlanck on bsc
 		if s.chainConfig.IsZeus(header.Number) {
-			// reverse the key/value of snap.Recents to get recentsMap
-			recentsMap := make(map[common.Address]uint64, len(snap.Recents))
-			bound := uint64(0)
-			if n, limit := header.Number.Uint64(), uint64(len(validators)/2+1); n > limit {
-				bound = n - limit
-			}
-			for seen, recent := range snap.Recents {
-				if seen <= bound {
-					continue
-				}
-				recentsMap[recent] = seen
-=======
-		if p.chainConfig.IsPlanck(header.Number) {
 			counts := snap.countRecents()
 			for addr, seenTimes := range counts {
 				log.Trace("backOffTime", "blockNumber", header.Number, "validator", addr, "seenTimes", seenTimes)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 			}
 
 			// The backOffTime does not matter when a validator has signed recently.
@@ -2495,7 +2250,7 @@ func (p *Parlia) backOffTime(snap *Snapshot, parent, header *types.Header, val c
 				if snap.signRecentlyByCounts(addr, counts) {
 					continue
 				}
-				if p.chainConfig.IsBohr(header.Number, header.Time) {
+				if s.chainConfig.IsBohr(header.Number, header.Time) {
 					if addr == inTurnAddr {
 						continue
 					}
@@ -2546,24 +2301,8 @@ func (p *Parlia) backOffTime(snap *Snapshot, parent, header *types.Header, val c
 	}
 }
 
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-func (s *Satoshi) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, header []*types.Header) (uint64, common.Hash, error) {
-	return 0, common.Hash{}, errors.New("GetJustifiedNumberAndHash not implemented at satoshi")
-}
-
-func (s *Satoshi) GetFinalizedHeader(chain consensus.ChainHeaderReader, header *types.Header) *types.Header {
-	return nil
-}
-
-func (s *Satoshi) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
-	return errors.New("VerifyVote not implemented at satoshi")
-}
-
-func (s *Satoshi) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header, checkVoteKeyFn func(bLSPublicKey *types.BLSPublicKey) bool) bool {
-	return false
-=======
 // BlockInterval returns number of blocks in one epoch for the given header
-func (p *Parlia) epochLength(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (uint64, error) {
+func (p *Satoshi) epochLength(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (uint64, error) {
 	if header == nil {
 		return defaultEpochLength, errUnknownBlock
 	}
@@ -2578,7 +2317,7 @@ func (p *Parlia) epochLength(chain consensus.ChainHeaderReader, header *types.He
 }
 
 // BlockInterval returns the block interval in milliseconds for the given header
-func (p *Parlia) BlockInterval(chain consensus.ChainHeaderReader, header *types.Header) (uint64, error) {
+func (p *Satoshi) BlockInterval(chain consensus.ChainHeaderReader, header *types.Header) (uint64, error) {
 	if header == nil {
 		return defaultBlockInterval, errUnknownBlock
 	}
@@ -2592,14 +2331,13 @@ func (p *Parlia) BlockInterval(chain consensus.ChainHeaderReader, header *types.
 	return snap.BlockInterval, nil
 }
 
-func (p *Parlia) NextProposalBlock(chain consensus.ChainHeaderReader, header *types.Header, proposer common.Address) (uint64, uint64, error) {
+func (p *Satoshi) NextProposalBlock(chain consensus.ChainHeaderReader, header *types.Header, proposer common.Address) (uint64, uint64, error) {
 	snap, err := p.snapshot(chain, header.Number.Uint64(), header.Hash(), nil)
 	if err != nil {
 		return 0, 0, err
 	}
 
 	return snap.nextProposalBlock(proposer)
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 }
 
 // chain context
@@ -2629,24 +2367,7 @@ func applyMessage(
 	chainConfig *params.ChainConfig,
 	chainContext core.ChainContext,
 ) (uint64, error) {
-<<<<<<< HEAD:consensus/satoshi/satoshi.go
-	// TODO(Nathan): state.Prepare should be called here, now accessList related EIP not affect systemtxs
-	// 		 EIP1153 may cause a critical issue in the future
-	// Create a new context to be used in the EVM environment
-	context := core.NewEVMBlockContext(header, chainContext, nil)
-	// Create a new environment which holds all relevant information
-	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, state, chainConfig, vm.Config{})
-	// Apply the transaction to the current state (included in the env)
-	// Increment the nonce for the next transaction
-	state.SetNonce(msg.From(), state.GetNonce(msg.From())+1)
-	ret, returnGas, err := vmenv.Call(
-		vm.AccountRef(msg.From()),
-		*msg.To(),
-		msg.Data(),
-		msg.Gas(),
-		uint256.MustFromBig(msg.Value()),
-=======
+	// TODO(cz): we have to change the activation to later hardfork and not Cancun
 	// Apply the transaction to the current state (included in the env)
 	if chainConfig.IsCancun(header.Number, header.Time) {
 		rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil, evm.Context.Time)
@@ -2663,7 +2384,6 @@ func applyMessage(
 		msg.Data,
 		msg.GasLimit,
 		uint256.MustFromBig(msg.Value),
->>>>>>> bsc/v1.5.12:consensus/parlia/parlia.go
 	)
 	if err != nil {
 		log.Error("apply message failed", "msg", string(ret), "err", err)

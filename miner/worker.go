@@ -462,13 +462,8 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			}
 			clearPending(head.Header.Number.Uint64())
 			timestamp = time.Now().Unix()
-<<<<<<< HEAD
 			if p, ok := w.engine.(*satoshi.Satoshi); ok {
-				signedRecent, err := p.SignRecently(w.chain, head.Block)
-=======
-			if p, ok := w.engine.(*parlia.Parlia); ok {
 				signedRecent, err := p.SignRecently(w.chain, head.Header)
->>>>>>> bsc/v1.5.12
 				if err != nil {
 					log.Debug("Not allowed to propose block", "err", err)
 					if p.IsRoundEnd(w.chain, head.Block.Header()) {
@@ -490,11 +485,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			// If sealing is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
 			if w.isRunning() && ((w.chainConfig.Clique != nil &&
-<<<<<<< HEAD
-				w.chainConfig.Clique.Period > 0) || (w.chainConfig.Satoshi != nil && w.chainConfig.Satoshi.Period > 0)) {
-=======
-				w.chainConfig.Clique.Period > 0) || (w.chainConfig.Parlia != nil)) {
->>>>>>> bsc/v1.5.12
+				w.chainConfig.Clique.Period > 0) || (w.chainConfig.Satoshi != nil)) {
 				// Short circuit if no new transaction arrives.
 				commit(commitInterruptResubmit)
 			}
@@ -818,7 +809,7 @@ func (w *worker) commitTransactions(env *environment, plainTxs, blobTxs *transac
 	gasLimit := env.header.GasLimit
 	if env.gasPool == nil {
 		env.gasPool = new(core.GasPool).AddGas(gasLimit)
-		if p, ok := w.engine.(*parlia.Parlia); ok {
+		if p, ok := w.engine.(*satoshi.Satoshi); ok {
 			gasReserved := p.EstimateGasReservedForSystemTxs(w.chain, env.header)
 			env.gasPool.SubGas(gasReserved)
 			log.Debug("commitTransactions", "number", env.header.Number.Uint64(), "time", env.header.Time, "EstimateGasReservedForSystemTxs", gasReserved)
@@ -1074,14 +1065,7 @@ func (w *worker) prepareWork(genParams *generateParams, witness bool) (*environm
 		}
 		header.BlobGasUsed = new(uint64)
 		header.ExcessBlobGas = &excessBlobGas
-<<<<<<< HEAD
-		if w.chainConfig.Satoshi != nil {
-			header.WithdrawalsHash = &types.EmptyWithdrawalsHash
-		}
 		if w.chainConfig.Satoshi == nil {
-=======
-		if w.chainConfig.Parlia == nil {
->>>>>>> bsc/v1.5.12
 			header.ParentBeaconRoot = genParams.beaconRoot
 		} else {
 			header.WithdrawalsHash = &types.EmptyWithdrawalsHash
@@ -1103,11 +1087,7 @@ func (w *worker) prepareWork(genParams *generateParams, witness bool) (*environm
 	}
 
 	// Handle upgrade build-in system contract code
-<<<<<<< HEAD
-	systemcontracts.UpgradeBuildInSystemContract(w.chainConfig, header.Number, parent.Time, header.Time, env.state)
-=======
 	systemcontracts.TryUpdateBuildInSystemContract(w.chainConfig, header.Number, parent.Time, header.Time, env.state, true)
->>>>>>> bsc/v1.5.12
 
 	if header.ParentBeaconRoot != nil {
 		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, env.evm)
@@ -1230,7 +1210,7 @@ func (w *worker) generateWork(params *generateParams, witness bool) *newPayloadR
 	}
 	// Collect consensus-layer requests if Prague is enabled.
 	var requests [][]byte
-	if w.chainConfig.IsPrague(work.header.Number, work.header.Time) && w.chainConfig.Parlia == nil {
+	if w.chainConfig.IsPrague(work.header.Number, work.header.Time) && w.chainConfig.Satoshi == nil {
 		requests = [][]byte{}
 		// EIP-6110 deposits
 		if err := core.ParseDepositLogs(&requests, allLogs, w.chainConfig); err != nil {
@@ -1318,17 +1298,13 @@ LOOP:
 		prevWork = work
 		workList = append(workList, work)
 
-<<<<<<< HEAD
 		err = w.engine.BeforePackTx(w.chain, work.header, work.state, &work.txs, nil, &work.receipts)
 		if err != nil {
 			log.Error("Failed to pack system tx", "err", err)
 			return
 		}
 
-		delay := w.engine.Delay(w.chain, work.header, &w.config.DelayLeftOver)
-=======
 		delay := w.engine.Delay(w.chain, work.header, w.config.DelayLeftOver)
->>>>>>> bsc/v1.5.12
 		if delay == nil {
 			log.Warn("commitWork delay is nil, something is wrong")
 			stopTimer = nil
@@ -1529,17 +1505,6 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		if interval != nil {
 			interval()
 		}
-<<<<<<< HEAD
-		/*
-			err := env.state.WaitPipeVerification()
-			if err != nil {
-				return err
-			}
-			env.state.CorrectAccountsRoot(w.chain.CurrentBlock().Root)
-		*/
-
-=======
->>>>>>> bsc/v1.5.12
 		fees := env.state.GetBalance(consensus.SystemAddress).ToBig()
 		feesInEther := new(big.Float).Quo(new(big.Float).SetInt(fees), big.NewFloat(params.Ether))
 		// Withdrawals are set to nil here, because this is only called in PoW.
@@ -1598,15 +1563,15 @@ func (w *worker) getSealingBlock(params *generateParams) *newPayloadResult {
 }
 
 func (w *worker) tryWaitProposalDoneWhenStopping() {
-	parlia, ok := w.engine.(*parlia.Parlia)
-	// if the consensus is not parlia, just skip waiting
+	satoshi, ok := w.engine.(*satoshi.Satoshi)
+	// if the consensus is not satoshi, just skip waiting
 	if !ok {
 		return
 	}
 
 	currentHeader := w.chain.CurrentBlock()
 	currentBlock := currentHeader.Number.Uint64()
-	startBlock, endBlock, err := parlia.NextProposalBlock(w.chain, currentHeader, w.coinbase)
+	startBlock, endBlock, err := satoshi.NextProposalBlock(w.chain, currentHeader, w.coinbase)
 	if err != nil {
 		log.Warn("Failed to get next proposal block, skip waiting", "err", err)
 		return
@@ -1618,7 +1583,7 @@ func (w *worker) tryWaitProposalDoneWhenStopping() {
 		log.Warn("next proposal end block has passed, ignore")
 		return
 	}
-	blockInterval, err := parlia.BlockInterval(w.chain, currentHeader)
+	blockInterval, err := satoshi.BlockInterval(w.chain, currentHeader)
 	if err != nil {
 		log.Debug("failed to get BlockInterval when tryWaitProposalDoneWhenStopping")
 	}

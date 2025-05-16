@@ -120,13 +120,9 @@ func testSetupGenesis(t *testing.T, scheme string) {
 				customg.Commit(db, tdb)
 				return SetupGenesisBlock(db, tdb, DefaultBuffaloGenesisBlock())
 			},
-<<<<<<< HEAD
 			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.BuffaloGenesisHash},
 			wantHash:   params.BuffaloGenesisHash,
 			wantConfig: params.BuffaloChainConfig,
-=======
-			wantErr: &GenesisMismatchError{Stored: customghash, New: params.ChapelGenesisHash},
->>>>>>> bsc/v1.5.12
 		},
 		{
 			name: "compatible config in DB",
@@ -274,16 +270,11 @@ func TestReadWriteGenesisAlloc(t *testing.T) {
 
 func TestConfigOrDefault(t *testing.T) {
 	defaultGenesis := DefaultGenesisBlock()
-<<<<<<< HEAD
+	if defaultGenesis.Config.HeraBlock != nil {
+		t.Errorf("initial config should have HeraBlock = nil, but instead HeraBlock = %v", defaultGenesis.Config.HeraBlock)
+	}
 	gHash := params.CoreGenesisHash
 	config := defaultGenesis.configOrDefault(gHash)
-=======
-	if defaultGenesis.Config.PlanckBlock != nil {
-		t.Errorf("initial config should have PlanckBlock = nil, but instead PlanckBlock = %v", defaultGenesis.Config.PlanckBlock)
-	}
-	gHash := params.BSCGenesisHash
-	config := defaultGenesis.chainConfigOrDefault(gHash, nil)
->>>>>>> bsc/v1.5.12
 
 	if config.ChainID.Cmp(params.CoreChainConfig.ChainID) != 0 {
 		t.Errorf("ChainID of resulting config should be %v, but is %v instead", params.CoreChainConfig.ChainID, config.ChainID)
@@ -291,6 +282,14 @@ func TestConfigOrDefault(t *testing.T) {
 
 	if config.HomesteadBlock.Cmp(params.CoreChainConfig.HomesteadBlock) != 0 {
 		t.Errorf("resulting config should have HomesteadBlock = %v, but instead is %v", params.CoreChainConfig, config.HomesteadBlock)
+	}
+
+	if config.HeraBlock == nil {
+		t.Errorf("resulting config should have HeraBlock = %v , but instead is nil", params.CoreChainConfig.HeraBlock)
+	}
+
+	if config.HeraBlock.Cmp(params.CoreChainConfig.HeraBlock) != 0 {
+		t.Errorf("resulting config should have HeraBlock = %v , but instead is %v", params.CoreChainConfig.HeraBlock, config.HeraBlock)
 	}
 }
 

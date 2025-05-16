@@ -29,38 +29,26 @@ const (
 	GenesisGasLimit      uint64 = 4712388            // Gas limit of the Genesis block.
 	PayBidTxGasLimit     uint64 = 25000              // Gas limit of the PayBidTx in the types.BidArgs.
 
-<<<<<<< HEAD
-	MaximumExtraDataSize  uint64 = 32     // Maximum size extra data may be after Genesis.
-	ForkIDSize            uint64 = 4      // The length of fork id
-	ExpByteGas            uint64 = 10     // Times ceil(log256(exponent)) for the EXP instruction.
-	SloadGas              uint64 = 50     // Multiplied by the number of 32-byte words that are copied (round up) for any *COPY operation and added.
-	CallValueTransferGas  uint64 = 9000   // Paid for CALL when the value transfer is non-zero.
-	CallNewAccountGas     uint64 = 25000  // Paid for CALL when the destination address didn't exist prior.
-	TxGas                 uint64 = 21000  // Per transaction not creating a contract. NOTE: Not payable on data of calls between transactions.
-	SystemTxsGas          uint64 = 500000 // The gas reserved for system txs; only for satoshi consensus
-	TxGasContractCreation uint64 = 53000  // Per transaction that creates a contract. NOTE: Not payable on data of calls between transactions.
-	TxDataZeroGas         uint64 = 4      // Per byte of data attached to a transaction that equals zero. NOTE: Not payable on data of calls between transactions.
-	QuadCoeffDiv          uint64 = 512    // Divisor for the quadratic particle of the memory cost equation.
-	LogDataGas            uint64 = 8      // Per byte in a LOG* operation's data.
-	CallStipend           uint64 = 2300   // Free gas given at beginning of call.
-=======
 	MaxMessageSize uint32 = 10 * 1024 * 1024 // MaxMessageSize is the maximum cap on the size of a eth protocol message.
 
-	MaximumExtraDataSize  uint64 = 32       // Maximum size extra data may be after Genesis.
-	ForkIDSize            uint64 = 4        // The length of fork id
-	ExpByteGas            uint64 = 10       // Times ceil(log256(exponent)) for the EXP instruction.
-	SloadGas              uint64 = 50       // Multiplied by the number of 32-byte words that are copied (round up) for any *COPY operation and added.
-	CallValueTransferGas  uint64 = 9000     // Paid for CALL when the value transfer is non-zero.
-	CallNewAccountGas     uint64 = 25000    // Paid for CALL when the destination address didn't exist prior.
-	TxGas                 uint64 = 21000    // Per transaction not creating a contract. NOTE: Not payable on data of calls between transactions.
-	SystemTxsGasHardLimit uint64 = 20000000 // Maximum gas reserved for system transactions (Parlia consensus only)
-	SystemTxsGasSoftLimit uint64 = 1000000  // Maximum gas reserved for system transactions, excluding validator update transactions (Parlia consensus only)
-	TxGasContractCreation uint64 = 53000    // Per transaction that creates a contract. NOTE: Not payable on data of calls between transactions.
-	TxDataZeroGas         uint64 = 4        // Per byte of data attached to a transaction that equals zero. NOTE: Not payable on data of calls between transactions.
-	QuadCoeffDiv          uint64 = 512      // Divisor for the quadratic particle of the memory cost equation.
-	LogDataGas            uint64 = 8        // Per byte in a LOG* operation's data.
-	CallStipend           uint64 = 2300     // Free gas given at beginning of call.
->>>>>>> bsc/v1.5.12
+	MaximumExtraDataSize uint64 = 32     // Maximum size extra data may be after Genesis.
+	ForkIDSize           uint64 = 4      // The length of fork id
+	ExpByteGas           uint64 = 10     // Times ceil(log256(exponent)) for the EXP instruction.
+	SloadGas             uint64 = 50     // Multiplied by the number of 32-byte words that are copied (round up) for any *COPY operation and added.
+	CallValueTransferGas uint64 = 9000   // Paid for CALL when the value transfer is non-zero.
+	CallNewAccountGas    uint64 = 25000  // Paid for CALL when the destination address didn't exist prior.
+	TxGas                uint64 = 21000  // Per transaction not creating a contract. NOTE: Not payable on data of calls between transactions.
+	SystemTxsGas         uint64 = 500000 // The gas reserved for system txs; only for satoshi consensus
+
+	// TODO(CZ): check the new config for the limits
+	SystemTxsGasHardLimit uint64 = 20000000 // Maximum gas reserved for system transactions (Satoshi consensus only)
+	SystemTxsGasSoftLimit uint64 = 1000000  // Maximum gas reserved for system transactions, excluding validator update transactions (Satoshi consensus only)
+
+	TxGasContractCreation uint64 = 53000 // Per transaction that creates a contract. NOTE: Not payable on data of calls between transactions.
+	TxDataZeroGas         uint64 = 4     // Per byte of data attached to a transaction that equals zero. NOTE: Not payable on data of calls between transactions.
+	QuadCoeffDiv          uint64 = 512   // Divisor for the quadratic particle of the memory cost equation.
+	LogDataGas            uint64 = 8     // Per byte in a LOG* operation's data.
+	CallStipend           uint64 = 2300  // Free gas given at beginning of call.
 
 	Keccak256Gas     uint64 = 30 // Once per KECCAK256 operation.
 	Keccak256WordGas uint64 = 6  // Once per word of the KECCAK256 operation's data.

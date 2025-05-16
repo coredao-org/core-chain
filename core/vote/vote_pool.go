@@ -27,7 +27,7 @@ const (
 
 	highestVerifiedBlockChanSize = 10 // highestVerifiedBlockChanSize is the size of channel listening to HighestVerifiedBlockEvent.
 
-	defaultMajorityThreshold = 14 // this is an inaccurate value, mainly used for metric acquisition, ref parlia.verifyVoteAttestation
+	defaultMajorityThreshold = 14 // this is an inaccurate value, mainly used for metric acquisition, ref satoshi.verifyVoteAttestation
 )
 
 var (

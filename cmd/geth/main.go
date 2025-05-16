@@ -72,15 +72,12 @@ var (
 		utils.RangeLimitFlag,
 		utils.USBFlag,
 		utils.SmartCardDaemonPathFlag,
-<<<<<<< HEAD
 		utils.OverrideCancun,
 		utils.OverrideHaber,
-=======
 		utils.RialtoHash,
 		utils.OverridePassedForkTime,
 		utils.OverrideLorentz,
 		utils.OverrideMaxwell,
->>>>>>> bsc/v1.5.12
 		utils.OverrideVerkle,
 		utils.OverrideFullImmutabilityThreshold,
 		utils.OverrideMinBlocksForBlobRequests,
@@ -366,23 +363,15 @@ func prepare(ctx *cli.Context) {
   5. Networking is disabled; there is no listen-address, the maximum number of peers is set
      to 0, and discovery is disabled.
 `)
-<<<<<<< HEAD
 
 	case !ctx.IsSet(utils.NetworkIdFlag.Name):
 		log.Info("Starting Geth on CORE mainnet...")
-=======
->>>>>>> bsc/v1.5.12
 	}
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
 	if !ctx.IsSet(utils.CacheFlag.Name) && !ctx.IsSet(utils.NetworkIdFlag.Name) {
 		// Make sure we're not on any supported preconfigured testnet either
-<<<<<<< HEAD
 		if !ctx.IsSet(utils.DeveloperFlag.Name) &&
 			!ctx.IsSet(utils.BuffaloFlag.Name) && !ctx.IsSet(utils.PigeonFlag.Name) {
-=======
-		if !ctx.IsSet(utils.ChapelFlag.Name) &&
-			!ctx.IsSet(utils.DeveloperFlag.Name) {
->>>>>>> bsc/v1.5.12
 			// Nope, we're really on mainnet. Bump that cache up!
 			log.Info("Bumping default cache on mainnet", "provided", ctx.Int(utils.CacheFlag.Name), "updated", 4096)
 			ctx.Set(utils.CacheFlag.Name, strconv.Itoa(4096))

@@ -1,4 +1,4 @@
-package parlia
+package satoshi
 
 import (
 	"container/heap"
@@ -30,7 +30,7 @@ func isBreatheBlock(lastBlockTime, blockTime uint64) bool {
 }
 
 // initializeFeynmanContract initialize new contracts of Feynman fork
-func (p *Parlia) initializeFeynmanContract(state vm.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) initializeFeynmanContract(state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks,
 ) error {
 	// method
@@ -96,7 +96,7 @@ func (h *ValidatorHeap) Pop() interface{} {
 	return x
 }
 
-func (p *Parlia) updateValidatorSetV2(state vm.StateDB, header *types.Header, chain core.ChainContext,
+func (p *Satoshi) updateValidatorSetV2(state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks,
 ) error {
 	// 1. get all validators and its voting power
@@ -127,7 +127,7 @@ func (p *Parlia) updateValidatorSetV2(state vm.StateDB, header *types.Header, ch
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
 
-func (p *Parlia) getValidatorElectionInfo(blockNr rpc.BlockNumberOrHash) ([]ValidatorItem, error) {
+func (p *Satoshi) getValidatorElectionInfo(blockNr rpc.BlockNumberOrHash) ([]ValidatorItem, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -174,7 +174,7 @@ func (p *Parlia) getValidatorElectionInfo(blockNr rpc.BlockNumberOrHash) ([]Vali
 	return validatorItems, nil
 }
 
-func (p *Parlia) getMaxElectedValidators(blockNr rpc.BlockNumberOrHash) (maxElectedValidators *big.Int, err error) {
+func (p *Satoshi) getMaxElectedValidators(blockNr rpc.BlockNumberOrHash) (maxElectedValidators *big.Int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

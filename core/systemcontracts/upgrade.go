@@ -8,29 +8,12 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
-<<<<<<< HEAD
-	"github.com/ethereum/go-ethereum/core/state"
-=======
 	"github.com/ethereum/go-ethereum/core/systemcontracts/bohr"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/bruno"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/euler"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/feynman"
-	feynmanFix "github.com/ethereum/go-ethereum/core/systemcontracts/feynman_fix"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/gibbs"
 	haberFix "github.com/ethereum/go-ethereum/core/systemcontracts/haber_fix"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/kepler"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/lorentz"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/luban"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/mirror"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/moran"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/niels"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/pascal"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/planck"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/plato"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/ramanujan"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
->>>>>>> bsc/v1.5.12
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -72,9 +55,9 @@ var (
 
 	demeterUpgrade = make(map[string]*Upgrade)
 
-<<<<<<< HEAD
 	athenaUpgrade = make(map[string]*Upgrade)
-=======
+
+	// TODO(cz): Chech which ones to keep below
 	gibbsUpgrade = make(map[string]*Upgrade)
 
 	moranUpgrade = make(map[string]*Upgrade)
@@ -98,7 +81,6 @@ var (
 	pascalUpgrade = make(map[string]*Upgrade)
 
 	lorentzUpgrade = make(map[string]*Upgrade)
->>>>>>> bsc/v1.5.12
 )
 
 func init() {
@@ -953,9 +935,7 @@ func upgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 	if config.IsOnAthena(blockNumber, lastBlockTime, blockTime) {
 		applySystemContractUpgrade(athenaUpgrade[network], blockNumber, statedb, logger)
 	}
-<<<<<<< HEAD
-=======
-
+	// TODO(cz): check which ones to keep below
 	if config.IsOnMoran(blockNumber) {
 		applySystemContractUpgrade(moranUpgrade[network], blockNumber, statedb, logger)
 	}
@@ -1007,7 +987,6 @@ func upgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 	/*
 		apply other upgrades
 	*/
->>>>>>> bsc/v1.5.12
 }
 
 func applySystemContractUpgrade(upgrade *Upgrade, blockNumber *big.Int, statedb vm.StateDB, logger log.Logger) {
