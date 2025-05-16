@@ -52,7 +52,7 @@ func (h *ethHandler) PeerInfo(id enode.ID) interface{} {
 // AcceptTxs retrieves whether transaction processing is enabled on the node
 // or if inbound transactions should simply be dropped.
 func (h *ethHandler) AcceptTxs() bool {
-	return h.synced.Load()
+	return h.acceptTxs.Load()
 }
 
 // Handle is invoked from a peer's message handler when it receives a new remote
@@ -89,12 +89,6 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 // handleBlockAnnounces is invoked from a peer's message handler when it transmits a
 // batch of block announcements for the local node to process.
 func (h *ethHandler) handleBlockAnnounces(peer *eth.Peer, hashes []common.Hash, numbers []uint64) error {
-	// Drop all incoming block announces from the p2p network if
-	// the chain already entered the pos stage and disconnect the
-	// remote peer.
-	if h.merger.PoSFinalized() {
-		return errors.New("disallowed block announcement")
-	}
 	// Schedule all the unknown hashes for retrieval
 	var (
 		unknownHashes  = make([]common.Hash, 0, len(hashes))
@@ -110,18 +104,22 @@ func (h *ethHandler) handleBlockAnnounces(peer *eth.Peer, hashes []common.Hash, 
 	for i := 0; i < len(unknownHashes); i++ {
 		h.blockFetcher.Notify(peer.ID(), unknownHashes[i], unknownNumbers[i], time.Now(), peer.RequestOneHeader, peer.RequestBodies)
 	}
+	for _, hash := range hashes {
+		stats := h.chain.GetBlockStats(hash)
+		if stats.RecvNewBlockHashTime.Load() == 0 {
+			stats.RecvNewBlockHashTime.Store(time.Now().UnixMilli())
+			addr := peer.RemoteAddr()
+			if addr != nil {
+				stats.RecvNewBlockHashFrom.Store(addr.String())
+			}
+		}
+	}
 	return nil
 }
 
 // handleBlockBroadcast is invoked from a peer's message handler when it transmits a
 // block broadcast for the local node to process.
 func (h *ethHandler) handleBlockBroadcast(peer *eth.Peer, packet *eth.NewBlockPacket) error {
-	// Drop all incoming block announces from the p2p network if
-	// the chain already entered the pos stage and disconnect the
-	// remote peer.
-	if h.merger.PoSFinalized() {
-		return errors.New("disallowed block broadcast")
-	}
 	block := packet.Block
 	td := packet.TD
 	sidecars := packet.Sidecars
@@ -131,6 +129,14 @@ func (h *ethHandler) handleBlockBroadcast(peer *eth.Peer, packet *eth.NewBlockPa
 
 	// Schedule the block for import
 	h.blockFetcher.Enqueue(peer.ID(), block)
+	stats := h.chain.GetBlockStats(block.Hash())
+	if stats.RecvNewBlockTime.Load() == 0 {
+		stats.RecvNewBlockTime.Store(time.Now().UnixMilli())
+		addr := peer.RemoteAddr()
+		if addr != nil {
+			stats.RecvNewBlockFrom.Store(addr.String())
+		}
+	}
 
 	// Assuming the block is importable by the peer, but possibly not yet done so,
 	// calculate the head hash and TD that the peer truly must have.

@@ -52,10 +52,14 @@ func copyConfig(original *params.ChainConfig) *params.ChainConfig {
 func config() *params.ChainConfig {
 	config := copyConfig(params.TestChainConfig)
 	config.Ethash = nil
+<<<<<<< HEAD
 	config.Satoshi = &params.SatoshiConfig{
 		Period: 3,
 		Epoch:  200,
 	}
+=======
+	config.Parlia = &params.ParliaConfig{}
+>>>>>>> bsc/v1.5.12
 	config.LondonBlock = big.NewInt(5)
 	return config
 }

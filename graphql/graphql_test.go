@@ -453,19 +453,20 @@ func newGQLService(t *testing.T, stack *node.Node, shanghai bool, gspec *core.Ge
 		TrieDirtyCache: 5,
 		TrieTimeout:    60 * time.Minute,
 		SnapshotCache:  5,
+		RPCGasCap:      1000000,
 		StateScheme:    rawdb.HashScheme,
 	}
 	var engine consensus.Engine = ethash.NewFaker()
 	if shanghai {
 		engine = beacon.NewFaker()
-		chainCfg := gspec.Config
-		chainCfg.TerminalTotalDifficultyPassed = true
-		chainCfg.TerminalTotalDifficulty = common.Big0
+		gspec.Config.TerminalTotalDifficulty = common.Big0
+		gspec.Config.MergeNetsplitBlock = common.Big0
 		// GenerateChain will increment timestamps by 10.
 		// Shanghai upgrade at block 1.
 		shanghaiTime := uint64(5)
-		chainCfg.ShanghaiTime = &shanghaiTime
+		gspec.Config.ShanghaiTime = &shanghaiTime
 	}
+
 	ethBackend, err := eth.New(stack, ethConf)
 	if err != nil {
 		t.Fatalf("could not create eth backend: %v", err)

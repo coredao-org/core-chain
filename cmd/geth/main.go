@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,6 +45,7 @@ import (
 
 	// Force-load the tracer engines to trigger registration
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
+	_ "github.com/ethereum/go-ethereum/eth/tracers/live"
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 
 	"github.com/urfave/cli/v2"
@@ -55,7 +57,7 @@ const (
 
 var (
 	// flags that configure the node
-	nodeFlags = flags.Merge([]cli.Flag{
+	nodeFlags = slices.Concat([]cli.Flag{
 		utils.IdentityFlag,
 		utils.UnlockedAccountFlag,
 		utils.PasswordFileFlag,
@@ -67,18 +69,25 @@ var (
 		utils.DirectBroadcastFlag,
 		utils.DisableSnapProtocolFlag,
 		utils.EnableTrustProtocolFlag,
-		utils.PipeCommitFlag,
 		utils.RangeLimitFlag,
 		utils.USBFlag,
 		utils.SmartCardDaemonPathFlag,
+<<<<<<< HEAD
 		utils.OverrideCancun,
 		utils.OverrideHaber,
+=======
+		utils.RialtoHash,
+		utils.OverridePassedForkTime,
+		utils.OverrideLorentz,
+		utils.OverrideMaxwell,
+>>>>>>> bsc/v1.5.12
 		utils.OverrideVerkle,
 		utils.OverrideFullImmutabilityThreshold,
 		utils.OverrideMinBlocksForBlobRequests,
 		utils.OverrideDefaultExtraReserveForBlobRequests,
 		utils.OverrideBreatheBlockInterval,
-		utils.EnablePersonal,
+		utils.OverrideFixedTurnLength,
+		utils.EnablePersonal, // deprecated
 		utils.TxPoolLocalsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
@@ -89,6 +98,7 @@ var (
 		utils.TxPoolGlobalSlotsFlag,
 		utils.TxPoolAccountQueueFlag,
 		utils.TxPoolGlobalQueueFlag,
+		utils.TxPoolOverflowPoolSlotsFlag,
 		utils.TxPoolLifetimeFlag,
 		utils.TxPoolReannounceTimeFlag,
 		utils.BlobPoolDataDirFlag,
@@ -125,6 +135,7 @@ var (
 		utils.CacheSnapshotFlag,
 		// utils.CacheNoPrefetchFlag,
 		utils.CachePreimagesFlag,
+		utils.MultiDataBaseFlag,
 		utils.PersistDiffFlag,
 		utils.DiffBlockFlag,
 		utils.PruneAncientDataFlag,
@@ -142,6 +153,7 @@ var (
 		utils.MinerEtherbaseFlag,
 		utils.MinerExtraDataFlag,
 		utils.MinerRecommitIntervalFlag,
+		utils.MinerNewPayloadTimeoutFlag, // deprecated
 		utils.MinerDelayLeftoverFlag,
 		// utils.MinerNewPayloadTimeout,
 		utils.NATFlag,
@@ -155,10 +167,12 @@ var (
 		utils.NodeKeyFileFlag,
 		utils.NodeKeyHexFlag,
 		utils.DNSDiscoveryFlag,
-		utils.DeveloperFlag,
-		utils.DeveloperGasLimitFlag,
-		utils.DeveloperPeriodFlag,
+		// utils.DeveloperFlag,
+		// utils.DeveloperGasLimitFlag,
+		// utils.DeveloperPeriodFlag,
 		utils.VMEnableDebugFlag,
+		utils.VMTraceFlag,
+		utils.VMTraceJsonConfigFlag,
 		utils.NetworkIdFlag,
 		utils.EthStatsURLFlag,
 		utils.NoCompactionFlag,
@@ -179,6 +193,14 @@ var (
 		utils.LogDebugFlag,
 		utils.LogBacktraceAtFlag,
 		utils.BlobExtraReserveFlag,
+		// utils.BeaconApiFlag,
+		// utils.BeaconApiHeaderFlag,
+		// utils.BeaconThresholdFlag,
+		// utils.BeaconNoFilterFlag,
+		// utils.BeaconConfigFlag,
+		// utils.BeaconGenesisRootFlag,
+		// utils.BeaconGenesisTimeFlag,
+		// utils.BeaconCheckpointFlag,
 	}, utils.NetworkFlags, utils.DatabaseFlags)
 
 	rpcFlags = []cli.Flag{
@@ -229,6 +251,12 @@ var (
 		utils.MetricsInfluxDBBucketFlag,
 		utils.MetricsInfluxDBOrganizationFlag,
 	}
+
+	fakeBeaconFlags = []cli.Flag{
+		utils.FakeBeaconEnabledFlag,
+		utils.FakeBeaconAddrFlag,
+		utils.FakeBeaconPortFlag,
+	}
 )
 
 var app = flags.NewApp("the go-ethereum command line interface")
@@ -278,12 +306,13 @@ func init() {
 	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 
-	app.Flags = flags.Merge(
+	app.Flags = slices.Concat(
 		nodeFlags,
 		rpcFlags,
 		consoleFlags,
 		debug.Flags,
 		metricsFlags,
+		fakeBeaconFlags,
 	)
 	flags.AutoEnvVars(app.Flags, "GETH")
 
@@ -337,15 +366,23 @@ func prepare(ctx *cli.Context) {
   5. Networking is disabled; there is no listen-address, the maximum number of peers is set
      to 0, and discovery is disabled.
 `)
+<<<<<<< HEAD
 
 	case !ctx.IsSet(utils.NetworkIdFlag.Name):
 		log.Info("Starting Geth on CORE mainnet...")
+=======
+>>>>>>> bsc/v1.5.12
 	}
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
 	if !ctx.IsSet(utils.CacheFlag.Name) && !ctx.IsSet(utils.NetworkIdFlag.Name) {
 		// Make sure we're not on any supported preconfigured testnet either
+<<<<<<< HEAD
 		if !ctx.IsSet(utils.DeveloperFlag.Name) &&
 			!ctx.IsSet(utils.BuffaloFlag.Name) && !ctx.IsSet(utils.PigeonFlag.Name) {
+=======
+		if !ctx.IsSet(utils.ChapelFlag.Name) &&
+			!ctx.IsSet(utils.DeveloperFlag.Name) {
+>>>>>>> bsc/v1.5.12
 			// Nope, we're really on mainnet. Bump that cache up!
 			log.Info("Bumping default cache on mainnet", "provided", ctx.Int(utils.CacheFlag.Name), "updated", 4096)
 			ctx.Set(utils.CacheFlag.Name, strconv.Itoa(4096))
@@ -374,8 +411,6 @@ func geth(ctx *cli.Context) error {
 // it unlocks any requested accounts, and starts the RPC/IPC interfaces and the
 // miner.
 func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isConsole bool) {
-	debug.Memsize.Add("node", stack)
-
 	// Start up the node itself
 	utils.StartNode(ctx, stack, isConsole)
 
@@ -448,22 +483,23 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 	}
 
 	// Start auxiliary services if enabled
+	ethBackend, ok := backend.(*eth.EthAPIBackend)
+	gasCeil := ethBackend.Miner().GasCeil()
+	if gasCeil > params.SystemTxsGasSoftLimit {
+		ethBackend.TxPool().SetMaxGas(gasCeil - params.SystemTxsGasSoftLimit)
+	}
 	if ctx.Bool(utils.MiningEnabledFlag.Name) {
 		// Mining only makes sense if a full Ethereum node is running
 		if ctx.String(utils.SyncModeFlag.Name) == "light" {
 			utils.Fatalf("Light clients do not support mining")
 		}
-		ethBackend, ok := backend.(*eth.EthAPIBackend)
+
 		if !ok {
 			utils.Fatalf("Ethereum service not running")
 		}
 		// Set the gas price to the limits from the CLI and start mining
 		gasprice := flags.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
 		ethBackend.TxPool().SetGasTip(gasprice)
-		gasCeil := ethBackend.Miner().GasCeil()
-		if gasCeil > params.SystemTxsGas {
-			ethBackend.TxPool().SetMaxGas(gasCeil - params.SystemTxsGas)
-		}
 		if err := ethBackend.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}

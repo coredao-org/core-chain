@@ -1,11 +1,23 @@
 package systemcontracts
 
 import (
+<<<<<<< HEAD
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"testing"
+=======
+	"crypto/sha256"
+	"math/big"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/require"
+>>>>>>> bsc/v1.5.12
 )
 
 type Config struct {
@@ -88,4 +100,32 @@ func TestUpgrade(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+}
+
+func TestUpgradeBuildInSystemContractNilInterface(t *testing.T) {
+	var (
+		config               = params.BSCChainConfig
+		blockNumber          = big.NewInt(37959559)
+		lastBlockTime uint64 = 1713419337
+		blockTime     uint64 = 1713419340
+		statedb       vm.StateDB
+	)
+
+	GenesisHash = params.BSCGenesisHash
+
+	upgradeBuildInSystemContract(config, blockNumber, lastBlockTime, blockTime, statedb)
+}
+
+func TestUpgradeBuildInSystemContractNilValue(t *testing.T) {
+	var (
+		config                   = params.BSCChainConfig
+		blockNumber              = big.NewInt(37959559)
+		lastBlockTime uint64     = 1713419337
+		blockTime     uint64     = 1713419340
+		statedb       vm.StateDB = (*state.StateDB)(nil)
+	)
+
+	GenesisHash = params.BSCGenesisHash
+
+	upgradeBuildInSystemContract(config, blockNumber, lastBlockTime, blockTime, statedb)
 }

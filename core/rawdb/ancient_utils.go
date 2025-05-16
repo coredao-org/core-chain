@@ -18,6 +18,8 @@ package rawdb
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -90,21 +92,34 @@ func inspectFreezers(db ethdb.Database) ([]freezerInfo, error) {
 			}
 			infos = append(infos, info)
 
-		case StateFreezerName:
-			if ReadStateScheme(db) != PathScheme || db.StateStore() != nil {
+		case MerkleStateFreezerName, VerkleStateFreezerName:
+			if db.StateStore() != nil {
 				continue
 			}
 			datadir, err := db.AncientDatadir()
 			if err != nil {
 				return nil, err
 			}
-			f, err := NewStateFreezer(datadir, true, 0)
+
+			// TODO(Nathan): handle VerkleStateFreezerName
+			file, err := os.Open(filepath.Join(datadir, MerkleStateFreezerName))
 			if err != nil {
 				return nil, err
 			}
+			defer file.Close()
+			// if state freezer folder has been pruned, there is no need for inspection
+			_, err = file.Readdirnames(1)
+			if err == io.EOF {
+				continue
+			}
+
+			f, err := NewStateFreezer(datadir, freezer == VerkleStateFreezerName, true, 0)
+			if err != nil {
+				continue // might be possible the state freezer is not existent
+			}
 			defer f.Close()
 
-			info, err := inspect(StateFreezerName, stateFreezerNoSnappy, f)
+			info, err := inspect(freezer, stateFreezerNoSnappy, f)
 			if err != nil {
 				return nil, err
 			}
@@ -134,7 +149,7 @@ func InspectFreezerTable(ancient string, freezerName string, tableName string, s
 			path, tables = resolveChainFreezerDir(ancient), chainFreezerNoSnappy
 		}
 
-	case StateFreezerName:
+	case MerkleStateFreezerName, VerkleStateFreezerName:
 		if multiDatabase {
 			path, tables = filepath.Join(filepath.Dir(ancient)+"/state/ancient", freezerName), stateFreezerNoSnappy
 		} else {
@@ -160,11 +175,11 @@ func InspectFreezerTable(ancient string, freezerName string, tableName string, s
 }
 
 func ResetStateFreezerTableOffset(ancient string, virtualTail uint64) error {
-	path, tables := filepath.Join(ancient, StateFreezerName), stateFreezerNoSnappy
+	path, tables := filepath.Join(ancient, MerkleStateFreezerName), stateFreezerNoSnappy
 
 	for name, disableSnappy := range tables {
 		log.Info("Handle table", "name", name, "disableSnappy", disableSnappy)
-		table, err := newTable(path, name, metrics.NilMeter{}, metrics.NilMeter{}, metrics.NilGauge{}, freezerTableSize, disableSnappy, false)
+		table, err := newTable(path, name, metrics.NewInactiveMeter(), metrics.NewInactiveMeter(), metrics.NewGauge(), freezerTableSize, disableSnappy, false)
 		if err != nil {
 			log.Error("New table failed", "error", err)
 			return err

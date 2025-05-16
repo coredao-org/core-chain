@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -46,7 +47,7 @@ var ProtocolVersions = []uint{ETH68}
 var protocolLengths = map[uint]uint64{ETH68: 17}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
-const maxMessageSize = 10 * 1024 * 1024
+var maxMessageSize = params.MaxMessageSize
 
 const (
 	StatusMsg                     = 0x00
@@ -283,7 +284,6 @@ type BlockBody struct {
 // Unpack retrieves the transactions and uncles from the range packet and returns
 // them in a split flat format that's more consistent with the internal data structures.
 func (p *BlockBodiesResponse) Unpack() ([][]*types.Transaction, [][]*types.Header, [][]*types.Withdrawal, []types.BlobSidecars) {
-	// TODO(matt): add support for withdrawals to fetchers
 	var (
 		txset         = make([][]*types.Transaction, len(*p))
 		uncleset      = make([][]*types.Header, len(*p))

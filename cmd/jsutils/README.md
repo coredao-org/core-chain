@@ -10,18 +10,9 @@ Install node.js dependency:
 ```shell script
     npm install
 ```
-## Run
-### 1.Get Validator's Information: Version, MinGasPrice
-mainnet validators version
-```bash
-    npm run startMainnet
-```
-testnet validators version
-```bash
-    npm run startTestnet
-```
 
-### 2.Get Transaction Count
-```bash
-node gettxcount.js --rpc ${url} --startNum ${start} --endNum ${end} --miner ${miner} (optional)
+## Run
+Run according to the usage:
+```
+node getchainstatus.js --help
 ```

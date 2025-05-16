@@ -36,10 +36,6 @@ func (db *Database) BlockStoreReader() ethdb.Reader {
 	return db
 }
 
-func (db *Database) BlockStoreWriter() ethdb.Writer {
-	return db
-}
-
 func (db *Database) BlockStore() ethdb.Database {
 	return db
 }
@@ -122,6 +118,10 @@ func (db *Database) SetStateStore(state ethdb.Database) {
 	panic("not supported")
 }
 
+func (db *Database) GetStateStore() ethdb.Database {
+	panic("not supported")
+}
+
 func (db *Database) StateStoreReader() ethdb.Reader {
 	return db
 }
@@ -139,6 +139,10 @@ func (db *Database) Put(key []byte, value []byte) error {
 }
 
 func (db *Database) Delete(key []byte) error {
+	panic("not supported")
+}
+
+func (db *Database) DeleteRange(start, end []byte) error {
 	panic("not supported")
 }
 
@@ -172,10 +176,6 @@ func (db *Database) Sync() error {
 	return nil
 }
 
-func (db *Database) MigrateTable(s string, f func([]byte) ([]byte, error)) error {
-	panic("not supported")
-}
-
 func (db *Database) NewBatch() ethdb.Batch {
 	panic("not supported")
 }
@@ -188,8 +188,8 @@ func (db *Database) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
 	panic("not supported")
 }
 
-func (db *Database) Stat(property string) (string, error) {
-	panic("not supported")
+func (db *Database) Stat() (string, error) {
+	return "", nil
 }
 
 func (db *Database) AncientDatadir() (string, error) {
@@ -198,10 +198,6 @@ func (db *Database) AncientDatadir() (string, error) {
 
 func (db *Database) Compact(start []byte, limit []byte) error {
 	return nil
-}
-
-func (db *Database) NewSnapshot() (ethdb.Snapshot, error) {
-	panic("not supported")
 }
 
 func (db *Database) Close() error {

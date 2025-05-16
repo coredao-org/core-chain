@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -131,8 +130,8 @@ func (ec *Client) BlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumb
 }
 
 // BlobSidecars return the Sidecars of a given block number or hash.
-func (ec *Client) BlobSidecars(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.BlobTxSidecar, error) {
-	var r []*types.BlobTxSidecar
+func (ec *Client) BlobSidecars(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.BlobSidecar, error) {
+	var r []*types.BlobSidecar
 	err := ec.c.CallContext(ctx, &r, "eth_getBlobSidecars", blockNrOrHash.String())
 	if err == nil && r == nil {
 		return nil, ethereum.NotFound
@@ -141,8 +140,8 @@ func (ec *Client) BlobSidecars(ctx context.Context, blockNrOrHash rpc.BlockNumbe
 }
 
 // BlobSidecarByTxHash return a sidecar of a given blob transaction
-func (ec *Client) BlobSidecarByTxHash(ctx context.Context, hash common.Hash) (*types.BlobTxSidecar, error) {
-	var r *types.BlobTxSidecar
+func (ec *Client) BlobSidecarByTxHash(ctx context.Context, hash common.Hash) (*types.BlobSidecar, error) {
+	var r *types.BlobSidecar
 	err := ec.c.CallContext(ctx, &r, "eth_getBlobSidecarByTxHash", hash)
 	if err == nil && r == nil {
 		return nil, ethereum.NotFound
@@ -223,7 +222,13 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 		}
 		txs[i] = tx.tx
 	}
-	return types.NewBlockWithHeader(head).WithBody(txs, uncles).WithWithdrawals(body.Withdrawals), nil
+
+	return types.NewBlockWithHeader(head).WithBody(
+		types.Body{
+			Transactions: txs,
+			Uncles:       uncles,
+			Withdrawals:  body.Withdrawals,
+		}), nil
 }
 
 // HeaderByHash returns the block header with the given hash.
@@ -248,11 +253,9 @@ func (ec *Client) HeaderByNumber(ctx context.Context, number *big.Int) (*types.H
 }
 
 // GetFinalizedHeader returns the requested finalized block header.
-//   - probabilisticFinalized should be in range [2,21],
-//     then the block header with number `max(fastFinalized, latest-probabilisticFinalized)` is returned
-func (ec *Client) FinalizedHeader(ctx context.Context, probabilisticFinalized int64) (*types.Header, error) {
+func (ec *Client) FinalizedHeader(ctx context.Context, verifiedValidatorNum int64) (*types.Header, error) {
 	var head *types.Header
-	err := ec.c.CallContext(ctx, &head, "eth_getFinalizedHeader", probabilisticFinalized)
+	err := ec.c.CallContext(ctx, &head, "eth_getFinalizedHeader", verifiedValidatorNum)
 	if err == nil && head == nil {
 		err = ethereum.NotFound
 	}
@@ -260,12 +263,8 @@ func (ec *Client) FinalizedHeader(ctx context.Context, probabilisticFinalized in
 }
 
 // GetFinalizedBlock returns the requested finalized block.
-//   - probabilisticFinalized should be in range [2,21],
-//     then the block with number `max(fastFinalized, latest-probabilisticFinalized)` is returned
-//   - When fullTx is true all transactions in the block are returned, otherwise
-//     only the transaction hash is returned.
-func (ec *Client) FinalizedBlock(ctx context.Context, probabilisticFinalized int64, fullTx bool) (*types.Block, error) {
-	return ec.getBlock(ctx, "eth_getFinalizedBlock", probabilisticFinalized, true)
+func (ec *Client) FinalizedBlock(ctx context.Context, verifiedValidatorNum int64, fullTx bool) (*types.Block, error) {
+	return ec.getBlock(ctx, "eth_getFinalizedBlock", verifiedValidatorNum, fullTx)
 }
 
 func (ec *Client) GetRootByDiffHash(ctx context.Context, blockNr *big.Int, blockHash common.Hash, diffHash common.Hash) (*core.VerifyResult, error) {
@@ -361,7 +360,7 @@ func (ec *Client) TransactionInBlock(ctx context.Context, blockHash common.Hash,
 	return json.tx, err
 }
 
-// TransactionInBlock returns a single transaction at index in the given block.
+// TransactionsInBlock returns a single transaction at index in the given block.
 func (ec *Client) TransactionsInBlock(ctx context.Context, number *big.Int) ([]*types.Transaction, error) {
 	var rpcTxs []*rpcTransaction
 	err := ec.c.CallContext(ctx, &rpcTxs, "eth_getTransactionsByBlockNumber", toBlockNumArg(number))
@@ -376,7 +375,7 @@ func (ec *Client) TransactionsInBlock(ctx context.Context, number *big.Int) ([]*
 	return txs, err
 }
 
-// TransactionInBlock returns a single transaction at index in the given block.
+// TransactionRecipientsInBlock returns a single transaction at index in the given block.
 func (ec *Client) TransactionRecipientsInBlock(ctx context.Context, number *big.Int) ([]*types.Receipt, error) {
 	var rs []*types.Receipt
 	err := ec.c.CallContext(ctx, &rs, "eth_getTransactionReceiptsByBlockNumber", toBlockNumArg(number))
@@ -462,7 +461,7 @@ func (ec *Client) NetworkID(ctx context.Context) (*big.Int, error) {
 	if err := ec.c.CallContext(ctx, &ver, "net_version"); err != nil {
 		return nil, err
 	}
-	if _, ok := version.SetString(ver, 10); !ok {
+	if _, ok := version.SetString(ver, 0); !ok {
 		return nil, fmt.Errorf("invalid net_version result %q", ver)
 	}
 	return version, nil
@@ -737,7 +736,7 @@ func (ec *Client) SendTransaction(ctx context.Context, tx *types.Transaction) er
 //
 // If the transaction was a contract creation use the TransactionReceipt method to get the
 // contract address after the transaction has been mined.
-func (ec *Client) SendTransactionConditional(ctx context.Context, tx *types.Transaction, opts ethapi.TransactionOpts) error {
+func (ec *Client) SendTransactionConditional(ctx context.Context, tx *types.Transaction, opts types.TransactionOpts) error {
 	data, err := tx.MarshalBinary()
 	if err != nil {
 		return err
@@ -787,6 +786,23 @@ func (ec *Client) MevParams(ctx context.Context) (*types.MevParams, error) {
 		return nil, err
 	}
 	return &params, err
+}
+
+// RevertErrorData returns the 'revert reason' data of a contract call.
+//
+// This can be used with CallContract and EstimateGas, and only when the server is Geth.
+func RevertErrorData(err error) ([]byte, bool) {
+	var ec rpc.Error
+	var ed rpc.DataError
+	if errors.As(err, &ec) && errors.As(err, &ed) && ec.ErrorCode() == 3 {
+		if eds, ok := ed.ErrorData().(string); ok {
+			revertData, err := hexutil.Decode(eds)
+			if err == nil {
+				return revertData, true
+			}
+		}
+	}
+	return nil, false
 }
 
 func toBlockNumArg(number *big.Int) string {

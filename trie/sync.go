@@ -22,9 +22,11 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -148,15 +150,42 @@ type CodeSyncResult struct {
 // nodeOp represents an operation upon the trie node. It can either represent a
 // deletion to the specific node or a node write for persisting retrieved node.
 type nodeOp struct {
+	del   bool        // flag if op stands for a delete operation
 	owner common.Hash // identifier of the trie (empty for account trie)
 	path  []byte      // path from the root to the specified node.
 	blob  []byte      // the content of the node (nil for deletion)
 	hash  common.Hash // hash of the node content (empty for node deletion)
 }
 
-// isDelete indicates if the operation is a database deletion.
-func (op *nodeOp) isDelete() bool {
-	return len(op.blob) == 0
+// valid checks whether the node operation is valid.
+func (op *nodeOp) valid() bool {
+	if op.del && len(op.blob) != 0 {
+		return false
+	}
+	if !op.del && len(op.blob) == 0 {
+		return false
+	}
+	return true
+}
+
+// string returns the node operation in string representation.
+func (op *nodeOp) string() string {
+	var node string
+	if op.owner == (common.Hash{}) {
+		node = fmt.Sprintf("node: (%v)", op.path)
+	} else {
+		node = fmt.Sprintf("node: (%x-%v)", op.owner, op.path)
+	}
+	var blobHex string
+	if len(op.blob) == 0 {
+		blobHex = "nil"
+	} else {
+		blobHex = hexutil.Encode(op.blob)
+	}
+	if op.del {
+		return fmt.Sprintf("del %s %s %s", node, blobHex, op.hash.Hex())
+	}
+	return fmt.Sprintf("write %s %s %s", node, blobHex, op.hash.Hex())
 }
 
 // syncMemBatch is an in-memory buffer of successfully downloaded but not yet
@@ -219,6 +248,7 @@ func (batch *syncMemBatch) delNode(owner common.Hash, path []byte) {
 		batch.size += common.HashLength + uint64(len(path))
 	}
 	batch.nodes = append(batch.nodes, nodeOp{
+		del:   true,
 		owner: owner,
 		path:  path,
 	})
@@ -229,7 +259,7 @@ func (batch *syncMemBatch) delNode(owner common.Hash, path []byte) {
 // and reconstructs the trie step by step until all is done.
 type Sync struct {
 	scheme   string                       // Node scheme descriptor used in database.
-	database ethdb.KeyValueReader         // Persistent database to check for existing entries
+	database ethdb.Database               // Persistent database to check for existing entries
 	membatch *syncMemBatch                // Memory buffer to avoid frequent database writes
 	nodeReqs map[string]*nodeRequest      // Pending requests pertaining to a trie node path
 	codeReqs map[common.Hash]*codeRequest // Pending requests pertaining to a code hash
@@ -238,7 +268,7 @@ type Sync struct {
 }
 
 // NewSync creates a new trie data download scheduler.
-func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, scheme string) *Sync {
+func NewSync(root common.Hash, database ethdb.Database, callback LeafCallback, scheme string) *Sync {
 	ts := &Sync{
 		scheme:   scheme,
 		database: database,
@@ -420,19 +450,30 @@ func (s *Sync) ProcessNode(result NodeSyncResult) error {
 // Commit flushes the data stored in the internal membatch out to persistent
 // storage, returning any occurred error. The whole data set will be flushed
 // in an atomic database batch.
-func (s *Sync) Commit(dbw ethdb.Batch) error {
+func (s *Sync) Commit(dbw ethdb.Batch, stateBatch ethdb.Batch) error {
 	// Flush the pending node writes into database batch.
 	var (
 		account int
 		storage int
 	)
 	for _, op := range s.membatch.nodes {
-		if op.isDelete() {
+		if !op.valid() {
+			return fmt.Errorf("invalid op, %s", op.string())
+		}
+		if op.del {
 			// node deletion is only supported in path mode.
 			if op.owner == (common.Hash{}) {
-				rawdb.DeleteAccountTrieNode(dbw, op.path)
+				if stateBatch != nil {
+					rawdb.DeleteAccountTrieNode(stateBatch, op.path)
+				} else {
+					rawdb.DeleteAccountTrieNode(dbw, op.path)
+				}
 			} else {
-				rawdb.DeleteStorageTrieNode(dbw, op.owner, op.path)
+				if stateBatch != nil {
+					rawdb.DeleteStorageTrieNode(stateBatch, op.owner, op.path)
+				} else {
+					rawdb.DeleteStorageTrieNode(dbw, op.owner, op.path)
+				}
 			}
 			deletionGauge.Inc(1)
 		} else {
@@ -441,7 +482,11 @@ func (s *Sync) Commit(dbw ethdb.Batch) error {
 			} else {
 				storage += 1
 			}
-			rawdb.WriteTrieNode(dbw, op.owner, op.path, op.hash, op.blob, s.scheme)
+			if stateBatch != nil {
+				rawdb.WriteTrieNode(stateBatch, op.owner, op.path, op.hash, op.blob, s.scheme)
+			} else {
+				rawdb.WriteTrieNode(dbw, op.owner, op.path, op.hash, op.blob, s.scheme)
+			}
 		}
 	}
 	accountNodeSyncedGauge.Inc(int64(account))
@@ -546,9 +591,9 @@ func (s *Sync) children(req *nodeRequest, object node) ([]*nodeRequest, error) {
 				// the performance impact negligible.
 				var exists bool
 				if owner == (common.Hash{}) {
-					exists = rawdb.ExistsAccountTrieNode(s.database, append(inner, key[:i]...))
+					exists = rawdb.HasAccountTrieNode(s.database.StateStoreReader(), append(inner, key[:i]...))
 				} else {
-					exists = rawdb.ExistsStorageTrieNode(s.database, owner, append(inner, key[:i]...))
+					exists = rawdb.HasStorageTrieNode(s.database.StateStoreReader(), owner, append(inner, key[:i]...))
 				}
 				if exists {
 					s.membatch.delNode(owner, append(inner, key[:i]...))
@@ -687,17 +732,18 @@ func (s *Sync) commitCodeRequest(req *codeRequest) error {
 func (s *Sync) hasNode(owner common.Hash, path []byte, hash common.Hash) (exists bool, inconsistent bool) {
 	// If node is running with hash scheme, check the presence with node hash.
 	if s.scheme == rawdb.HashScheme {
-		return rawdb.HasLegacyTrieNode(s.database, hash), false
+		return rawdb.HasLegacyTrieNode(s.database.StateStoreReader(), hash), false
 	}
 	// If node is running with path scheme, check the presence with node path.
 	var blob []byte
-	var dbHash common.Hash
 	if owner == (common.Hash{}) {
-		blob, dbHash = rawdb.ReadAccountTrieNode(s.database, path)
+		blob = rawdb.ReadAccountTrieNode(s.database.StateStoreReader(), path)
 	} else {
-		blob, dbHash = rawdb.ReadStorageTrieNode(s.database, owner, path)
+		blob = rawdb.ReadStorageTrieNode(s.database.StateStoreReader(), owner, path)
 	}
-	exists = hash == dbHash
+	h := newBlobHasher()
+	defer h.release()
+	exists = hash == h.hash(blob)
 	inconsistent = !exists && len(blob) != 0
 	return exists, inconsistent
 }
@@ -711,4 +757,24 @@ func ResolvePath(path []byte) (common.Hash, []byte) {
 		path = path[2*common.HashLength:]
 	}
 	return owner, path
+}
+
+// blobHasher is used to compute the sha256 hash of the provided data.
+type blobHasher struct{ state crypto.KeccakState }
+
+// blobHasherPool is the pool for reusing pre-allocated hash state.
+var blobHasherPool = sync.Pool{
+	New: func() interface{} { return &blobHasher{state: crypto.NewKeccakState()} },
+}
+
+func newBlobHasher() *blobHasher {
+	return blobHasherPool.Get().(*blobHasher)
+}
+
+func (h *blobHasher) hash(data []byte) common.Hash {
+	return crypto.HashData(h.state, data)
+}
+
+func (h *blobHasher) release() {
+	blobHasherPool.Put(h)
 }

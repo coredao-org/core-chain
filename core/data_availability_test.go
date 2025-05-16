@@ -17,63 +17,67 @@ import (
 
 var (
 	emptyBlob          = kzg4844.Blob{}
-	emptyBlobCommit, _ = kzg4844.BlobToCommitment(emptyBlob)
-	emptyBlobProof, _  = kzg4844.ComputeBlobProof(emptyBlob, emptyBlobCommit)
+	emptyBlobCommit, _ = kzg4844.BlobToCommitment(&emptyBlob)
+	emptyBlobProof, _  = kzg4844.ComputeBlobProof(&emptyBlob, emptyBlobCommit)
 )
 
 func TestIsDataAvailable(t *testing.T) {
 	hr := NewMockDAHeaderReader(params.SatoshiTestChainConfig)
 	tests := []struct {
-		block       *types.Block
-		chasingHead uint64
-		withSidecar bool
-		err         bool
+		block             *types.Block
+		chasingHeadNumber uint64
+		chasingHeadTime   uint64
+		withSidecar       bool
+		err               bool
 	}{
 		{
 			block: types.NewBlockWithHeader(&types.Header{
 				Number: big.NewInt(1),
-			}).WithBody(types.Transactions{
+			}).WithBody(types.Body{Transactions: types.Transactions{
 				createMockDATx(hr.Config(), nil),
 				createMockDATx(hr.Config(), &types.BlobTxSidecar{
 					Blobs:       []kzg4844.Blob{emptyBlob},
 					Commitments: []kzg4844.Commitment{emptyBlobCommit},
 					Proofs:      []kzg4844.Proof{emptyBlobProof},
 				}),
-			}, nil),
-			chasingHead: 1,
-			withSidecar: true,
-			err:         false,
+			}}),
+			chasingHeadNumber: 1,
+			chasingHeadTime:   params.MinTimeDurationForBlobRequests - 1,
+			withSidecar:       true,
+			err:               false,
 		},
 		{
 			block: types.NewBlockWithHeader(&types.Header{
 				Number: big.NewInt(1),
-			}).WithBody(types.Transactions{
+			}).WithBody(types.Body{Transactions: types.Transactions{
 				createMockDATx(hr.Config(), nil),
 				createMockDATx(hr.Config(), nil),
-			}, nil),
-			chasingHead: 1,
-			withSidecar: true,
-			err:         false,
+			}}),
+			chasingHeadNumber: 1,
+			chasingHeadTime:   params.MinTimeDurationForBlobRequests - 1,
+			withSidecar:       true,
+			err:               false,
 		},
 		{
 			block: types.NewBlockWithHeader(&types.Header{
 				Number: big.NewInt(1),
-			}).WithBody(types.Transactions{
+			}).WithBody(types.Body{Transactions: types.Transactions{
 				createMockDATx(hr.Config(), nil),
 				createMockDATx(hr.Config(), &types.BlobTxSidecar{
 					Blobs:       []kzg4844.Blob{emptyBlob, emptyBlob, emptyBlob},
 					Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit, emptyBlobCommit},
 					Proofs:      []kzg4844.Proof{emptyBlobProof},
 				}),
-			}, nil),
-			chasingHead: 1,
-			withSidecar: false,
-			err:         true,
+			}}),
+			chasingHeadNumber: 1,
+			chasingHeadTime:   params.MinTimeDurationForBlobRequests - 1,
+			withSidecar:       false,
+			err:               true,
 		},
 		{
 			block: types.NewBlockWithHeader(&types.Header{
 				Number: big.NewInt(1),
-			}).WithBody(types.Transactions{
+			}).WithBody(types.Body{Transactions: types.Transactions{
 				createMockDATx(hr.Config(), nil),
 				createMockDATx(hr.Config(), &types.BlobTxSidecar{
 					Blobs:       []kzg4844.Blob{emptyBlob},
@@ -85,16 +89,17 @@ func TestIsDataAvailable(t *testing.T) {
 					Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit},
 					Proofs:      []kzg4844.Proof{emptyBlobProof, emptyBlobProof},
 				}),
-			}, nil),
-			chasingHead: 1,
-			withSidecar: true,
-			err:         false,
+			}}),
+			chasingHeadNumber: 1,
+			chasingHeadTime:   params.MinTimeDurationForBlobRequests - 1,
+			withSidecar:       true,
+			err:               false,
 		},
 
 		{
 			block: types.NewBlockWithHeader(&types.Header{
 				Number: big.NewInt(1),
-			}).WithBody(types.Transactions{
+			}).WithBody(types.Body{Transactions: types.Transactions{
 				createMockDATx(hr.Config(), nil),
 				createMockDATx(hr.Config(), &types.BlobTxSidecar{
 					Blobs:       []kzg4844.Blob{emptyBlob, emptyBlob, emptyBlob, emptyBlob},
@@ -106,25 +111,27 @@ func TestIsDataAvailable(t *testing.T) {
 					Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit, emptyBlobCommit, emptyBlobCommit},
 					Proofs:      []kzg4844.Proof{emptyBlobProof, emptyBlobProof, emptyBlobProof, emptyBlobProof},
 				}),
-			}, nil),
-			chasingHead: params.MinBlocksForBlobRequests + 1,
-			withSidecar: true,
-			err:         true,
+			}}),
+			chasingHeadNumber: params.MinBlocksForBlobRequests + 1,
+			chasingHeadTime:   params.MinTimeDurationForBlobRequests,
+			withSidecar:       true,
+			err:               true,
 		},
 		{
 			block: types.NewBlockWithHeader(&types.Header{
-				Number: big.NewInt(0),
-			}).WithBody(types.Transactions{
+				Number: big.NewInt(1),
+			}).WithBody(types.Body{Transactions: types.Transactions{
 				createMockDATx(hr.Config(), nil),
 				createMockDATx(hr.Config(), &types.BlobTxSidecar{
 					Blobs:       []kzg4844.Blob{emptyBlob},
 					Commitments: []kzg4844.Commitment{emptyBlobCommit},
 					Proofs:      []kzg4844.Proof{emptyBlobProof},
 				}),
-			}, nil),
-			chasingHead: params.MinBlocksForBlobRequests + 1,
-			withSidecar: false,
-			err:         false,
+			}}),
+			chasingHeadNumber: params.MinBlocksForBlobRequests + 1,
+			chasingHeadTime:   params.MinTimeDurationForBlobRequests + 1,
+			withSidecar:       false,
+			err:               false,
 		},
 	}
 
@@ -132,7 +139,7 @@ func TestIsDataAvailable(t *testing.T) {
 		if item.withSidecar {
 			item.block = item.block.WithSidecars(collectBlobsFromTxs(item.block.Header(), item.block.Transactions()))
 		}
-		hr.setChasingHead(item.chasingHead)
+		hr.setChasingHead(item.chasingHeadNumber, item.chasingHeadTime)
 		err := IsDataAvailable(hr, item.block)
 		if item.err {
 			require.Error(t, err, i)
@@ -154,7 +161,7 @@ func TestCheckDataAvailableInBatch(t *testing.T) {
 			chain: types.Blocks{
 				types.NewBlockWithHeader(&types.Header{
 					Number: big.NewInt(1),
-				}).WithBody(types.Transactions{
+				}).WithBody(types.Body{Transactions: types.Transactions{
 					createMockDATx(hr.Config(), nil),
 					createMockDATx(hr.Config(), &types.BlobTxSidecar{
 						Blobs:       []kzg4844.Blob{emptyBlob},
@@ -166,16 +173,16 @@ func TestCheckDataAvailableInBatch(t *testing.T) {
 						Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit},
 						Proofs:      []kzg4844.Proof{emptyBlobProof, emptyBlobProof},
 					}),
-				}, nil),
+				}}),
 				types.NewBlockWithHeader(&types.Header{
 					Number: big.NewInt(2),
-				}).WithBody(types.Transactions{
+				}).WithBody(types.Body{Transactions: types.Transactions{
 					createMockDATx(hr.Config(), &types.BlobTxSidecar{
 						Blobs:       []kzg4844.Blob{emptyBlob, emptyBlob},
 						Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit},
 						Proofs:      []kzg4844.Proof{emptyBlobProof, emptyBlobProof},
 					}),
-				}, nil),
+				}}),
 			},
 			err: false,
 		},
@@ -183,31 +190,31 @@ func TestCheckDataAvailableInBatch(t *testing.T) {
 			chain: types.Blocks{
 				types.NewBlockWithHeader(&types.Header{
 					Number: big.NewInt(1),
-				}).WithBody(types.Transactions{
+				}).WithBody(types.Body{Transactions: types.Transactions{
 					createMockDATx(hr.Config(), &types.BlobTxSidecar{
 						Blobs:       []kzg4844.Blob{emptyBlob},
 						Commitments: []kzg4844.Commitment{emptyBlobCommit},
 						Proofs:      []kzg4844.Proof{emptyBlobProof},
 					}),
-				}, nil),
+				}}),
 				types.NewBlockWithHeader(&types.Header{
 					Number: big.NewInt(2),
-				}).WithBody(types.Transactions{
+				}).WithBody(types.Body{Transactions: types.Transactions{
 					createMockDATx(hr.Config(), &types.BlobTxSidecar{
 						Blobs:       []kzg4844.Blob{emptyBlob, emptyBlob, emptyBlob},
 						Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit, emptyBlobCommit},
 						Proofs:      []kzg4844.Proof{emptyBlobProof},
 					}),
-				}, nil),
+				}}),
 				types.NewBlockWithHeader(&types.Header{
 					Number: big.NewInt(3),
-				}).WithBody(types.Transactions{
+				}).WithBody(types.Body{Transactions: types.Transactions{
 					createMockDATx(hr.Config(), &types.BlobTxSidecar{
 						Blobs:       []kzg4844.Blob{emptyBlob},
 						Commitments: []kzg4844.Commitment{emptyBlobCommit},
 						Proofs:      []kzg4844.Proof{emptyBlobProof},
 					}),
-				}, nil),
+				}}),
 			},
 			err:   true,
 			index: 1,
@@ -216,7 +223,7 @@ func TestCheckDataAvailableInBatch(t *testing.T) {
 			chain: types.Blocks{
 				types.NewBlockWithHeader(&types.Header{
 					Number: big.NewInt(1),
-				}).WithBody(types.Transactions{
+				}).WithBody(types.Body{Transactions: types.Transactions{
 					createMockDATx(hr.Config(), nil),
 					createMockDATx(hr.Config(), &types.BlobTxSidecar{
 						Blobs:       []kzg4844.Blob{emptyBlob, emptyBlob, emptyBlob, emptyBlob},
@@ -228,7 +235,7 @@ func TestCheckDataAvailableInBatch(t *testing.T) {
 						Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit, emptyBlobCommit, emptyBlobCommit},
 						Proofs:      []kzg4844.Proof{emptyBlobProof, emptyBlobProof, emptyBlobProof, emptyBlobProof},
 					}),
-				}, nil),
+				}}),
 			},
 			err:   true,
 			index: 0,
@@ -254,14 +261,14 @@ func BenchmarkEmptySidecarDAChecking(b *testing.B) {
 	hr := NewMockDAHeaderReader(params.SatoshiTestChainConfig)
 	block := types.NewBlockWithHeader(&types.Header{
 		Number: big.NewInt(1),
-	}).WithBody(types.Transactions{
+	}).WithBody(types.Body{Transactions: types.Transactions{
 		createMockDATx(hr.Config(), emptySidecar()),
 		createMockDATx(hr.Config(), emptySidecar()),
 		createMockDATx(hr.Config(), emptySidecar()),
 		createMockDATx(hr.Config(), emptySidecar()),
 		createMockDATx(hr.Config(), emptySidecar()),
 		createMockDATx(hr.Config(), emptySidecar()),
-	}, nil)
+	}})
 	block = block.WithSidecars(collectBlobsFromTxs(block.Header(), block.Transactions()))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -276,14 +283,14 @@ func BenchmarkRandomSidecarDAChecking(b *testing.B) {
 	for i := 0; i < len(blocks); i++ {
 		block := types.NewBlockWithHeader(&types.Header{
 			Number: big.NewInt(1),
-		}).WithBody(types.Transactions{
+		}).WithBody(types.Body{Transactions: types.Transactions{
 			createMockDATx(hr.Config(), randomSidecar()),
 			createMockDATx(hr.Config(), randomSidecar()),
 			createMockDATx(hr.Config(), randomSidecar()),
 			createMockDATx(hr.Config(), randomSidecar()),
 			createMockDATx(hr.Config(), randomSidecar()),
 			createMockDATx(hr.Config(), randomSidecar()),
-		}, nil)
+		}})
 		block = block.WithSidecars(collectBlobsFromTxs(block.Header(), block.Transactions()))
 		blocks[i] = block
 	}
@@ -310,19 +317,20 @@ func collectBlobsFromTxs(header *types.Header, txs types.Transactions) types.Blo
 }
 
 type mockDAHeaderReader struct {
-	config      *params.ChainConfig
-	chasingHead uint64
+	config            *params.ChainConfig
+	chasingHeadNumber uint64
+	chasingHeadTime   uint64
 }
 
 func NewMockDAHeaderReader(config *params.ChainConfig) *mockDAHeaderReader {
 	return &mockDAHeaderReader{
-		config:      config,
-		chasingHead: 0,
+		config: config,
 	}
 }
 
-func (r *mockDAHeaderReader) setChasingHead(h uint64) {
-	r.chasingHead = h
+func (r *mockDAHeaderReader) setChasingHead(number, time uint64) {
+	r.chasingHeadNumber = number
+	r.chasingHeadTime = time
 }
 
 func (r *mockDAHeaderReader) Config() *params.ChainConfig {
@@ -331,13 +339,15 @@ func (r *mockDAHeaderReader) Config() *params.ChainConfig {
 
 func (r *mockDAHeaderReader) CurrentHeader() *types.Header {
 	return &types.Header{
-		Number: new(big.Int).SetUint64(r.chasingHead),
+		Number: new(big.Int).SetUint64(r.chasingHeadNumber),
+		Time:   r.chasingHeadTime,
 	}
 }
 
 func (r *mockDAHeaderReader) ChasingHead() *types.Header {
 	return &types.Header{
-		Number: new(big.Int).SetUint64(r.chasingHead),
+		Number: new(big.Int).SetUint64(r.chasingHeadNumber),
+		Time:   r.chasingHeadTime,
 	}
 }
 
@@ -362,6 +372,10 @@ func (r *mockDAHeaderReader) GetTd(hash common.Hash, number uint64) *big.Int {
 }
 
 func (r *mockDAHeaderReader) GetHighestVerifiedHeader() *types.Header {
+	panic("not supported")
+}
+
+func (r *mockDAHeaderReader) GetVerifiedBlockByHash(hash common.Hash) *types.Header {
 	panic("not supported")
 }
 
@@ -418,8 +432,8 @@ func randBlob() kzg4844.Blob {
 
 func randomSidecar() *types.BlobTxSidecar {
 	blob := randBlob()
-	commitment, _ := kzg4844.BlobToCommitment(blob)
-	proof, _ := kzg4844.ComputeBlobProof(blob, commitment)
+	commitment, _ := kzg4844.BlobToCommitment(&blob)
+	proof, _ := kzg4844.ComputeBlobProof(&blob, commitment)
 	return &types.BlobTxSidecar{
 		Blobs:       []kzg4844.Blob{blob},
 		Commitments: []kzg4844.Commitment{commitment},

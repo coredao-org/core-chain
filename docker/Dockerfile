@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 FROM golang:1.21-alpine as core
+=======
+FROM golang:1.23-alpine as bsc
+>>>>>>> bsc/v1.5.12
 
 RUN apk add --no-cache make cmake gcc musl-dev linux-headers git bash build-base libc-dev
 
