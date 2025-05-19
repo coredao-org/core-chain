@@ -74,6 +74,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideHaber           *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
+		OverrideTheseus          *uint64 `toml:",omitempty"`
 		BlobExtraReserve        uint64
 	}
 	var enc Config
@@ -134,6 +135,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.OverrideCancun = c.OverrideCancun
 	enc.OverrideHaber = c.OverrideHaber
 	enc.OverrideVerkle = c.OverrideVerkle
+	enc.OverrideTheseus = c.OverrideTheseus
 	enc.BlobExtraReserve = c.BlobExtraReserve
 	return &enc, nil
 }
@@ -198,6 +200,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideHaber           *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
+		OverrideTheseus          *uint64 `toml:",omitempty"`
 		BlobExtraReserve        *uint64
 	}
 	var dec Config
@@ -374,6 +377,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.OverrideVerkle != nil {
 		c.OverrideVerkle = dec.OverrideVerkle
+	}
+	if dec.OverrideTheseus != nil {
+		c.OverrideTheseus = dec.OverrideTheseus
 	}
 	if dec.BlobExtraReserve != nil {
 		c.BlobExtraReserve = *dec.BlobExtraReserve

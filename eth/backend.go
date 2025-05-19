@@ -196,6 +196,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		chainConfig.VerkleTime = config.OverrideVerkle
 		overrides.OverrideVerkle = config.OverrideVerkle
 	}
+	if config.OverrideTheseus != nil {
+		chainConfig.TheseusTime = config.OverrideTheseus
+		overrides.OverrideTheseus = config.OverrideTheseus
+	}
 
 	// startup ancient freeze
 	if err = chainDb.SetupFreezerEnv(&ethdb.FreezerEnv{

@@ -65,6 +65,7 @@ var (
 			utils.OverrideCancun,
 			utils.OverrideHaber,
 			utils.OverrideVerkle,
+			utils.OverrideTheseus,
 		}, utils.DatabaseFlags),
 		Description: `
 The init command initializes a new genesis block and definition for the network.
@@ -266,6 +267,10 @@ func initGenesis(ctx *cli.Context) error {
 	if ctx.IsSet(utils.OverrideVerkle.Name) {
 		v := ctx.Uint64(utils.OverrideVerkle.Name)
 		overrides.OverrideVerkle = &v
+	}
+	if ctx.IsSet(utils.OverrideTheseus.Name) {
+		v := ctx.Uint64(utils.OverrideTheseus.Name)
+		overrides.OverrideTheseus = &v
 	}
 	for _, name := range []string{"chaindata", "lightchaindata"} {
 		chaindb, err := stack.OpenDatabaseWithFreezer(name, 0, 0, ctx.String(utils.AncientFlag.Name), "", false, false, false, false)

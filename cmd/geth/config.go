@@ -192,6 +192,10 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 		v := ctx.Uint64(utils.OverrideVerkle.Name)
 		cfg.Eth.OverrideVerkle = &v
 	}
+	if ctx.IsSet(utils.OverrideTheseus.Name) {
+		v := ctx.Uint64(utils.OverrideTheseus.Name)
+		cfg.Eth.OverrideTheseus = &v
+	}
 	if ctx.IsSet(utils.OverrideFullImmutabilityThreshold.Name) {
 		params.FullImmutabilityThreshold = ctx.Uint64(utils.OverrideFullImmutabilityThreshold.Name)
 		downloader.FullMaxForkAncestry = ctx.Uint64(utils.OverrideFullImmutabilityThreshold.Name)

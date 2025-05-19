@@ -316,6 +316,11 @@ var (
 		Usage:    "Manually specify the Verkle fork timestamp, overriding the bundled setting",
 		Category: flags.EthCategory,
 	}
+	OverrideTheseus = &cli.Uint64Flag{
+		Name:     "override.theseus",
+		Usage:    "Manually specify the Theseus fork timestamp, overriding the bundled setting",
+		Category: flags.EthCategory,
+	}
 	OverrideFullImmutabilityThreshold = &cli.Uint64Flag{
 		Name:     "override.immutabilitythreshold",
 		Usage:    "It is the number of blocks after which a chain segment is considered immutable, only for testing purpose",

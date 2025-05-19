@@ -250,9 +250,10 @@ func (e *GenesisMismatchError) Error() string {
 // ChainOverrides contains the changes to chain config
 // Typically, these modifications involve hardforks that are not enabled on the CORE mainnet, intended for testing purposes.
 type ChainOverrides struct {
-	OverrideCancun *uint64
-	OverrideHaber  *uint64
-	OverrideVerkle *uint64
+	OverrideCancun  *uint64
+	OverrideHaber   *uint64
+	OverrideVerkle  *uint64
+	OverrideTheseus *uint64
 }
 
 // SetupGenesisBlock writes or updates the genesis block in db.
@@ -286,6 +287,9 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 			}
 			if overrides != nil && overrides.OverrideVerkle != nil {
 				config.VerkleTime = overrides.OverrideVerkle
+			}
+			if overrides != nil && overrides.OverrideTheseus != nil {
+				config.TheseusTime = overrides.OverrideTheseus
 			}
 		}
 	}

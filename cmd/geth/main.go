@@ -74,6 +74,7 @@ var (
 		utils.OverrideCancun,
 		utils.OverrideHaber,
 		utils.OverrideVerkle,
+		utils.OverrideTheseus,
 		utils.OverrideFullImmutabilityThreshold,
 		utils.OverrideMinBlocksForBlobRequests,
 		utils.OverrideDefaultExtraReserveForBlobRequests,
