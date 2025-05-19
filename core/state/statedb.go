@@ -1037,6 +1037,11 @@ func (s *StateDB) SetTxContext(thash common.Hash, ti int) {
 	s.accessList = nil // can't delete this line now, because StateDB.Prepare is not called before processsing a system transaction
 }
 
+// TxHash returns the current transaction hash which is used when the EVM emits new state logs.
+func (s *StateDB) TxHash() common.Hash {
+	return s.thash
+}
+
 func (s *StateDB) clearJournalAndRefund() {
 	s.journal.reset()
 	s.refund = 0

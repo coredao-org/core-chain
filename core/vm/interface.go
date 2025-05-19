@@ -84,6 +84,7 @@ type StateDB interface {
 
 	Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList)
 	SetTxContext(thash common.Hash, ti int)
+	TxHash() common.Hash
 	TxIndex() int
 
 	RevertToSnapshot(int)
@@ -91,6 +92,7 @@ type StateDB interface {
 
 	AddLog(*types.Log)
 	GetLogs(hash common.Hash, blockNumber uint64, blockHash common.Hash) []*types.Log
+	Logs() []*types.Log
 	AddPreimage(common.Hash, []byte)
 
 	// Finalise must be invoked at the end of a transaction

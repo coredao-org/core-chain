@@ -25,6 +25,7 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 		TxHash            common.Hash    `json:"transactionHash" gencodec:"required"`
 		ContractAddress   common.Address `json:"contractAddress"`
 		GasUsed           hexutil.Uint64 `json:"gasUsed" gencodec:"required"`
+		DistributedGas    uint64         `json:"distributedGas,omitempty"`
 		EffectiveGasPrice *hexutil.Big   `json:"effectiveGasPrice"`
 		BlobGasUsed       hexutil.Uint64 `json:"blobGasUsed,omitempty"`
 		BlobGasPrice      *hexutil.Big   `json:"blobGasPrice,omitempty"`
@@ -42,6 +43,7 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 	enc.TxHash = r.TxHash
 	enc.ContractAddress = r.ContractAddress
 	enc.GasUsed = hexutil.Uint64(r.GasUsed)
+	enc.DistributedGas = r.DistributedGas
 	enc.EffectiveGasPrice = (*hexutil.Big)(r.EffectiveGasPrice)
 	enc.BlobGasUsed = hexutil.Uint64(r.BlobGasUsed)
 	enc.BlobGasPrice = (*hexutil.Big)(r.BlobGasPrice)
@@ -63,6 +65,7 @@ func (r *Receipt) UnmarshalJSON(input []byte) error {
 		TxHash            *common.Hash    `json:"transactionHash" gencodec:"required"`
 		ContractAddress   *common.Address `json:"contractAddress"`
 		GasUsed           *hexutil.Uint64 `json:"gasUsed" gencodec:"required"`
+		DistributedGas    *uint64         `json:"distributedGas,omitempty"`
 		EffectiveGasPrice *hexutil.Big    `json:"effectiveGasPrice"`
 		BlobGasUsed       *hexutil.Uint64 `json:"blobGasUsed,omitempty"`
 		BlobGasPrice      *hexutil.Big    `json:"blobGasPrice,omitempty"`
@@ -106,6 +109,9 @@ func (r *Receipt) UnmarshalJSON(input []byte) error {
 		return errors.New("missing required field 'gasUsed' for Receipt")
 	}
 	r.GasUsed = uint64(*dec.GasUsed)
+	if dec.DistributedGas != nil {
+		r.DistributedGas = *dec.DistributedGas
+	}
 	if dec.EffectiveGasPrice != nil {
 		r.EffectiveGasPrice = (*big.Int)(dec.EffectiveGasPrice)
 	}
