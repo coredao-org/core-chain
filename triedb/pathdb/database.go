@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/triestate"
+	"github.com/ethereum/go-ethereum/triedb/database"
 )
 
 const (
@@ -107,7 +108,7 @@ type Config struct {
 	SyncFlush       bool   // Flag of trienodebuffer sync flush cache to disk
 	StateHistory    uint64 // Number of recent blocks to maintain state history for
 	CleanCacheSize  int    // Maximum memory allowance (in bytes) for caching clean nodes
-	DirtyCacheSize  int    // Maximum memory allowance (in bytes) for caching dirty nodes
+	WriteBufferSize int    // Maximum memory allowance (in bytes) for write buffer
 	ReadOnly        bool   // Flag whether the database is opened in read only mode.
 	NoTries         bool
 	JournalFilePath string
@@ -118,18 +119,18 @@ type Config struct {
 // unreasonable or unworkable.
 func (c *Config) sanitize() *Config {
 	conf := *c
-	if conf.DirtyCacheSize > MaxDirtyBufferSize {
-		log.Warn("Sanitizing invalid node buffer size", "provided", common.StorageSize(conf.DirtyCacheSize), "updated", common.StorageSize(MaxDirtyBufferSize))
-		conf.DirtyCacheSize = MaxDirtyBufferSize
+	if conf.WriteBufferSize > MaxDirtyBufferSize {
+		log.Warn("Sanitizing invalid node buffer size", "provided", common.StorageSize(conf.WriteBufferSize), "updated", common.StorageSize(MaxDirtyBufferSize))
+		conf.WriteBufferSize = MaxDirtyBufferSize
 	}
 	return &conf
 }
 
 // Defaults contains default settings for Ethereum mainnet.
 var Defaults = &Config{
-	StateHistory:   params.FullImmutabilityThreshold,
-	CleanCacheSize: defaultCleanSize,
-	DirtyCacheSize: DefaultDirtyBufferSize,
+	StateHistory:    params.FullImmutabilityThreshold,
+	CleanCacheSize:  defaultCleanSize,
+	WriteBufferSize: DefaultDirtyBufferSize,
 }
 
 // ReadOnly is the config in order to open database in read only mode.
@@ -171,7 +172,7 @@ func New(diskdb ethdb.Database, config *Config) *Database {
 
 	db := &Database{
 		readOnly:   config.ReadOnly,
-		bufferSize: config.DirtyCacheSize,
+		bufferSize: config.WriteBufferSize,
 		config:     config,
 		diskdb:     diskdb,
 	}
@@ -230,7 +231,7 @@ func New(diskdb ethdb.Database, config *Config) *Database {
 }
 
 // Reader retrieves a layer belonging to the given state root.
-func (db *Database) Reader(root common.Hash) (layer, error) {
+func (db *Database) Reader(root common.Hash) (database.Reader, error) {
 	l := db.tree.get(root)
 	if l == nil {
 		return nil, fmt.Errorf("state %#x is not available", root)
@@ -342,8 +343,7 @@ func (db *Database) Enable(root common.Hash) error {
 	}
 	// Re-construct a new disk layer backed by persistent state
 	// with **empty clean cache and node buffer**.
-	dl := newDiskLayer(root, 0, db, nil, NewTrieNodeBuffer(db.config.SyncFlush, db.bufferSize, nil, 0))
-	db.tree.reset(dl)
+	db.tree.reset(newDiskLayer(root, 0, db, nil, NewTrieNodeBuffer(db.config.SyncFlush, db.bufferSize, nil, 0)))
 
 	// Re-enable the database as the final step.
 	db.waitSync = false
@@ -355,7 +355,7 @@ func (db *Database) Enable(root common.Hash) error {
 // Recover rollbacks the database to a specified historical point.
 // The state is supported as the rollback destination only if it's
 // canonical state and the corresponding trie histories are existent.
-func (db *Database) Recover(root common.Hash, loader triestate.TrieLoader) error {
+func (db *Database) Recover(root common.Hash) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -381,7 +381,7 @@ func (db *Database) Recover(root common.Hash, loader triestate.TrieLoader) error
 		if err != nil {
 			return err
 		}
-		dl, err = dl.revert(h, loader)
+		dl, err = dl.revert(h)
 		if err != nil {
 			return err
 		}
@@ -420,9 +420,6 @@ func (db *Database) Recoverable(root common.Hash) bool {
 	return checkHistories(db.freezer, *id+1, dl.stateID()-*id, func(m *meta) error {
 		if m.parent != parent {
 			return errors.New("unexpected state history")
-		}
-		if len(m.incomplete) > 0 {
-			return errors.New("incomplete state history")
 		}
 		parent = m.root
 		return nil

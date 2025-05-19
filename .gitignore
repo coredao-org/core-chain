@@ -37,6 +37,12 @@ profile.cov
 
 # VS Code
 .vscode
+*.code-workspace
+
+# Cursor
+.cursor
+.cursorrules
+.cursorignore
 
 # dashboard
 /dashboard/assets/flow-typed

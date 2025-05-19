@@ -127,7 +127,7 @@ type Trie interface {
 	// The returned nodeset can be nil if the trie is clean(nothing to commit).
 	// Once the trie is committed, it's not usable anymore. A new trie must
 	// be created with new root and updated trie database for following usage
-	Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet, error)
+	Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet)
 
 	// NodeIterator returns an iterator that returns nodes of the trie. Iteration
 	// starts at the key after the given start key. And error will be returned
@@ -144,11 +144,25 @@ type Trie interface {
 	Prove(key []byte, proofDb ethdb.KeyValueWriter) error
 }
 
+type cachingDB struct {
+	disk          ethdb.KeyValueStore
+	codeSizeCache *lru.Cache[common.Hash, int]
+	codeCache     *lru.SizeConstrainedCache[common.Hash, []byte]
+	triedb        *triedb.Database
+	noTries       bool
+}
+
 // NewDatabase creates a backing store for state. The returned database is safe for
 // concurrent use, but does not retain any recent trie nodes in memory. To keep some
 // historical state in memory, use the NewDatabaseWithConfig constructor.
 func NewDatabase(db ethdb.Database) Database {
 	return NewDatabaseWithConfig(db, nil)
+}
+
+// NewDatabaseForTesting is similar to NewDatabase, but it initializes the caching
+// db by using an ephemeral memory db with default config for testing.
+func NewDatabaseForTesting() Database {
+	return NewDatabaseWithConfig(rawdb.NewMemoryDatabase(), nil)
 }
 
 // NewDatabaseWithConfig creates a backing store for state. The returned database
@@ -177,14 +191,6 @@ func NewDatabaseWithNodeDB(db ethdb.Database, triedb *triedb.Database) Database 
 		triedb:        triedb,
 		noTries:       noTries,
 	}
-}
-
-type cachingDB struct {
-	disk          ethdb.KeyValueStore
-	codeSizeCache *lru.Cache[common.Hash, int]
-	codeCache     *lru.SizeConstrainedCache[common.Hash, []byte]
-	triedb        *triedb.Database
-	noTries       bool
 }
 
 // OpenTrie opens the main account trie at a specific root hash.

@@ -17,7 +17,6 @@
 package pathdb
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
@@ -293,15 +292,9 @@ func (dl *diskLayer) commit(bottom *diffLayer, force bool) (*diskLayer, error) {
 }
 
 // revert applies the given state history and return a reverted disk layer.
-func (dl *diskLayer) revert(h *history, loader triestate.TrieLoader) (*diskLayer, error) {
+func (dl *diskLayer) revert(h *history) (*diskLayer, error) {
 	if h.meta.root != dl.rootHash() {
 		return nil, errUnexpectedHistory
-	}
-	// Reject if the provided state history is incomplete. It's due to
-	// a large construct SELF-DESTRUCT which can't be handled because
-	// of memory limitation.
-	if len(h.meta.incomplete) > 0 {
-		return nil, errors.New("incomplete state history")
 	}
 	if dl.id == 0 {
 		return nil, fmt.Errorf("%w: zero state id", errStateUnrecoverable)
@@ -309,7 +302,7 @@ func (dl *diskLayer) revert(h *history, loader triestate.TrieLoader) (*diskLayer
 	// Apply the reverse state changes upon the current state. This must
 	// be done before holding the lock in order to access state in "this"
 	// layer.
-	nodes, err := triestate.Apply(h.meta.parent, h.meta.root, h.accounts, h.storages, loader)
+	nodes, err := apply(dl.db, h.meta.parent, h.meta.root, h.accounts, h.storages)
 	if err != nil {
 		return nil, err
 	}

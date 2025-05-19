@@ -107,7 +107,6 @@ type Config struct {
 	DirectBroadcast     bool
 	DisableSnapProtocol bool // Whether disable snap protocol
 	EnableTrustProtocol bool // Whether enable trust protocol
-	PipeCommit          bool
 	RangeLimit          bool
 
 	// Deprecated, use 'TransactionHistory' instead.
@@ -174,6 +173,10 @@ type Config struct {
 
 	// Enables tracking of SHA3 preimages in the VM
 	EnablePreimageRecording bool
+
+	// Enables VM tracing
+	VMTrace           string
+	VMTraceJsonConfig string
 
 	// Miscellaneous options
 	DocRoot string `toml:"-"`

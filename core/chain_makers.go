@@ -103,9 +103,9 @@ func (b *BlockGen) SetParentBeaconRoot(root common.Hash) {
 	b.header.ParentBeaconRoot = &root
 	var (
 		blockContext = NewEVMBlockContext(b.header, b.cm, &b.header.Coinbase)
-		vmenv        = vm.NewEVM(blockContext, vm.TxContext{}, b.statedb, b.cm.config, vm.Config{})
+		evm          = vm.NewEVM(blockContext, b.statedb, b.cm.config, vm.Config{})
 	)
-	ProcessBeaconBlockRoot(root, vmenv, b.statedb)
+	ProcessBeaconBlockRoot(root, evm)
 }
 
 // addTx adds a transaction to the generated block. If no coinbase has
@@ -119,8 +119,12 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 	if b.gasPool == nil {
 		b.SetCoinbase(common.Address{})
 	}
+	var (
+		blockContext = NewEVMBlockContext(b.header, bc, &b.header.Coinbase)
+		evm          = vm.NewEVM(blockContext, b.statedb, b.cm.config, vmConfig)
+	)
 	b.statedb.SetTxContext(tx.Hash(), len(b.txs))
-	receipt, err := ApplyTransaction(b.cm.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vmConfig, NewReceiptBloomGenerator())
+	receipt, err := ApplyTransaction(b.cm.config, evm, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, NewReceiptBloomGenerator())
 	if err != nil {
 		panic(err)
 	}
@@ -366,7 +370,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			gen(i, b)
 		}
 		if b.engine != nil {
-			block, _, err := b.engine.FinalizeAndAssemble(cm, b.header, statedb, b.txs, b.uncles, b.receipts, b.withdrawals)
+			block, _, err := b.engine.FinalizeAndAssemble(cm, b.header, statedb, b.txs, b.uncles, b.receipts, b.withdrawals, nil)
 			if err != nil {
 				panic(err)
 			}
@@ -382,7 +386,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			}
 
 			// Write state changes to db
-			root, _, err := statedb.Commit(b.header.Number.Uint64(), nil)
+			root, _, err := statedb.Commit(b.header.Number.Uint64(), config.IsEIP158(b.header.Number))
 			if err != nil {
 				panic(fmt.Sprintf("state write error: %v", err))
 			}

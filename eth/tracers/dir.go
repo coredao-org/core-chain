@@ -14,17 +14,15 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-// Package tracers is a manager for transaction tracing engines.
 package tracers
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // Context contains some contextual infos for a transaction execution that is not
@@ -36,17 +34,19 @@ type Context struct {
 	TxHash      common.Hash // Hash of the transaction being traced (zero if dangling call)
 }
 
-// Tracer interface extends vm.EVMLogger and additionally
-// allows collecting the tracing result.
-type Tracer interface {
-	vm.EVMLogger
-	GetResult() (json.RawMessage, error)
+// The set of methods that must be exposed by a tracer
+// for it to be available through the RPC interface.
+// This involves a method to retrieve results and one to
+// stop tracing.
+type Tracer struct {
+	*tracing.Hooks
+	GetResult func() (json.RawMessage, error)
 	// Stop terminates execution of the tracer at the first opportune moment.
-	Stop(err error)
+	Stop func(err error)
 }
 
-type ctorFn func(*Context, json.RawMessage) (Tracer, error)
-type jsCtorFn func(string, *Context, json.RawMessage) (Tracer, error)
+type ctorFn func(*Context, json.RawMessage, *params.ChainConfig) (*Tracer, error)
+type jsCtorFn func(string, *Context, json.RawMessage, *params.ChainConfig) (*Tracer, error)
 
 type elem struct {
 	ctor ctorFn
@@ -79,12 +79,15 @@ func (d *directory) RegisterJSEval(f jsCtorFn) {
 // New returns a new instance of a tracer, by iterating through the
 // registered lookups. Name is either name of an existing tracer
 // or an arbitrary JS code.
-func (d *directory) New(name string, ctx *Context, cfg json.RawMessage) (Tracer, error) {
+func (d *directory) New(name string, ctx *Context, cfg json.RawMessage, chainConfig *params.ChainConfig) (*Tracer, error) {
+	if len(cfg) == 0 {
+		cfg = json.RawMessage("{}")
+	}
 	if elem, ok := d.elems[name]; ok {
-		return elem.ctor(ctx, cfg)
+		return elem.ctor(ctx, cfg, chainConfig)
 	}
 	// Assume JS code
-	return d.jsEval(name, ctx, cfg)
+	return d.jsEval(name, ctx, cfg, chainConfig)
 }
 
 // IsJS will return true if the given tracer will evaluate
@@ -96,28 +99,4 @@ func (d *directory) IsJS(name string) bool {
 	}
 	// JS eval will execute JS code
 	return true
-}
-
-const (
-	memoryPadLimit = 1024 * 1024
-)
-
-// GetMemoryCopyPadded returns offset + size as a new slice.
-// It zero-pads the slice if it extends beyond memory bounds.
-func GetMemoryCopyPadded(m *vm.Memory, offset, size int64) ([]byte, error) {
-	if offset < 0 || size < 0 {
-		return nil, errors.New("offset or size must not be negative")
-	}
-	if int(offset+size) < m.Len() { // slice fully inside memory
-		return m.GetCopy(offset, size), nil
-	}
-	paddingNeeded := int(offset+size) - m.Len()
-	if paddingNeeded > memoryPadLimit {
-		return nil, fmt.Errorf("reached limit for padding memory slice: %d", paddingNeeded)
-	}
-	cpy := make([]byte, size)
-	if overlap := int64(m.Len()) - offset; overlap > 0 {
-		copy(cpy, m.GetPtr(offset, overlap))
-	}
-	return cpy, nil
 }
