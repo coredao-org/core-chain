@@ -19,7 +19,7 @@ const (
 type btcValidate struct{}
 
 func (c *btcValidate) RequiredGas(input []byte) uint64 {
-	return params.BitcoinHeaderValidateGas + uint64(len(input)/32)*params.IAVLMerkleProofValidateGas
+	return params.BitcoinHeaderValidateBaseGas + uint64(len(input)/32)*params.BitcoinHeaderValidatePerWordGas
 }
 
 func (c *btcValidate) Run(input []byte) (result []byte, err error) {
