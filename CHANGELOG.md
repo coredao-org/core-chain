@@ -12,8 +12,8 @@ Same changes with 1.0.16, but this version is for mainnet.
 ## v1.0.16
 
 Improvements
-* [#1](https://github.com/coredao-org/core-genesis-contract/commit/abcc6f9c7323c1202dd1f91a8637fcc00401a4ab) Enable contract-based Rev+ share monetization and dynamic reward configuration
-* [#2](https://github.com/coredao-org/core-chain/pull/54) Add live chain tracing with hooks
+* [#1](https://github.com/coredao-org/core-chain/pull/54) Add live chain tracing with hooks
+* [#2](https://github.com/coredao-org/core-chain/pull/59) Enable contract-based Rev+ share monetization and dynamic reward configuration
 * [#3](https://github.com/coredao-org/core-chain/commit/cab8fb448ebd97cc4b14c09dfeff9bc5fda370aa) Merged versions up to v1.4.10 from Binance smart chain
 
 ## v1.0.15
