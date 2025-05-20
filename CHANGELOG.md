@@ -5,22 +5,35 @@
 Improvements
 * Remove deprecated personal API from geth
 
+## v1.0.17
+
+Same changes with 1.0.16, but this version is for mainnet.
+
+## v1.0.16
+
+Improvements
+* [#1](https://github.com/coredao-org/core-genesis-contract/commit/abcc6f9c7323c1202dd1f91a8637fcc00401a4ab) Enable contract-based Rev+ share monetization and dynamic reward configuration
+* [#2](https://github.com/coredao-org/core-chain/pull/54) Add live chain tracing with hooks
+* [#3](https://github.com/coredao-org/core-chain/commit/cab8fb448ebd97cc4b14c09dfeff9bc5fda370aa) Merged versions up to v1.4.10 from Binance smart chain
+
+## v1.0.15
+
+New release for Core MainNet which contains a high security fix by the Geth team.
+
+## v1.0.14
+
+Same changes with 1.0.13, but this version is for mainnet.
+
+## v1.0.13
+
+Improvements
+* Improved dual staking experiences
+* Added docker support
+* Bugfixes and other improvements
 
 ## v1.0.12
 
-THIS RELEASE CHANGELOG IS UNFINISHED (DRAFT).
-
-Merge BSC v1.5.12.
-
-This merge brings BEP implementations for:
-- BEP-341: Validators can produce consecutive blocks
-- BEP-402: Complete Missing Fields in Block Header to Generate Signature
-- BEP-404: Clear Miner History when Switching Validators Set
-- BEP-439: Implement EIP-2537: Precompile for BLS12-381 curve operations
-- BEP-440: Implement EIP-2935: Serve historical block hashes from state
-- BEP-441: Implement EIP-7702: Set EOA account code
-- BEP-466: Make the block format compatible with EIP-7685
-- BEP-520: Short Block Interval Phase One: 1.5 seconds
+Same changes with 1.0.11, but this version is for mainnet.
 
 ## v1.0.11
 
