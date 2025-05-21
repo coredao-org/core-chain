@@ -74,7 +74,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideHaber           *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
-		OverrideTheseus          *uint64 `toml:",omitempty"`
+		OverrideTheseus         *uint64 `toml:",omitempty"`
 		BlobExtraReserve        uint64
 	}
 	var enc Config
@@ -200,7 +200,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideHaber           *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
-		OverrideTheseus          *uint64 `toml:",omitempty"`
+		OverrideTheseus         *uint64 `toml:",omitempty"`
 		BlobExtraReserve        *uint64
 	}
 	var dec Config
