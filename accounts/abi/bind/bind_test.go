@@ -2140,7 +2140,7 @@ func TestGolangBindings(t *testing.T) {
 		t.Fatalf("failed to replace cometbft dependency to core-chain source: %v\n%s", err, out)
 	}
 
-	tidier := exec.Command(gocmd, "mod", "tidy", "-compat=1.21")
+	tidier := exec.Command(gocmd, "mod", "tidy", "-compat=1.23")
 	tidier.Dir = pkg
 	if out, err := tidier.CombinedOutput(); err != nil {
 		t.Fatalf("failed to tidy Go module file: %v\n%s", err, out)

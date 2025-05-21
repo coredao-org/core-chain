@@ -1,4 +1,6 @@
-CVE-2024-34478 # "CWE-754: Improper Check for Unusual or Exceptional Conditions." This vulnerability is BTC only, BSC does not have the issue.
-CVE-2024-6104 # "CWE-532: Information Exposure Through Log Files" This is caused by the vulnerabilities go-retryablehttp@v0.7.4, it is only used in cmd devp2p, impact is limited. will upgrade to v0.7.7 later
-CVE-2024-8421 # "CWE-400: Uncontrolled Resource Consumption (Resource Exhaustion)" This vulnerability is caused by issues in the golang.org/x/net package. Even the latest version(v0.29.0) has not yet addressed it, but we will continue to monitor updates closely.
-CVE-2024-51744 # "CWE-347: Improper Verification of Cryptographic Signature" & "CWE-755: Improper Handling of Exceptional Conditions" This vulnerability is caused mishandling of JWT error code, BSC does not have the issue as it does not check the detail error code.
+CVE-2025-22872 # "CWE-1286: github.com/golang/net - Improper Validation of Syntactic Correctness of Input", golang/golang.org/x/net@v0.36.0 was indirectly dependency by devp2p, can be will upgraded in the future
+CVE-2024-53259 # "CWE-345: Insufficient Verification of Data Authenticity", it will upgraded in the future
+CVE-2022-44797 # "btcd before 0.23.2, as used in Lightning Labs lnd before 0.15.2-beta and other Bitcoin-related products, mishandles witness size checking.", CORE does not have the issue
+CVE-2024-38365 # "CWE-670: Always-Incorrect Control Flow Implementation", CORE does not have the issue
+CVE-2024-34478 # "CWE-436: Interpretation Conflict", CORE does not have the issue
+CVE-2022-39389 # "CWE-20: Improper Input Validation", CORE does not have the issue

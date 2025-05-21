@@ -19,7 +19,7 @@ jobs:
         id: go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.23'
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
         with:
@@ -43,11 +43,11 @@ jobs:
           for pattern in ${GENERATE_EXCEPTIONS[@]}; do
             list="$(grep -v "$pattern" <<< "$list")"
           done
-          go generate "$list"
+          echo "$list" | xargs -n1 go generate
       - name: Check for modified files
         id: git-check
         run: |
-          if ! git diff-index --quiet HEAD --; then
+          if [[ -n $(git status --porcelain) ]]; then
             echo "🔴 ERROR: There are modified files after running 'go generate'"
             git status
             exit 1
