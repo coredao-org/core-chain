@@ -89,6 +89,7 @@ var (
 		common.HexToAddress(systemcontracts.BTCStakeContract):        true,
 		common.HexToAddress(systemcontracts.BTCLSTStakeContract):     true,
 		common.HexToAddress(systemcontracts.BTCLSTTokenContract):     true,
+		common.HexToAddress(systemcontracts.FeeMarketContract):       true,
 	}
 )
 
@@ -755,15 +756,21 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 	cx := chainContext{Chain: chain, satoshi: p}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
-	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
-		contracts := []string{
-			systemcontracts.StakeHubContract,
-			systemcontracts.CoreAgentContract,
-			systemcontracts.HashAgentContract,
-			systemcontracts.BTCAgentContract,
-			systemcontracts.BTCStakeContract,
-			systemcontracts.BTCLSTStakeContract,
-			systemcontracts.BTCLSTTokenContract,
+	isOnDemeter := p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time)
+	isOnTheseus := p.chainConfig.IsOnTheseus(header.Number, parent.Time, header.Time)
+	if isOnDemeter || isOnTheseus {
+		contracts := []string{}
+		if isOnDemeter {
+			contracts = append(contracts, systemcontracts.StakeHubContract)
+			contracts = append(contracts, systemcontracts.CoreAgentContract)
+			contracts = append(contracts, systemcontracts.HashAgentContract)
+			contracts = append(contracts, systemcontracts.BTCAgentContract)
+			contracts = append(contracts, systemcontracts.BTCStakeContract)
+			contracts = append(contracts, systemcontracts.BTCLSTStakeContract)
+			contracts = append(contracts, systemcontracts.BTCLSTTokenContract)
+		}
+		if isOnTheseus {
+			contracts = append(contracts, systemcontracts.FeeMarketContract)
 		}
 
 		err := p.initContractWithContracts(state, header, cx, txs, receipts, systemTxs, usedGas, false, contracts, tracer)
@@ -790,15 +797,21 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 	cx := chainContext{Chain: chain, satoshi: p}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
-	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
-		contracts := []string{
-			systemcontracts.StakeHubContract,
-			systemcontracts.CoreAgentContract,
-			systemcontracts.HashAgentContract,
-			systemcontracts.BTCAgentContract,
-			systemcontracts.BTCStakeContract,
-			systemcontracts.BTCLSTStakeContract,
-			systemcontracts.BTCLSTTokenContract,
+	isOnDemeter := p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time)
+	isOnTheseus := p.chainConfig.IsOnTheseus(header.Number, parent.Time, header.Time)
+	if isOnDemeter || isOnTheseus {
+		contracts := []string{}
+		if isOnDemeter {
+			contracts = append(contracts, systemcontracts.StakeHubContract)
+			contracts = append(contracts, systemcontracts.CoreAgentContract)
+			contracts = append(contracts, systemcontracts.HashAgentContract)
+			contracts = append(contracts, systemcontracts.BTCAgentContract)
+			contracts = append(contracts, systemcontracts.BTCStakeContract)
+			contracts = append(contracts, systemcontracts.BTCLSTStakeContract)
+			contracts = append(contracts, systemcontracts.BTCLSTTokenContract)
+		}
+		if isOnTheseus {
+			contracts = append(contracts, systemcontracts.FeeMarketContract)
 		}
 
 		err := p.initContractWithContracts(state, header, cx, txs, receipts, nil, &header.GasUsed, true, contracts, tracer)
@@ -1323,6 +1336,9 @@ func (p *Satoshi) initContract(state vm.StateDB, header *types.Header, chain cor
 		contracts = append(contracts, systemcontracts.BTCStakeContract)
 		contracts = append(contracts, systemcontracts.BTCLSTStakeContract)
 		contracts = append(contracts, systemcontracts.BTCLSTTokenContract)
+	}
+	if p.chainConfig.IsTheseus(header.Number, header.Time) {
+		contracts = append(contracts, systemcontracts.FeeMarketContract)
 	}
 
 	return p.initContractWithContracts(state, header, chain, txs, receipts, receivedTxs, usedGas, mining, contracts, tracer)
