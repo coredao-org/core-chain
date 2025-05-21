@@ -15,7 +15,7 @@ RUN cd /go-ethereum && go mod download
 ADD . /go-ethereum
 
 # For blst
-ENV CGO_CFLAGS="-O -D__BLST_PORTABLE__" 
+ENV CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 ENV CGO_CFLAGS_ALLOW="-O -D__BLST_PORTABLE__"
 RUN cd /go-ethereum && go run build/ci.go install -static ./cmd/geth
 
@@ -39,7 +39,7 @@ RUN apk add --no-cache $PACKAGES \
   && addgroup -g ${CORE_USER_GID} ${CORE_USER} \
   && adduser -u ${CORE_USER_UID} -G ${CORE_USER} --shell /sbin/nologin --no-create-home -D ${CORE_USER} \
   && addgroup ${CORE_USER} tty \
-  && sed -i -e "s/bin\/sh/bin\/bash/" /etc/passwd  
+  && sed -i -e "s/bin\/sh/bin\/bash/" /etc/passwd
 
 RUN echo "[ ! -z \"\$TERM\" -a -r /etc/motd ] && cat /etc/motd" >> /etc/bash/bashrc
 

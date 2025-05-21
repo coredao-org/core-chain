@@ -14,7 +14,7 @@ RUN cd /go-ethereum && go mod download
 
 ADD . /go-ethereum
 # For blst
-ENV CGO_CFLAGS="-O -D__BLST_PORTABLE__" 
+ENV CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 ENV CGO_CFLAGS_ALLOW="-O -D__BLST_PORTABLE__"
 
 # This is not strictly necessary, but it matches the "Dockerfile" steps, thus

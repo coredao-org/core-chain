@@ -11,24 +11,24 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.43
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.30.2
 	github.com/bnb-chain/fastssz v0.1.2
-	github.com/bnb-chain/ics23 v0.1.0
 	github.com/cespare/cp v1.1.1
 	github.com/cloudflare/cloudflare-go v0.79.0
 	github.com/cockroachdb/pebble v1.1.2
 	github.com/cometbft/cometbft v0.37.0
 	github.com/consensys/gnark-crypto v0.12.1
+	github.com/coredao-org/btcpowermirror v1.1.0
 	github.com/crate-crypto/go-ipa v0.0.0-20240223125850-b1e8a79f509c
 	github.com/crate-crypto/go-kzg-4844 v0.7.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
-	github.com/dop251/goja v0.0.0-20230806174421-c933cf95e127
+	github.com/dop251/goja v0.0.0-20240516125602-ccbae20bcec2
 	github.com/ethereum/c-kzg-4844 v1.0.0
 	github.com/ethereum/go-verkle v0.2.2
-	github.com/fatih/color v1.16.0
+	github.com/fatih/color v1.17.0
 	github.com/fatih/structs v1.1.0
 	github.com/fjl/gencodec v0.1.0
-	github.com/fsnotify/fsnotify v1.6.0
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08
 	github.com/gofrs/flock v0.8.1
 	github.com/golang-jwt/jwt/v4 v4.5.2
@@ -38,10 +38,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/graph-gophers/graphql-go v1.3.0
-	github.com/hashicorp/go-bexpr v0.1.10
+	github.com/graph-gophers/graphql-go v1.5.0
+	github.com/hashicorp/go-bexpr v0.1.14
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
-	github.com/holiman/billy v0.0.0-20240216141850-2abb0c79d3c4
+	github.com/holiman/billy v0.0.0-20240322075458-72a4e81ec6da
 	github.com/holiman/bloomfilter/v2 v2.0.3
 	github.com/holiman/uint256 v1.3.2
 	github.com/huin/goupnp v1.3.0
@@ -67,18 +67,15 @@ require (
 	github.com/prysmaticlabs/prysm/v5 v5.0.3
 	github.com/rs/cors v1.8.2
 	github.com/shirou/gopsutil v3.21.11+incompatible
-	github.com/status-im/keycard-go v0.2.0
+	github.com/status-im/keycard-go v0.3.2
 	github.com/stretchr/testify v1.10.0
 	github.com/supranational/blst v0.3.14
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
-	github.com/tendermint/go-amino v0.14.1
-	github.com/tendermint/iavl v0.12.0
-	github.com/tendermint/tendermint v0.31.15
 	github.com/tidwall/wal v1.1.7
 	github.com/urfave/cli/v2 v2.26.0
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.1.3
 	github.com/willf/bitset v1.1.3
-	go.uber.org/automaxprocs v1.5.2
+	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/crypto v0.36.0
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67
 	golang.org/x/sync v0.12.0
@@ -127,9 +124,7 @@ require (
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/consensys/bavard v0.1.22 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
-	github.com/coredao-org/btcpowermirror v1.1.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
-	github.com/cosmos/gogoproto v1.4.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.0.1 // indirect
@@ -139,15 +134,11 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/elastic/gosigar v0.14.3 // indirect
-	github.com/etcd-io/bbolt v1.3.3 // indirect
 	github.com/ferranbt/fastssz v0.0.0-20210120143747-11b9eff30ea9 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/garslo/gogen v0.0.0-20170306192744-1d203ffc1f61 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
-	github.com/go-kit/kit v0.12.0 // indirect
-	github.com/go-kit/log v0.2.1 // indirect
-	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -166,17 +157,15 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1 // indirect
-	github.com/gtank/merlin v0.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/herumi/bls-eth-go-binary v0.0.0-20210917013441-d37c07cfda4e // indirect
+	github.com/herumi/bls-eth-go-binary v1.31.0 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20210311194329-9aa0e372d097 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/jmhodges/levigo v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
 	github.com/k0kubun/go-ansi v0.0.0-20180517002512-3bf9e2903213 // indirect
@@ -207,12 +196,11 @@ require (
 	github.com/miekg/dns v1.1.62 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
-	github.com/mimoo/StrobeGo v0.0.0-20210601165009-122bf33a46e0 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/mitchellh/pointerstructure v1.2.0 // indirect
+	github.com/mitchellh/pointerstructure v1.2.1 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -267,7 +255,6 @@ require (
 	github.com/quic-go/quic-go v0.48.2 // indirect
 	github.com/quic-go/webtransport-go v0.8.1-0.20241018022711-4ac2c9250e66 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
-	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -276,7 +263,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.10.0 // indirect
-	github.com/tecbot/gorocksdb v0.0.0-20191217155057-f0fad39f321c // indirect
 	github.com/thomaso-mirodin/intmath v0.0.0-20160323211736-5dc6d854e46e // indirect
 	github.com/tidwall/gjson v1.10.2 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -322,6 +308,8 @@ require (
 )
 
 replace (
+	github.com/btcsuite/btcd => github.com/btcsuite/btcd v0.23.0
 	github.com/cometbft/cometbft => github.com/bnb-chain/greenfield-cometbft v1.3.1
+	github.com/grpc-ecosystem/grpc-gateway/v22/internal/descripto => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210702154020-550e1cd83ec1
 	github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.16
 )
