@@ -116,7 +116,7 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x2}): &sha256hash{},
 	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
 	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: false},
+	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: true},
 	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
 	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
@@ -211,6 +211,8 @@ func activePrecompiledContracts(rules params.Rules) PrecompiledContracts {
 		return PrecompiledContractsPrague
 	case rules.IsCancun:
 		return PrecompiledContractsCancun
+	case rules.IsHashPower:
+		return PrecompiledContractsHashPower
 	case rules.IsBerlin:
 		return PrecompiledContractsBerlin
 	case rules.IsIstanbul:
