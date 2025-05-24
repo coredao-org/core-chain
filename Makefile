@@ -7,31 +7,36 @@
 
 GOBIN = ./build/bin
 GO ?= latest
-GORUN = env GO111MODULE=on go run
+GORUN = go run
 GIT_COMMIT=$(shell git rev-parse HEAD)
 GIT_COMMIT_DATE=$(shell git log -n1 --pretty='format:%cd' --date=format:'%Y%m%d')
 
+#? geth: Build geth
 geth:
 	$(GORUN) build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
+#? all: Build all packages and executables
 all:
 	$(GORUN) build/ci.go install
 
+#? test: Run the tests
 test: all
 	$(GORUN) build/ci.go test -timeout 1h
 
 lint: ## Run linters.
 	$(GORUN) build/ci.go lint
 
+#? clean: Clean go cache, built executables, and the auto generated folder
 clean:
-	env GO111MODULE=on go clean -cache
+	go clean -cache
 	rm -fr build/_workspace/pkg/ $(GOBIN)/*
 
 # The devtools target installs tools required for 'go generate'.
 # You need to put $GOBIN (or $GOPATH/bin) in your PATH to use 'go generate'.
 
+#? devtools: Install recommended developer tools
 devtools:
 	env GOBIN= go install golang.org/x/tools/cmd/stringer@latest
 	env GOBIN= go install github.com/fjl/gencodec@latest
@@ -40,5 +45,12 @@ devtools:
 	@type "solc" 2> /dev/null || echo 'Please install solc'
 	@type "protoc" 2> /dev/null || echo 'Please install protoc'
 
+#? help: Build docker image
 docker:
 	docker build --pull -t coredao-org/core-chain:latest -f Dockerfile .
+
+#? help: Get more info on make commands.
+help: Makefile
+	@echo " Choose a command run in go-ethereum:"
+	@sed -n 's/^#?//p' $< | column -t -s ':' |  sort | sed -e 's/^/ /'
+.PHONY: help

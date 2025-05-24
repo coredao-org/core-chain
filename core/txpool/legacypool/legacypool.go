@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -60,8 +61,6 @@ var (
 	// ErrTxPoolOverflow is returned if the transaction pool is full and can't accept
 	// another remote transaction.
 	ErrTxPoolOverflow = errors.New("txpool is full")
-
-	ErrInBlackList = errors.New("sender or to in black list")
 )
 
 var (
@@ -214,12 +213,13 @@ type LegacyPool struct {
 	config       Config
 	chainconfig  *params.ChainConfig
 	chain        BlockChain
-	gasTip       atomic.Pointer[big.Int]
+	gasTip       atomic.Pointer[uint256.Int]
 	txFeed       event.Feed
 	reannoTxFeed event.Feed // Event feed for announcing transactions again
 	scope        event.SubscriptionScope
 	signer       types.Signer
 	mu           sync.RWMutex
+	maxGas       atomic.Uint64 // Currently accepted max gas, it will be modified by MinerAPI
 
 	currentHead   atomic.Pointer[types.Header] // Current head of the blockchain
 	currentState  *state.StateDB               // Current state in the blockchain head
@@ -301,13 +301,26 @@ func (pool *LegacyPool) Filter(tx *types.Transaction) bool {
 // head to allow balance / nonce checks. The transaction journal will be loaded
 // from disk and filtered based on the provided starting settings. The internal
 // goroutines will be spun up and the pool deemed operational afterwards.
-func (pool *LegacyPool) Init(gasTip *big.Int, head *types.Header, reserve txpool.AddressReserver) error {
+func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserve txpool.AddressReserver) error {
 	// Set the address reserver to request exclusive access to pooled accounts
 	pool.reserve = reserve
 
 	// Set the basic pool parameters
-	pool.gasTip.Store(gasTip)
-	pool.reset(nil, head)
+	pool.gasTip.Store(uint256.NewInt(gasTip))
+
+	// Initialize the state with head block, or fallback to empty one in
+	// case the head state is not available (might occur when node is not
+	// fully synced).
+	statedb, err := pool.chain.StateAt(head.Root)
+	if err != nil {
+		statedb, err = pool.chain.StateAt(types.EmptyRootHash)
+	}
+	if err != nil {
+		return err
+	}
+	pool.currentHead.Store(head)
+	pool.currentState = statedb
+	pool.pendingNonces = newNoncer(statedb)
 
 	// Start the reorg loop early, so it can handle requests generated during
 	// journal loading.
@@ -429,9 +442,6 @@ func (pool *LegacyPool) loop() {
 
 // Close terminates the transaction pool.
 func (pool *LegacyPool) Close() error {
-	// Unsubscribe all subscriptions registered from txpool
-	pool.scope.Close()
-
 	// Terminate the pool reorger and return
 	close(pool.reorgShutdownCh)
 	pool.wg.Wait()
@@ -444,16 +454,20 @@ func (pool *LegacyPool) Close() error {
 }
 
 // Reset implements txpool.SubPool, allowing the legacy pool's internal state to be
-// kept in sync with the main transacion pool's internal state.
+// kept in sync with the main transaction pool's internal state.
 func (pool *LegacyPool) Reset(oldHead, newHead *types.Header) {
 	wait := pool.requestReset(oldHead, newHead)
 	<-wait
 }
 
-// SubscribeTransactions registers a subscription of NewTxsEvent and
-// starts sending event to the given channel.
-func (pool *LegacyPool) SubscribeTransactions(ch chan<- core.NewTxsEvent) event.Subscription {
-	return pool.scope.Track(pool.txFeed.Subscribe(ch))
+// SubscribeTransactions registers a subscription for new transaction events,
+// supporting feeding only newly seen or also resurrected transactions.
+func (pool *LegacyPool) SubscribeTransactions(ch chan<- core.NewTxsEvent, reorgs bool) event.Subscription {
+	// The legacy pool has a very messed up internal shuffling, so it's kind of
+	// hard to separate newly discovered transaction from resurrected ones. This
+	// is because the new txs are added to the queue, resurrected ones too and
+	// reorgs run lazily, so separating the two would need a marker.
+	return pool.txFeed.Subscribe(ch)
 }
 
 // SubscribeReannoTxsEvent registers a subscription of ReannoTxsEvent and
@@ -468,11 +482,13 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	old := pool.gasTip.Load()
-	pool.gasTip.Store(new(big.Int).Set(tip))
-
+	var (
+		newTip = uint256.MustFromBig(tip)
+		old    = pool.gasTip.Load()
+	)
+	pool.gasTip.Store(newTip)
 	// If the min miner fee increased, remove transactions below the new threshold
-	if tip.Cmp(old) > 0 {
+	if newTip.Cmp(old) > 0 {
 		// pool.priced is sorted by GasFeeCap, so we have to iterate through pool.all instead
 		drop := pool.all.RemotesBelowTip(tip)
 		for _, tx := range drop {
@@ -480,7 +496,7 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 		}
 		pool.priced.Removed(len(drop))
 	}
-	log.Info("Legacy pool tip threshold updated", "tip", tip)
+	log.Info("Legacy pool tip threshold updated", "tip", newTip)
 }
 
 // Nonce returns the next nonce of an account, with all transactions executable
@@ -550,24 +566,38 @@ func (pool *LegacyPool) ContentFrom(addr common.Address) ([]*types.Transaction, 
 }
 
 // Pending retrieves all currently processable transactions, grouped by origin
-// account and sorted by nonce. The returned transaction set is a copy and can be
-// freely modified by calling code.
+// account and sorted by nonce.
 //
-// The enforceTips parameter can be used to do an extra filtering on the pending
-// transactions and only return those whose **effective** tip is large enough in
-// the next pending execution environment.
-func (pool *LegacyPool) Pending(enforceTips bool) map[common.Address][]*txpool.LazyTransaction {
+// The transactions can also be pre-filtered by the dynamic fee components to
+// reduce allocations and load on downstream subsystems.
+func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
+	// If only blob transactions are requested, this pool is unsuitable as it
+	// contains none, don't even bother.
+	if filter.OnlyBlobTxs {
+		return nil
+	}
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
+	// Convert the new uint256.Int types to the old big.Int ones used by the legacy pool
+	var (
+		minTipBig  *big.Int
+		baseFeeBig *big.Int
+	)
+	if filter.MinTip != nil {
+		minTipBig = filter.MinTip.ToBig()
+	}
+	if filter.BaseFee != nil {
+		baseFeeBig = filter.BaseFee.ToBig()
+	}
 	pending := make(map[common.Address][]*txpool.LazyTransaction, len(pool.pending))
 	for addr, list := range pool.pending {
 		txs := list.Flatten()
 
 		// If the miner requests tip enforcement, cap the lists now
-		if enforceTips && !pool.locals.contains(addr) {
+		if minTipBig != nil && !pool.locals.contains(addr) {
 			for i, tx := range txs {
-				if tx.EffectiveGasTipIntCmp(pool.gasTip.Load(), nil) < 0 {
+				if tx.EffectiveGasTipIntCmp(minTipBig, baseFeeBig) < 0 {
 					txs = txs[:i]
 					break
 				}
@@ -579,10 +609,12 @@ func (pool *LegacyPool) Pending(enforceTips bool) map[common.Address][]*txpool.L
 				lazies[i] = &txpool.LazyTransaction{
 					Pool:      pool,
 					Hash:      txs[i].Hash(),
-					Tx:        &txpool.Transaction{Tx: txs[i]},
+					Tx:        txs[i],
 					Time:      txs[i].Time(),
-					GasFeeCap: txs[i].GasFeeCap(),
-					GasTipCap: txs[i].GasTipCap(),
+					GasFeeCap: uint256.MustFromBig(txs[i].GasFeeCap()),
+					GasTipCap: uint256.MustFromBig(txs[i].GasTipCap()),
+					Gas:       txs[i].Gas(),
+					BlobGas:   txs[i].BlobGas(),
 				}
 			}
 			pending[addr] = lazies
@@ -627,12 +659,13 @@ func (pool *LegacyPool) validateTxBasics(tx *types.Transaction, local bool) erro
 			1<<types.AccessListTxType |
 			1<<types.DynamicFeeTxType,
 		MaxSize: txMaxSize,
-		MinTip:  pool.gasTip.Load(),
+		MinTip:  pool.gasTip.Load().ToBig(),
+		MaxGas:  pool.GetMaxGas(),
 	}
 	if local {
 		opts.MinTip = new(big.Int)
 	}
-	if err := txpool.ValidateTransaction(tx, nil, nil, nil, pool.currentHead.Load(), pool.signer, opts); err != nil {
+	if err := txpool.ValidateTransaction(tx, pool.currentHead.Load(), pool.signer, opts); err != nil {
 		return err
 	}
 	return nil
@@ -641,7 +674,7 @@ func (pool *LegacyPool) validateTxBasics(tx *types.Transaction, local bool) erro
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
-	if !local && tx.GasTipCapIntCmp(pool.gasTip.Load()) < 0 {
+	if !local && tx.GasTipCapIntCmp(pool.gasTip.Load().ToBig()) < 0 {
 		return txpool.ErrUnderpriced
 	}
 
@@ -661,7 +694,7 @@ func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
 		},
 		ExistingExpenditure: func(addr common.Address) *big.Int {
 			if list := pool.pending[addr]; list != nil {
-				return list.totalcost
+				return list.totalcost.ToBig()
 			}
 			return new(big.Int)
 		},
@@ -685,7 +718,7 @@ func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
 // pending or queued one, it overwrites the previous transaction if its price is higher.
 //
 // If a newly added transaction is marked as local, its sending account will be
-// be added to the allowlist, preventing any associated transaction from being dropped
+// added to the allowlist, preventing any associated transaction from being dropped
 // out of the pool due to pricing constraints.
 func (pool *LegacyPool) add(tx *types.Transaction, local bool) (replaced bool, err error) {
 	// If the transaction is already known, discard it
@@ -948,33 +981,19 @@ func (pool *LegacyPool) promoteTx(addr common.Address, hash common.Hash, tx *typ
 	return true
 }
 
-// Add enqueues a batch of transactions into the pool if they are valid. Depending
-// on the local flag, full pricing contraints will or will not be applied.
-//
-// If sync is set, the method will block until all internal maintenance related
-// to the add is finished. Only use this during tests for determinism!
-func (pool *LegacyPool) Add(txs []*txpool.Transaction, local bool, sync bool) []error {
-	unwrapped := make([]*types.Transaction, len(txs))
-	for i, tx := range txs {
-		unwrapped[i] = tx.Tx
-	}
-	return pool.addTxs(unwrapped, local, sync)
-}
-
 // addLocals enqueues a batch of transactions into the pool if they are valid, marking the
-// senders as a local ones, ensuring they go around the local pricing constraints.
+// senders as local ones, ensuring they go around the local pricing constraints.
 //
 // This method is used to add transactions from the RPC API and performs synchronous pool
 // reorganization and event propagation.
 func (pool *LegacyPool) addLocals(txs []*types.Transaction) []error {
-	return pool.addTxs(txs, !pool.config.NoLocals, true)
+	return pool.Add(txs, !pool.config.NoLocals, true)
 }
 
 // addLocal enqueues a single local transaction into the pool if it is valid. This is
 // a convenience wrapper around addLocals.
 func (pool *LegacyPool) addLocal(tx *types.Transaction) error {
-	errs := pool.addLocals([]*types.Transaction{tx})
-	return errs[0]
+	return pool.addLocals([]*types.Transaction{tx})[0]
 }
 
 // addRemotes enqueues a batch of transactions into the pool if they are valid. If the
@@ -983,28 +1002,31 @@ func (pool *LegacyPool) addLocal(tx *types.Transaction) error {
 // This method is used to add transactions from the p2p network and does not wait for pool
 // reorganization and internal event propagation.
 func (pool *LegacyPool) addRemotes(txs []*types.Transaction) []error {
-	return pool.addTxs(txs, false, false)
+	return pool.Add(txs, false, false)
 }
 
 // addRemote enqueues a single transaction into the pool if it is valid. This is a convenience
 // wrapper around addRemotes.
 func (pool *LegacyPool) addRemote(tx *types.Transaction) error {
-	errs := pool.addRemotes([]*types.Transaction{tx})
-	return errs[0]
+	return pool.addRemotes([]*types.Transaction{tx})[0]
 }
 
 // addRemotesSync is like addRemotes, but waits for pool reorganization. Tests use this method.
 func (pool *LegacyPool) addRemotesSync(txs []*types.Transaction) []error {
-	return pool.addTxs(txs, false, true)
+	return pool.Add(txs, false, true)
 }
 
 // This is like addRemotes with a single transaction, but waits for pool reorganization. Tests use this method.
 func (pool *LegacyPool) addRemoteSync(tx *types.Transaction) error {
-	return pool.addTxs([]*types.Transaction{tx}, false, true)[0]
+	return pool.Add([]*types.Transaction{tx}, false, true)[0]
 }
 
-// addTxs attempts to queue a batch of transactions if they are valid.
-func (pool *LegacyPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
+// Add enqueues a batch of transactions into the pool if they are valid. Depending
+// on the local flag, full pricing constraints will or will not be applied.
+//
+// If sync is set, the method will block until all internal maintenance related
+// to the add is finished. Only use this during tests for determinism!
+func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error {
 	// Do not treat as local if local transactions have been disabled
 	local = local && !pool.config.NoLocals
 
@@ -1025,6 +1047,7 @@ func (pool *LegacyPool) addTxs(txs []*types.Transaction, local, sync bool) []err
 		// in transactions before obtaining lock
 		if err := pool.validateTxBasics(tx, local); err != nil {
 			errs[i] = err
+			log.Trace("Discarding invalid transaction", "hash", tx.Hash(), "err", err)
 			invalidTxMeter.Mark(1)
 			continue
 		}
@@ -1093,12 +1116,12 @@ func (pool *LegacyPool) Status(hash common.Hash) txpool.TxStatus {
 }
 
 // Get returns a transaction if it is contained in the pool and nil otherwise.
-func (pool *LegacyPool) Get(hash common.Hash) *txpool.Transaction {
+func (pool *LegacyPool) Get(hash common.Hash) *types.Transaction {
 	tx := pool.get(hash)
 	if tx == nil {
 		return nil
 	}
-	return &txpool.Transaction{Tx: tx}
+	return tx
 }
 
 // get returns a transaction if it is contained in the pool and nil otherwise.
@@ -1728,6 +1751,14 @@ func (pool *LegacyPool) demoteUnexecutables() {
 			}
 		}
 	}
+}
+
+func (pool *LegacyPool) GetMaxGas() uint64 {
+	return pool.maxGas.Load()
+}
+
+func (pool *LegacyPool) SetMaxGas(maxGas uint64) {
+	pool.maxGas.Store(maxGas)
 }
 
 // addressByHeartbeat is an account address tagged with its last activity timestamp.

@@ -288,8 +288,13 @@ func DeleteTrieNode(db ethdb.KeyValueWriter, owner common.Hash, path []byte, has
 // if the state is not present in database.
 func ReadStateScheme(db ethdb.Reader) string {
 	// Check if state in path-based scheme is present
-	blob, _ := ReadAccountTrieNode(db, nil)
+	blob, _ := ReadAccountTrieNode(db.StateStoreReader(), nil)
 	if len(blob) != 0 {
+		return PathScheme
+	}
+	// The root node might be deleted during the initial snap sync, check
+	// the persistent state id then.
+	if id := ReadPersistentStateID(db.StateStoreReader()); id != 0 {
 		return PathScheme
 	}
 	// In a hash-based scheme, the genesis state is consistently stored
@@ -299,7 +304,7 @@ func ReadStateScheme(db ethdb.Reader) string {
 	if header == nil {
 		return "" // empty datadir
 	}
-	blob = ReadLegacyTrieNode(db, header.Root)
+	blob = ReadLegacyTrieNode(db.StateStoreReader(), header.Root)
 	if len(blob) == 0 {
 		return "" // no state in disk
 	}
@@ -319,7 +324,7 @@ func ValidateStateScheme(stateScheme string) bool {
 // the stored state.
 //
 //   - If the provided scheme is none, use the scheme consistent with persistent
-//     state, or fallback to hash-based scheme if state is empty.
+//     state, or fallback to path-based scheme if state is empty.
 //
 //   - If the provided scheme is hash, use hash-based scheme or error out if not
 //     compatible with persistent state scheme.
@@ -333,10 +338,8 @@ func ParseStateScheme(provided string, disk ethdb.Database) (string, error) {
 	stored := ReadStateScheme(disk)
 	if provided == "" {
 		if stored == "" {
-			// use default scheme for empty database, flip it when
-			// path mode is chosen as default
-			log.Info("State scheme set to default", "scheme", "hash")
-			return HashScheme, nil
+			log.Info("State scheme set to default", "scheme", "path")
+			return PathScheme, nil // use default scheme for empty database
 		}
 		log.Info("State scheme set to already existing disk db", "scheme", stored)
 		return stored, nil // reuse scheme of persistent scheme

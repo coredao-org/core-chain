@@ -79,7 +79,7 @@ func checkUpgradeConfig(url string, upgrade *Upgrade) error {
 }
 
 func TestUpgrade(t *testing.T) {
-	err := checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/branch_testnet2/genesis.json", athenaUpgrade[pigeonNet])
+	err := checkUpgradeConfig("https://raw.githubusercontent.com/coredao-org/core-genesis-contract/branch_testnet2/genesis.json", theseusUpgrade[pigeonNet])
 	if err != nil {
 		t.Error(err)
 	}

@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine as core
+FROM golang:1.23-alpine as core
 
 RUN apk add --no-cache make cmake gcc musl-dev linux-headers git bash build-base libc-dev
 

@@ -37,6 +37,12 @@ profile.cov
 
 # VS Code
 .vscode
+*.code-workspace
+
+# Cursor
+.cursor
+.cursorrules
+.cursorignore
 
 # dashboard
 /dashboard/assets/flow-typed
@@ -52,3 +58,5 @@ cmd/geth/__debug_bin
 cmd/bootnode/bootnode
 graphql/__debug_bin
 logs/
+
+tests/spec-tests/

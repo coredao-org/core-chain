@@ -50,7 +50,7 @@ var FullNodeGPO = gasprice.Config{
 // Defaults contains default settings for use on the CORE main net.
 var Defaults = Config{
 	SyncMode:           downloader.SnapSync,
-	NetworkId:          1116,
+	NetworkId:          0, // enable auto configuration of networkID == chainID
 	TxLookupLimit:      2350000,
 	TransactionHistory: 2350000,
 	StateHistory:       params.FullImmutabilityThreshold,
@@ -70,19 +70,21 @@ var Defaults = Config{
 	RPCGasCap:          20000000,
 	RPCEVMTimeout:      5 * time.Second,
 	GPO:                FullNodeGPO,
-	RPCTxFeeCap:        1, // 1 ether
+	RPCTxFeeCap:        1,                                         // 1 ether
+	BlobExtraReserve:   params.DefaultExtraReserveForBlobRequests, // Extra reserve threshold for blob, blob never expires when -1 is set, default 28800
 }
 
 //go:generate go run github.com/fjl/gencodec -type Config -formats toml -out gen_config.go
 
-// Config contains configuration options for of the ETH and LES protocols.
+// Config contains configuration options for ETH and LES protocols.
 type Config struct {
 	// The genesis block, which is inserted if the database is empty.
 	// If nil, the Ethereum main net block is used.
 	Genesis *core.Genesis `toml:",omitempty"`
 
-	// Protocol options
-	NetworkId uint64 // Network ID to use for selecting peers to connect to
+	// Network ID separates blockchains on the peer-to-peer networking level. When left
+	// zero, the chain ID is used as network ID.
+	NetworkId uint64
 	SyncMode  downloader.SyncMode
 
 	// DisablePeerTxBroadcast is an optional config and disabled by default, and usually you do not need it.
@@ -105,19 +107,18 @@ type Config struct {
 	DirectBroadcast     bool
 	DisableSnapProtocol bool // Whether disable snap protocol
 	EnableTrustProtocol bool // Whether enable trust protocol
-	PipeCommit          bool
 	RangeLimit          bool
 
 	// Deprecated, use 'TransactionHistory' instead.
 	TxLookupLimit      uint64 `toml:",omitempty"` // The maximum number of blocks from head whose tx indices are reserved.
 	TransactionHistory uint64 `toml:",omitempty"` // The maximum number of blocks from head whose tx indices are reserved.
 	StateHistory       uint64 `toml:",omitempty"` // The maximum number of blocks from head whose state histories are reserved.
-	PathSyncFlush      bool   `toml:",omitempty"` // State scheme used to store ethereum state and merkle trie nodes on top
-
 	// State scheme represents the scheme used to store ethereum states and trie
 	// nodes on top. It can be 'hash', 'path', or none which means use the scheme
 	// consistent with persistent state.
-	StateScheme string `toml:",omitempty"`
+	StateScheme        string `toml:",omitempty"` // State scheme used to store ethereum state and merkle trie nodes on top
+	PathSyncFlush      bool   `toml:",omitempty"` // State scheme used to store ethereum state and merkle trie nodes on top
+	JournalFileEnabled bool   // Whether the TrieJournal is stored using journal file
 
 	// RequiredBlocks is a set of block number -> hash mappings which must be in the
 	// canonical chain of all remote peers. Setting the option makes geth verify the
@@ -173,6 +174,10 @@ type Config struct {
 	// Enables tracking of SHA3 preimages in the VM
 	EnablePreimageRecording bool
 
+	// Enables VM tracing
+	VMTrace           string
+	VMTraceJsonConfig string
+
 	// Miscellaneous options
 	DocRoot string `toml:"-"`
 
@@ -186,17 +191,20 @@ type Config struct {
 	// send-transaction variants. The unit is ether.
 	RPCTxFeeCap float64
 
-	// OverrideShanghai (TODO: remove after the fork)
-	OverrideShanghai *uint64 `toml:",omitempty"`
-
-	// OverrideKepler (TODO: remove after the fork)
-	OverrideKepler *uint64 `toml:",omitempty"`
-
 	// OverrideCancun (TODO: remove after the fork)
 	OverrideCancun *uint64 `toml:",omitempty"`
 
+	// OverrideHaber (TODO: remove after the fork)
+	OverrideHaber *uint64 `toml:",omitempty"`
+
 	// OverrideVerkle (TODO: remove after the fork)
 	OverrideVerkle *uint64 `toml:",omitempty"`
+
+	// OverrideTheseus (TODO: remove after the fork)
+	OverrideTheseus *uint64 `toml:",omitempty"`
+
+	// blob setting
+	BlobExtraReserve uint64
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain config.
@@ -211,7 +219,7 @@ func CreateConsensusEngine(config *params.ChainConfig, db ethdb.Database, ee *et
 		return clique.New(config.Clique, db), nil
 	}
 	// If defaulting to proof-of-work, enforce an already merged network since
-	// we cannot run PoW algorithms and more, so we cannot even follow a chain
+	// we cannot run PoW algorithms anymore, so we cannot even follow a chain
 	// not coordinated by a beacon node.
 	if !config.TerminalTotalDifficultyPassed {
 		return nil, errors.New("ethash is only supported as a historical component of already merged networks")

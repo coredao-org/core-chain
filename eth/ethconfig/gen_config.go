@@ -30,13 +30,13 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DirectBroadcast         bool
 		DisableSnapProtocol     bool
 		EnableTrustProtocol     bool
-		PipeCommit              bool
 		RangeLimit              bool
-		TxLookupLimit           uint64                 `toml:",omitempty"`
-		TransactionHistory      uint64                 `toml:",omitempty"`
-		StateHistory            uint64                 `toml:",omitempty"`
-		StateScheme             string                 `toml:",omitempty"`
-		PathSyncFlush           bool                   `toml:",omitempty"`
+		TxLookupLimit           uint64 `toml:",omitempty"`
+		TransactionHistory      uint64 `toml:",omitempty"`
+		StateHistory            uint64 `toml:",omitempty"`
+		StateScheme             string `toml:",omitempty"`
+		PathSyncFlush           bool   `toml:",omitempty"`
+		JournalFileEnabled      bool
 		RequiredBlocks          map[uint64]common.Hash `toml:"-"`
 		LightServ               int                    `toml:",omitempty"`
 		LightIngress            int                    `toml:",omitempty"`
@@ -65,14 +65,17 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		BlobPool                blobpool.Config
 		GPO                     gasprice.Config
 		EnablePreimageRecording bool
+		VMTrace                 string
+		VMTraceJsonConfig       string
 		DocRoot                 string `toml:"-"`
 		RPCGasCap               uint64
 		RPCEVMTimeout           time.Duration
 		RPCTxFeeCap             float64
-		OverrideShanghai        *uint64 `toml:",omitempty"`
-		OverrideKepler          *uint64 `toml:",omitempty"`
 		OverrideCancun          *uint64 `toml:",omitempty"`
+		OverrideHaber           *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
+		OverrideTheseus         *uint64 `toml:",omitempty"`
+		BlobExtraReserve        uint64
 	}
 	var enc Config
 	enc.Genesis = c.Genesis
@@ -88,13 +91,13 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.DirectBroadcast = c.DirectBroadcast
 	enc.DisableSnapProtocol = c.DisableSnapProtocol
 	enc.EnableTrustProtocol = c.EnableTrustProtocol
-	enc.PipeCommit = c.PipeCommit
 	enc.RangeLimit = c.RangeLimit
 	enc.TxLookupLimit = c.TxLookupLimit
 	enc.TransactionHistory = c.TransactionHistory
 	enc.StateHistory = c.StateHistory
 	enc.StateScheme = c.StateScheme
 	enc.PathSyncFlush = c.PathSyncFlush
+	enc.JournalFileEnabled = c.JournalFileEnabled
 	enc.RequiredBlocks = c.RequiredBlocks
 	enc.LightServ = c.LightServ
 	enc.LightIngress = c.LightIngress
@@ -123,14 +126,17 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.BlobPool = c.BlobPool
 	enc.GPO = c.GPO
 	enc.EnablePreimageRecording = c.EnablePreimageRecording
+	enc.VMTrace = c.VMTrace
+	enc.VMTraceJsonConfig = c.VMTraceJsonConfig
 	enc.DocRoot = c.DocRoot
 	enc.RPCGasCap = c.RPCGasCap
 	enc.RPCEVMTimeout = c.RPCEVMTimeout
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
-	enc.OverrideShanghai = c.OverrideShanghai
-	enc.OverrideKepler = c.OverrideKepler
 	enc.OverrideCancun = c.OverrideCancun
+	enc.OverrideHaber = c.OverrideHaber
 	enc.OverrideVerkle = c.OverrideVerkle
+	enc.OverrideTheseus = c.OverrideTheseus
+	enc.BlobExtraReserve = c.BlobExtraReserve
 	return &enc, nil
 }
 
@@ -150,13 +156,13 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DirectBroadcast         *bool
 		DisableSnapProtocol     *bool
 		EnableTrustProtocol     *bool
-		PipeCommit              *bool
 		RangeLimit              *bool
-		TxLookupLimit           *uint64                `toml:",omitempty"`
-		TransactionHistory      *uint64                `toml:",omitempty"`
-		StateHistory            *uint64                `toml:",omitempty"`
-		StateScheme             *string                `toml:",omitempty"`
-		PathSyncFlush           *bool                  `toml:",omitempty"`
+		TxLookupLimit           *uint64 `toml:",omitempty"`
+		TransactionHistory      *uint64 `toml:",omitempty"`
+		StateHistory            *uint64 `toml:",omitempty"`
+		StateScheme             *string `toml:",omitempty"`
+		PathSyncFlush           *bool   `toml:",omitempty"`
+		JournalFileEnabled      *bool
 		RequiredBlocks          map[uint64]common.Hash `toml:"-"`
 		LightServ               *int                   `toml:",omitempty"`
 		LightIngress            *int                   `toml:",omitempty"`
@@ -185,14 +191,17 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		BlobPool                *blobpool.Config
 		GPO                     *gasprice.Config
 		EnablePreimageRecording *bool
+		VMTrace                 *string
+		VMTraceJsonConfig       *string
 		DocRoot                 *string `toml:"-"`
 		RPCGasCap               *uint64
 		RPCEVMTimeout           *time.Duration
 		RPCTxFeeCap             *float64
-		OverrideShanghai        *uint64 `toml:",omitempty"`
-		OverrideKepler          *uint64 `toml:",omitempty"`
 		OverrideCancun          *uint64 `toml:",omitempty"`
+		OverrideHaber           *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
+		OverrideTheseus         *uint64 `toml:",omitempty"`
+		BlobExtraReserve        *uint64
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -237,9 +246,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.EnableTrustProtocol != nil {
 		c.EnableTrustProtocol = *dec.EnableTrustProtocol
 	}
-	if dec.PipeCommit != nil {
-		c.PipeCommit = *dec.PipeCommit
-	}
 	if dec.RangeLimit != nil {
 		c.RangeLimit = *dec.RangeLimit
 	}
@@ -257,6 +263,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.PathSyncFlush != nil {
 		c.PathSyncFlush = *dec.PathSyncFlush
+	}
+	if dec.JournalFileEnabled != nil {
+		c.JournalFileEnabled = *dec.JournalFileEnabled
 	}
 	if dec.RequiredBlocks != nil {
 		c.RequiredBlocks = dec.RequiredBlocks
@@ -342,6 +351,12 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.EnablePreimageRecording != nil {
 		c.EnablePreimageRecording = *dec.EnablePreimageRecording
 	}
+	if dec.VMTrace != nil {
+		c.VMTrace = *dec.VMTrace
+	}
+	if dec.VMTraceJsonConfig != nil {
+		c.VMTraceJsonConfig = *dec.VMTraceJsonConfig
+	}
 	if dec.DocRoot != nil {
 		c.DocRoot = *dec.DocRoot
 	}
@@ -354,17 +369,20 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.RPCTxFeeCap != nil {
 		c.RPCTxFeeCap = *dec.RPCTxFeeCap
 	}
-	if dec.OverrideShanghai != nil {
-		c.OverrideShanghai = dec.OverrideShanghai
-	}
-	if dec.OverrideKepler != nil {
-		c.OverrideKepler = dec.OverrideKepler
-	}
 	if dec.OverrideCancun != nil {
 		c.OverrideCancun = dec.OverrideCancun
 	}
+	if dec.OverrideHaber != nil {
+		c.OverrideHaber = dec.OverrideHaber
+	}
 	if dec.OverrideVerkle != nil {
 		c.OverrideVerkle = dec.OverrideVerkle
+	}
+	if dec.OverrideTheseus != nil {
+		c.OverrideTheseus = dec.OverrideTheseus
+	}
+	if dec.BlobExtraReserve != nil {
+		c.BlobExtraReserve = *dec.BlobExtraReserve
 	}
 	return nil
 }

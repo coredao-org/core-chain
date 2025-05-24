@@ -73,7 +73,7 @@ func TestGetNextRotationHour(t *testing.T) {
 func TestClearBackups(t *testing.T) {
 	dir := "./test"
 	os.Mkdir(dir, 0700)
-	w := NewAsyncFileWriter("./test/bsc.log", 100, 1, 1)
+	w := NewAsyncFileWriter("./test/core.log", 100, 1, 1)
 	defer os.RemoveAll(dir)
 	fakeCurrentTime := time.Now()
 	name := ""

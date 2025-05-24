@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -28,11 +27,14 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/holiman/uint256"
 )
 
 // noopReleaser is returned in case there is no operation expected
@@ -43,7 +45,7 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 	var (
 		current  *types.Block
 		database state.Database
-		triedb   *trie.Database
+		tdb      *triedb.Database
 		report   = true
 		origin   = block.NumberU64()
 	)
@@ -69,14 +71,14 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 			// the internal junks created by tracing will be persisted into the disk.
 			// TODO(rjl493456442), clean cache is disabled to prevent memory leak,
 			// please re-enable it for better performance.
-			database = state.NewDatabaseWithConfig(eth.chainDb, trie.HashDefaults)
+			database = state.NewDatabaseWithConfig(eth.chainDb, triedb.HashDefaults)
 			if statedb, err = state.New(block.Root(), database, nil); err == nil {
 				log.Info("Found disk backend for state trie", "root", block.Root(), "number", block.Number())
 				return statedb, noopReleaser, nil
 			}
 		}
 		// The optional base statedb is given, mark the start point as parent block
-		statedb, database, triedb, report = base, base.Database(), base.Database().TrieDB(), false
+		statedb, database, tdb, report = base, base.Database(), base.Database().TrieDB(), false
 		current = eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
 		if current == nil {
 			return nil, nil, fmt.Errorf("missing parent block %v %d", block.ParentHash(), block.NumberU64()-1)
@@ -89,8 +91,8 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 		// the internal junks created by tracing will be persisted into the disk.
 		// TODO(rjl493456442), clean cache is disabled to prevent memory leak,
 		// please re-enable it for better performance.
-		triedb = trie.NewDatabase(eth.chainDb, trie.HashDefaults)
-		database = state.NewDatabaseWithNodeDB(eth.chainDb, triedb)
+		tdb = triedb.NewDatabase(eth.chainDb, triedb.HashDefaults)
+		database = state.NewDatabaseWithNodeDB(eth.chainDb, tdb)
 
 		// If we didn't check the live database, do check state over ephemeral database,
 		// otherwise we would rewind past a persisted block (specific corner case is
@@ -155,9 +157,7 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 			return nil, nil, fmt.Errorf("processing block %d failed: %v", current.NumberU64(), err)
 		}
 		// Finalize the state so any modifications are written to the trie
-		statedb.Finalise(eth.blockchain.Config().IsEIP158(current.Number()))
-		statedb.AccountsIntermediateRoot()
-		root, _, err := statedb.Commit(current.NumberU64(), nil)
+		root, _, err := statedb.Commit(current.NumberU64(), eth.blockchain.Config().IsEIP158(current.Number()))
 		if err != nil {
 			return nil, nil, fmt.Errorf("stateAtBlock commit failed, number %d root %v: %w",
 				current.NumberU64(), current.Root().Hex(), err)
@@ -168,17 +168,17 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 		}
 		// Hold the state reference and also drop the parent state
 		// to prevent accumulating too many nodes in memory.
-		triedb.Reference(root, common.Hash{})
+		tdb.Reference(root, common.Hash{})
 		if parent != (common.Hash{}) {
-			triedb.Dereference(parent)
+			tdb.Dereference(parent)
 		}
 		parent = root
 	}
 	if report {
-		diff, nodes, immutablenodes, imgs := triedb.Size()
+		diff, nodes, immutablenodes, imgs := tdb.Size() // all memory is contained within the nodes return in hashdb
 		log.Info("Historical state regenerated", "block", current.NumberU64(), "elapsed", time.Since(start), "layer", diff, "nodes", nodes, "immutablenodes", immutablenodes, "preimages", imgs)
 	}
-	return statedb, func() { triedb.Dereference(block.Root()) }, nil
+	return statedb, func() { tdb.Dereference(block.Root()) }, nil
 }
 
 func (eth *Ethereum) pathState(block *types.Block) (*state.StateDB, func(), error) {
@@ -223,7 +223,7 @@ func (eth *Ethereum) stateAtBlock(ctx context.Context, block *types.Block, reexe
 }
 
 // stateAtTransaction returns the execution environment of a certain transaction.
-func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *state.StateDB, tracers.StateReleaseFunc, error) {
+func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (*types.Transaction, vm.BlockContext, *state.StateDB, tracers.StateReleaseFunc, error) {
 	// Short circuit if it's genesis block.
 	if block.NumberU64() == 0 {
 		return nil, vm.BlockContext{}, nil, nil, errors.New("no transaction in genesis")
@@ -239,36 +239,51 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 	if err != nil {
 		return nil, vm.BlockContext{}, nil, nil, err
 	}
+	// Insert parent beacon block root in the state as per EIP-4788.
+	context := core.NewEVMBlockContext(block.Header(), eth.blockchain, nil)
+	evm := vm.NewEVM(context, statedb, eth.blockchain.Config(), vm.Config{})
+	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
+		core.ProcessBeaconBlockRoot(*beaconRoot, evm)
+	}
 	if txIndex == 0 && len(block.Transactions()) == 0 {
 		return nil, vm.BlockContext{}, statedb, release, nil
 	}
 	// Recompute transactions up to the target index.
-	signer := types.MakeSigner(eth.blockchain.Config(), block.Number(), block.Time())
+	var (
+		signer         = types.MakeSigner(eth.blockchain.Config(), block.Number(), block.Time())
+		beforeSystemTx = true
+	)
 	for idx, tx := range block.Transactions() {
+		if beforeSystemTx {
+			if posa, ok := eth.Engine().(consensus.PoSA); ok {
+				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
+					balance := statedb.GetBalance(consensus.SystemAddress)
+					if balance.Cmp(common.U2560) > 0 {
+						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+						statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
+					}
+
+					beforeSystemTx = false
+				}
+			}
+		}
+
+		if idx == txIndex {
+			return tx, context, statedb, release, nil
+		}
 		// Assemble the transaction call message and return if the requested offset
 		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
 		txContext := core.NewEVMTxContext(msg)
-		context := core.NewEVMBlockContext(block.Header(), eth.blockchain, nil)
-		if idx == txIndex {
-			return msg, context, statedb, release, nil
-		}
+		evm.SetTxContext(txContext)
+
 		// Not yet the searched for transaction, execute on top of the current state
-		vmenv := vm.NewEVM(context, txContext, statedb, eth.blockchain.Config(), vm.Config{})
-		if posa, ok := eth.Engine().(consensus.PoSA); ok && msg.From == context.Coinbase &&
-			posa.IsSystemContract(msg.To) && msg.GasPrice.Cmp(big.NewInt(0)) == 0 {
-			balance := statedb.GetBalance(consensus.SystemAddress)
-			if balance.Cmp(common.Big0) > 0 {
-				statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
-				statedb.AddBalance(context.Coinbase, balance)
-			}
-		}
 		statedb.SetTxContext(tx.Hash(), idx)
-		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+		if _, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
 			return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
 		// Ensure any modifications are committed to the state
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
-		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
+		statedb.Finalise(evm.ChainConfig().IsEIP158(block.Number()))
 	}
 	return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction index %d out of range for block %#x", txIndex, block.Hash())
 }

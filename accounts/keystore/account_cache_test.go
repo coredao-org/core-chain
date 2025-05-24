@@ -51,7 +51,7 @@ var (
 	}
 )
 
-// waitWatcherStarts waits up to 1s for the keystore watcher to start.
+// waitWatcherStart waits up to 1s for the keystore watcher to start.
 func waitWatcherStart(ks *KeyStore) bool {
 	// On systems where file watch is not supported, just return "ok".
 	if !ks.cache.watcher.enabled() {
@@ -68,7 +68,7 @@ func waitWatcherStart(ks *KeyStore) bool {
 
 func waitForAccounts(wantAccounts []accounts.Account, ks *KeyStore) error {
 	var list []accounts.Account
-	for t0 := time.Now(); time.Since(t0) < 5*time.Second; time.Sleep(200 * time.Millisecond) {
+	for t0 := time.Now(); time.Since(t0) < 5*time.Second; time.Sleep(100 * time.Millisecond) {
 		list = ks.Accounts()
 		if reflect.DeepEqual(list, wantAccounts) {
 			// ks should have also received change notifications
@@ -152,6 +152,7 @@ func TestWatchNoDir(t *testing.T) {
 }
 
 func TestCacheInitialReload(t *testing.T) {
+	t.Parallel()
 	cache, _ := newAccountCache(cachetestDir)
 	accounts := cache.accounts()
 	if !reflect.DeepEqual(accounts, cachetestAccounts) {
@@ -160,6 +161,7 @@ func TestCacheInitialReload(t *testing.T) {
 }
 
 func TestCacheAddDeleteOrder(t *testing.T) {
+	t.Parallel()
 	cache, _ := newAccountCache("testdata/no-such-dir")
 	cache.watcher.running = true // prevent unexpected reloads
 
@@ -244,6 +246,7 @@ func TestCacheAddDeleteOrder(t *testing.T) {
 }
 
 func TestCacheFind(t *testing.T) {
+	t.Parallel()
 	dir := filepath.Join("testdata", "dir")
 	cache, _ := newAccountCache(dir)
 	cache.watcher.running = true // prevent unexpected reloads
@@ -350,12 +353,11 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 		return
 	}
 	// needed so that modTime of `file` is different to its current value after forceCopyFile
-	time.Sleep(time.Second)
+	os.Chtimes(file, time.Now().Add(-time.Second), time.Now().Add(-time.Second))
 
 	// Now replace file contents
 	if err := forceCopyFile(file, cachetestAccounts[1].URL.Path); err != nil {
 		t.Fatal(err)
-		return
 	}
 	wantAccounts = []accounts.Account{cachetestAccounts[1]}
 	wantAccounts[0].URL = accounts.URL{Scheme: KeyStoreScheme, Path: file}
@@ -366,12 +368,11 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 	}
 
 	// needed so that modTime of `file` is different to its current value after forceCopyFile
-	time.Sleep(time.Second)
+	os.Chtimes(file, time.Now().Add(-time.Second), time.Now().Add(-time.Second))
 
 	// Now replace file contents again
 	if err := forceCopyFile(file, cachetestAccounts[2].URL.Path); err != nil {
 		t.Fatal(err)
-		return
 	}
 	wantAccounts = []accounts.Account{cachetestAccounts[2]}
 	wantAccounts[0].URL = accounts.URL{Scheme: KeyStoreScheme, Path: file}
@@ -382,12 +383,11 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 	}
 
 	// needed so that modTime of `file` is different to its current value after os.WriteFile
-	time.Sleep(time.Second)
+	os.Chtimes(file, time.Now().Add(-time.Second), time.Now().Add(-time.Second))
 
 	// Now replace file contents with crap
 	if err := os.WriteFile(file, []byte("foo"), 0600); err != nil {
 		t.Fatal(err)
-		return
 	}
 	if err := waitForAccounts([]accounts.Account{}, ks); err != nil {
 		t.Errorf("Emptying account file failed")

@@ -27,6 +27,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/holiman/uint256"
+	"golang.org/x/exp/slices"
 )
 
 var txSortedMapPool = sync.Pool{
@@ -61,9 +63,10 @@ func (h *nonceHeap) Pop() interface{} {
 // sortedMap is a nonce->transaction hash map with a heap based index to allow
 // iterating over the contents in a nonce-incrementing way.
 type sortedMap struct {
-	items map[uint64]*types.Transaction // Hash map storing the transaction data
-	index *nonceHeap                    // Heap of nonces of all the stored transactions (non-strict mode)
-	cache types.Transactions            // Cache of the transactions already sorted
+	items   map[uint64]*types.Transaction // Hash map storing the transaction data
+	index   *nonceHeap                    // Heap of nonces of all the stored transactions (non-strict mode)
+	cache   types.Transactions            // Cache of the transactions already sorted
+	cacheMu sync.Mutex                    // Mutex covering the cache
 }
 
 // newSortedMap creates a new nonce-sorted transaction map.
@@ -86,10 +89,12 @@ func (m *sortedMap) Put(tx *types.Transaction) {
 	if m.items[nonce] == nil {
 		heap.Push(m.index, nonce)
 	}
+	m.cacheMu.Lock()
 	if m.cache != nil {
 		txSortedMapPool.Put(m.cache)
 	}
 	m.items[nonce], m.cache = tx, nil
+	m.cacheMu.Unlock()
 }
 
 // Forward removes all transactions from the map with a nonce lower than the
@@ -105,9 +110,11 @@ func (m *sortedMap) Forward(threshold uint64) types.Transactions {
 		delete(m.items, nonce)
 	}
 	// If we had a cached order, shift the front
+	m.cacheMu.Lock()
 	if m.cache != nil {
 		m.cache = m.cache[len(removed):]
 	}
+	m.cacheMu.Unlock()
 	return removed
 }
 
@@ -131,7 +138,9 @@ func (m *sortedMap) reheap() {
 		*m.index = append(*m.index, nonce)
 	}
 	heap.Init(m.index)
+	m.cacheMu.Lock()
 	m.cache = nil
+	m.cacheMu.Unlock()
 }
 
 // filter is identical to Filter, but **does not** regenerate the heap. This method
@@ -147,10 +156,12 @@ func (m *sortedMap) filter(filter func(*types.Transaction) bool) types.Transacti
 		}
 	}
 	if len(removed) > 0 {
+		m.cacheMu.Lock()
 		if m.cache != nil {
 			txSortedMapPool.Put(m.cache)
 			m.cache = nil
 		}
+		m.cacheMu.Unlock()
 	}
 	return removed
 }
@@ -164,19 +175,21 @@ func (m *sortedMap) Cap(threshold int) types.Transactions {
 	}
 	// Otherwise gather and drop the highest nonce'd transactions
 	var drops types.Transactions
-
-	sort.Sort(*m.index)
+	slices.Sort(*m.index)
 	for size := len(m.items); size > threshold; size-- {
 		drops = append(drops, m.items[(*m.index)[size-1]])
 		delete(m.items, (*m.index)[size-1])
 	}
 	*m.index = (*m.index)[:threshold]
-	heap.Init(m.index)
+	// The sorted m.index slice is still a valid heap, so there is no need to
+	// reheap after deleting tail items.
 
 	// If we had a cache, shift the back
+	m.cacheMu.Lock()
 	if m.cache != nil {
 		m.cache = m.cache[:len(m.cache)-len(drops)]
 	}
+	m.cacheMu.Unlock()
 	return drops
 }
 
@@ -196,10 +209,12 @@ func (m *sortedMap) Remove(nonce uint64) bool {
 		}
 	}
 	delete(m.items, nonce)
+	m.cacheMu.Lock()
 	if m.cache != nil {
 		txSortedMapPool.Put(m.cache)
 		m.cache = nil
 	}
+	m.cacheMu.Unlock()
 
 	return true
 }
@@ -209,7 +224,7 @@ func (m *sortedMap) Remove(nonce uint64) bool {
 // removed from the list.
 //
 // Note, all transactions with nonces lower than start will also be returned to
-// prevent getting into and invalid state. This is not something that should ever
+// prevent getting into an invalid state. This is not something that should ever
 // happen but better to be self correcting than failing!
 func (m *sortedMap) Ready(start uint64) types.Transactions {
 	// Short circuit if no transactions are available
@@ -223,10 +238,12 @@ func (m *sortedMap) Ready(start uint64) types.Transactions {
 		delete(m.items, next)
 		heap.Pop(m.index)
 	}
+	m.cacheMu.Lock()
 	if m.cache != nil {
 		txSortedMapPool.Put(m.cache)
 		m.cache = nil
 	}
+	m.cacheMu.Unlock()
 
 	return ready
 }
@@ -237,6 +254,8 @@ func (m *sortedMap) Len() int {
 }
 
 func (m *sortedMap) flatten() types.Transactions {
+	m.cacheMu.Lock()
+	defer m.cacheMu.Unlock()
 	// If the sorting was not cached yet, create and cache it
 	if m.cache == nil {
 		cache := txSortedMapPool.Get()
@@ -258,8 +277,8 @@ func (m *sortedMap) flatten() types.Transactions {
 // sorted internal representation. The result of the sorting is cached in case
 // it's requested again before any modifications are made to the contents.
 func (m *sortedMap) Flatten() types.Transactions {
-	// Copy the cache to prevent accidental modifications
 	cache := m.flatten()
+	// Copy the cache to prevent accidental modification
 	txs := make(types.Transactions, len(cache))
 	copy(txs, cache)
 	return txs
@@ -280,19 +299,19 @@ type list struct {
 	strict bool       // Whether nonces are strictly continuous or not
 	txs    *sortedMap // Heap indexed sorted hash map of the transactions
 
-	costcap   *big.Int // Price of the highest costing transaction (reset only if exceeds balance)
-	gascap    uint64   // Gas limit of the highest spending transaction (reset only if exceeds block limit)
-	totalcost *big.Int // Total cost of all transactions in the list
+	costcap   *uint256.Int // Price of the highest costing transaction (reset only if exceeds balance)
+	gascap    uint64       // Gas limit of the highest spending transaction (reset only if exceeds block limit)
+	totalcost *uint256.Int // Total cost of all transactions in the list
 }
 
-// newList create a new transaction list for maintaining nonce-indexable fast,
+// newList creates a new transaction list for maintaining nonce-indexable fast,
 // gapped, sortable transaction lists.
 func newList(strict bool) *list {
 	return &list{
 		strict:    strict,
 		txs:       newSortedMap(),
-		costcap:   new(big.Int),
-		totalcost: new(big.Int),
+		costcap:   new(uint256.Int),
+		totalcost: new(uint256.Int),
 	}
 }
 
@@ -334,10 +353,15 @@ func (l *list) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Transa
 		l.subTotalCost([]*types.Transaction{old})
 	}
 	// Add new tx cost to totalcost
-	l.totalcost.Add(l.totalcost, tx.Cost())
+	cost, overflow := uint256.FromBig(tx.Cost())
+	if overflow {
+		return false, nil
+	}
+	l.totalcost.Add(l.totalcost, cost)
+
 	// Otherwise overwrite the old transaction with the current one
 	l.txs.Put(tx)
-	if cost := tx.Cost(); l.costcap.Cmp(cost) < 0 {
+	if l.costcap.Cmp(cost) < 0 {
 		l.costcap = cost
 	}
 	if gas := tx.Gas(); l.gascap < gas {
@@ -364,17 +388,17 @@ func (l *list) Forward(threshold uint64) types.Transactions {
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
 // the newly invalidated transactions.
-func (l *list) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
+func (l *list) Filter(costLimit *uint256.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
 	// If all transactions are below the threshold, short circuit
 	if l.costcap.Cmp(costLimit) <= 0 && l.gascap <= gasLimit {
 		return nil, nil
 	}
-	l.costcap = new(big.Int).Set(costLimit) // Lower the caps to the thresholds
+	l.costcap = new(uint256.Int).Set(costLimit) // Lower the caps to the thresholds
 	l.gascap = gasLimit
 
 	// Filter out all the transactions above the account's funds
 	removed := l.txs.Filter(func(tx *types.Transaction) bool {
-		return tx.Gas() > gasLimit || tx.Cost().Cmp(costLimit) > 0
+		return tx.Gas() > gasLimit || tx.Cost().Cmp(costLimit.ToBig()) > 0
 	})
 
 	if len(removed) == 0 {
@@ -430,7 +454,7 @@ func (l *list) Remove(tx *types.Transaction) (bool, types.Transactions) {
 // removed from the list.
 //
 // Note, all transactions with nonces lower than start will also be returned to
-// prevent getting into and invalid state. This is not something that should ever
+// prevent getting into an invalid state. This is not something that should ever
 // happen but better to be self correcting than failing!
 func (l *list) Ready(start uint64) types.Transactions {
 	txs := l.txs.Ready(start)
@@ -465,7 +489,10 @@ func (l *list) LastElement() *types.Transaction {
 // total cost of all transactions.
 func (l *list) subTotalCost(txs []*types.Transaction) {
 	for _, tx := range txs {
-		l.totalcost.Sub(l.totalcost, tx.Cost())
+		_, underflow := l.totalcost.SubOverflow(l.totalcost, uint256.MustFromBig(tx.Cost()))
+		if underflow {
+			panic("totalcost underflow")
+		}
 	}
 }
 

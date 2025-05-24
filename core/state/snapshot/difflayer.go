@@ -43,7 +43,7 @@ var (
 	aggregatorMemoryLimit = uint64(4 * 1024 * 1024)
 
 	// aggregatorItemLimit is an approximate number of items that will end up
-	// in the agregator layer before it's flushed out to disk. A plain account
+	// in the aggregator layer before it's flushed out to disk. A plain account
 	// weighs around 14B (+hash), a storage slot 32B (+hash), a deleted slot
 	// 0B (+hash). Slots are mostly set/unset in lockstep, so that average at
 	// 16B (+hash). All in all, the average entry seems to be 15+32=47B. Use a
@@ -119,60 +119,30 @@ type diffLayer struct {
 	storageList map[common.Hash][]common.Hash          // List of storage slots for iterated retrievals, one per account. Any existing lists are sorted if non-nil
 	storageData map[common.Hash]map[common.Hash][]byte // Keyed storage slots for direct retrieval. one per account (nil means deleted)
 
-	verifiedCh chan struct{} // the difflayer is verified when verifiedCh is nil or closed
-	valid      bool          // mark the difflayer is valid or not.
-
 	diffed *bloomfilter.Filter // Bloom filter tracking all the diffed items up to the disk layer
 
 	lock sync.RWMutex
 }
 
-// destructBloomHasher is a wrapper around a common.Hash to satisfy the interface
-// API requirements of the bloom library used. It's used to convert a destruct
-// event into a 64 bit mini hash.
-type destructBloomHasher common.Hash
-
-func (h destructBloomHasher) Write(p []byte) (n int, err error) { panic("not implemented") }
-func (h destructBloomHasher) Sum(b []byte) []byte               { panic("not implemented") }
-func (h destructBloomHasher) Reset()                            { panic("not implemented") }
-func (h destructBloomHasher) BlockSize() int                    { panic("not implemented") }
-func (h destructBloomHasher) Size() int                         { return 8 }
-func (h destructBloomHasher) Sum64() uint64 {
+// destructBloomHash is used to convert a destruct event into a 64 bit mini hash.
+func destructBloomHash(h common.Hash) uint64 {
 	return binary.BigEndian.Uint64(h[bloomDestructHasherOffset : bloomDestructHasherOffset+8])
 }
 
-// accountBloomHasher is a wrapper around a common.Hash to satisfy the interface
-// API requirements of the bloom library used. It's used to convert an account
-// hash into a 64 bit mini hash.
-type accountBloomHasher common.Hash
-
-func (h accountBloomHasher) Write(p []byte) (n int, err error) { panic("not implemented") }
-func (h accountBloomHasher) Sum(b []byte) []byte               { panic("not implemented") }
-func (h accountBloomHasher) Reset()                            { panic("not implemented") }
-func (h accountBloomHasher) BlockSize() int                    { panic("not implemented") }
-func (h accountBloomHasher) Size() int                         { return 8 }
-func (h accountBloomHasher) Sum64() uint64 {
+// accountBloomHash is used to convert an account hash into a 64 bit mini hash.
+func accountBloomHash(h common.Hash) uint64 {
 	return binary.BigEndian.Uint64(h[bloomAccountHasherOffset : bloomAccountHasherOffset+8])
 }
 
-// storageBloomHasher is a wrapper around a [2]common.Hash to satisfy the interface
-// API requirements of the bloom library used. It's used to convert an account
-// hash into a 64 bit mini hash.
-type storageBloomHasher [2]common.Hash
-
-func (h storageBloomHasher) Write(p []byte) (n int, err error) { panic("not implemented") }
-func (h storageBloomHasher) Sum(b []byte) []byte               { panic("not implemented") }
-func (h storageBloomHasher) Reset()                            { panic("not implemented") }
-func (h storageBloomHasher) BlockSize() int                    { panic("not implemented") }
-func (h storageBloomHasher) Size() int                         { return 8 }
-func (h storageBloomHasher) Sum64() uint64 {
-	return binary.BigEndian.Uint64(h[0][bloomStorageHasherOffset:bloomStorageHasherOffset+8]) ^
-		binary.BigEndian.Uint64(h[1][bloomStorageHasherOffset:bloomStorageHasherOffset+8])
+// storageBloomHash is used to convert an account hash and a storage hash into a 64 bit mini hash.
+func storageBloomHash(h0, h1 common.Hash) uint64 {
+	return binary.BigEndian.Uint64(h0[bloomStorageHasherOffset:bloomStorageHasherOffset+8]) ^
+		binary.BigEndian.Uint64(h1[bloomStorageHasherOffset:bloomStorageHasherOffset+8])
 }
 
 // newDiffLayer creates a new diff on top of an existing snapshot, whether that's a low
 // level persistent database or a hierarchical diff already.
-func newDiffLayer(parent snapshot, root common.Hash, destructs map[common.Hash]struct{}, accounts map[common.Hash][]byte, storage map[common.Hash]map[common.Hash][]byte, verified chan struct{}) *diffLayer {
+func newDiffLayer(parent snapshot, root common.Hash, destructs map[common.Hash]struct{}, accounts map[common.Hash][]byte, storage map[common.Hash]map[common.Hash][]byte) *diffLayer {
 	// Create the new layer with some pre-allocated data segments
 	dl := &diffLayer{
 		parent:      parent,
@@ -181,7 +151,6 @@ func newDiffLayer(parent snapshot, root common.Hash, destructs map[common.Hash]s
 		accountData: accounts,
 		storageData: storage,
 		storageList: make(map[common.Hash][]common.Hash),
-		verifiedCh:  verified,
 	}
 
 	switch parent := parent.(type) {
@@ -239,14 +208,14 @@ func (dl *diffLayer) rebloom(origin *diskLayer) {
 	}
 	// Iterate over all the accounts and storage slots and index them
 	for hash := range dl.destructSet {
-		dl.diffed.Add(destructBloomHasher(hash))
+		dl.diffed.AddHash(destructBloomHash(hash))
 	}
 	for hash := range dl.accountData {
-		dl.diffed.Add(accountBloomHasher(hash))
+		dl.diffed.AddHash(accountBloomHash(hash))
 	}
 	for accountHash, slots := range dl.storageData {
 		for storageHash := range slots {
-			dl.diffed.Add(storageBloomHasher{accountHash, storageHash})
+			dl.diffed.AddHash(storageBloomHash(accountHash, storageHash))
 		}
 	}
 	// Calculate the current false positive rate and update the error rate meter.
@@ -261,39 +230,6 @@ func (dl *diffLayer) rebloom(origin *diskLayer) {
 // Root returns the root hash for which this snapshot was made.
 func (dl *diffLayer) Root() common.Hash {
 	return dl.root
-}
-
-// WaitAndGetVerifyRes will wait until the diff layer been verified and return the verification result
-func (dl *diffLayer) WaitAndGetVerifyRes() bool {
-	if dl.verifiedCh == nil {
-		return true
-	}
-	<-dl.verifiedCh
-	return dl.valid
-}
-
-func (dl *diffLayer) MarkValid() {
-	dl.valid = true
-}
-
-// Represent whether the difflayer is been verified, does not means it is a valid or invalid difflayer
-func (dl *diffLayer) Verified() bool {
-	if dl.verifiedCh == nil {
-		return true
-	}
-	select {
-	case <-dl.verifiedCh:
-		return true
-	default:
-		return false
-	}
-}
-
-func (dl *diffLayer) CorrectAccounts(accounts map[common.Hash][]byte) {
-	dl.lock.Lock()
-	defer dl.lock.Unlock()
-
-	dl.accountData = accounts
 }
 
 // Parent returns the subsequent layer of a diff layer.
@@ -358,9 +294,9 @@ func (dl *diffLayer) AccountRLP(hash common.Hash) ([]byte, error) {
 	}
 	// Check the bloom filter first whether there's even a point in reaching into
 	// all the maps in all the layers below
-	hit := dl.diffed.Contains(accountBloomHasher(hash))
+	hit := dl.diffed.ContainsHash(accountBloomHash(hash))
 	if !hit {
-		hit = dl.diffed.Contains(destructBloomHasher(hash))
+		hit = dl.diffed.ContainsHash(destructBloomHash(hash))
 	}
 	var origin *diskLayer
 	if !hit {
@@ -429,9 +365,9 @@ func (dl *diffLayer) Storage(accountHash, storageHash common.Hash) ([]byte, erro
 		dl.lock.RUnlock()
 		return nil, ErrSnapshotStale
 	}
-	hit := dl.diffed.Contains(storageBloomHasher{accountHash, storageHash})
+	hit := dl.diffed.ContainsHash(storageBloomHash(accountHash, storageHash))
 	if !hit {
-		hit = dl.diffed.Contains(destructBloomHasher(accountHash))
+		hit = dl.diffed.ContainsHash(destructBloomHash(accountHash))
 	}
 	var origin *diskLayer
 	if !hit {
@@ -494,8 +430,8 @@ func (dl *diffLayer) storage(accountHash, storageHash common.Hash, depth int) ([
 
 // Update creates a new layer on top of the existing snapshot diff tree with
 // the specified data items.
-func (dl *diffLayer) Update(blockRoot common.Hash, destructs map[common.Hash]struct{}, accounts map[common.Hash][]byte, storage map[common.Hash]map[common.Hash][]byte, verified chan struct{}) *diffLayer {
-	return newDiffLayer(dl, blockRoot, destructs, accounts, storage, verified)
+func (dl *diffLayer) Update(blockRoot common.Hash, destructs map[common.Hash]struct{}, accounts map[common.Hash][]byte, storage map[common.Hash]map[common.Hash][]byte) *diffLayer {
+	return newDiffLayer(dl, blockRoot, destructs, accounts, storage)
 }
 
 // flatten pushes all data from this point downwards, flattening everything into
