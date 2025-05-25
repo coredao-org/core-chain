@@ -195,8 +195,8 @@ var (
 		KeplerTime:          newUint64(0),
 		DemeterTime:         newUint64(0),
 		AthenaTime:          newUint64(1737079200),
-		TheseusTime:         newUint64(1748152800), // 2025-05-25 06:00:00 AM UTC
-		CancunTime:          newUint64(1748152800), // 2025-05-25 06:00:00 AM UTC
+		TheseusTime:         newUint64(1748246400), // 2025-05-26 08:00:00 AM UTC
+		CancunTime:          newUint64(1748246400), // 2025-05-26 08:00:00 AM UTC
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
