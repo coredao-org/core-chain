@@ -258,20 +258,36 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 	}
 	// Recompute transactions up to the target index.
 	var (
-		signer         = types.MakeSigner(eth.blockchain.Config(), block.Number(), block.Time())
-		beforeSystemTx = true
+		signer            = types.MakeSigner(eth.blockchain.Config(), block.Number(), block.Time())
+		txs               = block.Transactions()
+		beforeSystemTx    = false
+		lastSystemTxIndex = -1
 	)
+
+	for i := len(txs) - 1; i >= 0; i-- {
+		if posa, ok := eth.Engine().(consensus.PoSA); ok {
+			if isSystem, _ := posa.IsSystemTransaction(txs[i], block.Header()); isSystem {
+				lastSystemTxIndex = i
+			}
+		} else {
+			break
+		}
+	}
+
 	for idx, tx := range block.Transactions() {
+		// Transfer rewards from system address to coinbase
+		if idx == lastSystemTxIndex {
+			balance := statedb.GetBalance(consensus.SystemAddress)
+			if balance.Cmp(common.U2560) > 0 {
+				statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+				statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
+			}
+		}
+
 		// upgrade build-in system contract before system txs
 		if beforeSystemTx {
 			if posa, ok := eth.Engine().(consensus.PoSA); ok {
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-					balance := statedb.GetBalance(consensus.SystemAddress)
-					if balance.Cmp(common.U2560) > 0 {
-						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-						statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
-					}
-
 					systemcontracts.TryUpdateBuildInSystemContract(eth.blockchain.Config(), block.Number(), parent.Time(), block.Time(), statedb, false)
 					beforeSystemTx = false
 				}

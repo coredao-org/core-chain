@@ -215,6 +215,21 @@ type txTraceTask struct {
 	isSystemTx bool           // Whether the transaction is a system transaction
 }
 
+func (api *API) getLastSystemTxIndex(txs types.Transactions, header *types.Header) int {
+	lastSystemTxIndex := -1
+	for i := len(txs) - 1; i >= 0; i-- {
+		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
+			if isSystem, _ := posa.IsSystemTransaction(txs[i], header); isSystem {
+				lastSystemTxIndex = i
+			}
+		} else {
+			break
+		}
+	}
+
+	return lastSystemTxIndex
+}
+
 // TraceChain returns the structured logs created during the execution of EVM
 // between two blocks (excluding start) and returns them as a JSON object.
 func (api *API) TraceChain(ctx context.Context, start, end rpc.BlockNumber, config *TraceConfig) (*rpc.Subscription, error) { // Fetch the block interval that we want to trace
@@ -275,23 +290,27 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 			// Fetch and execute the block trace taskCh
 			for task := range taskCh {
 				var (
-					signer         = types.MakeSigner(api.backend.ChainConfig(), task.block.Number(), task.block.Time())
-					blockCtx       = core.NewEVMBlockContext(task.block.Header(), api.chainContext(ctx), nil)
-					beforeSystemTx = true
+					signer            = types.MakeSigner(api.backend.ChainConfig(), task.block.Number(), task.block.Time())
+					blockCtx          = core.NewEVMBlockContext(task.block.Header(), api.chainContext(ctx), nil)
+					beforeSystemTx    = true
+					lastSystemTxIndex = api.getLastSystemTxIndex(task.block.Transactions(), task.block.Header())
 				)
+
 				// Trace all the transactions contained within
 				for i, tx := range task.block.Transactions() {
+					// Transfer rewards from system address to coinbase
+					if i == lastSystemTxIndex {
+						balance := task.statedb.GetBalance(consensus.SystemAddress)
+						if balance.Cmp(common.U2560) > 0 {
+							task.statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+							task.statedb.AddBalance(blockCtx.Coinbase, balance, tracing.BalanceChangeUnspecified)
+						}
+					}
+
 					// upgrade build-in system contract before system txs
 					if beforeSystemTx {
 						if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
 							if isSystem, _ := posa.IsSystemTransaction(tx, task.block.Header()); isSystem {
-								balance := task.statedb.GetBalance(consensus.SystemAddress)
-								if balance.Cmp(common.U2560) > 0 {
-									task.statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-									task.statedb.AddBalance(blockCtx.Coinbase, balance, tracing.BalanceChangeUnspecified)
-								}
-
-								// TODO(cz): examine this with regards lastSystemTxIndex
 								systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), task.block.Number(), task.parent.Time(), task.block.Time(), task.statedb, false)
 								beforeSystemTx = false
 							}
@@ -305,7 +324,8 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 						TxIndex:     i,
 						TxHash:      tx.Hash(),
 					}
-					res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config, !beforeSystemTx)
+					// TODO(cz): check all traceTx calls last params if it should be posa.IsSystemTransaction
+					res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config, i >= lastSystemTxIndex)
 					if err != nil {
 						task.results[i] = &txTraceResult{TxHash: tx.Hash(), Error: err.Error()}
 						log.Warn("Tracing failed", "hash", tx.Hash(), "block", task.block.NumberU64(), "err", err)
@@ -674,23 +694,28 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 
 	// Native tracers have low overhead
 	var (
-		txs            = block.Transactions()
-		blockHash      = block.Hash()
-		signer         = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
-		results        = make([]*txTraceResult, len(txs))
-		beforeSystemTx = true
+		txs               = block.Transactions()
+		blockHash         = block.Hash()
+		signer            = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
+		results           = make([]*txTraceResult, len(txs))
+		beforeSystemTx    = false
+		lastSystemTxIndex = api.getLastSystemTxIndex(txs, block.Header())
 	)
+
 	for i, tx := range txs {
+		// Transfer rewards from system address to coinbase
+		if i == lastSystemTxIndex {
+			balance := statedb.GetBalance(consensus.SystemAddress)
+			if balance.Cmp(common.U2560) > 0 {
+				statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+				statedb.AddBalance(blockCtx.Coinbase, balance, tracing.BalanceChangeUnspecified)
+			}
+		}
+
 		// upgrade build-in system contract before system txs
 		if beforeSystemTx {
 			if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-					balance := statedb.GetBalance(consensus.SystemAddress)
-					if balance.Cmp(common.U2560) > 0 {
-						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-						statedb.AddBalance(blockCtx.Coinbase, balance, tracing.BalanceChangeUnspecified)
-					}
-
 					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
 					beforeSystemTx = false
 				}
@@ -705,7 +730,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 			TxIndex:     i,
 			TxHash:      tx.Hash(),
 		}
-		res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, statedb, config, !beforeSystemTx)
+		res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, statedb, config, i >= lastSystemTxIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -766,24 +791,28 @@ func (api *API) traceBlockParallel(ctx context.Context, block *types.Block, stat
 
 	// Feed the transactions into the tracers and return
 	var (
-		failed         error
-		beforeSystemTx = true
+		failed            error
+		beforeSystemTx    = true
+		lastSystemTxIndex = api.getLastSystemTxIndex(txs, block.Header())
 	)
 	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 	evm := vm.NewEVM(blockCtx, statedb, api.backend.ChainConfig(), vm.Config{})
 
 txloop:
 	for i, tx := range txs {
+		// Transfer rewards from system address to coinbase
+		if i == lastSystemTxIndex {
+			balance := statedb.GetBalance(consensus.SystemAddress)
+			if balance.Cmp(common.U2560) > 0 {
+				statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+				statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
+			}
+		}
+
 		// upgrade build-in system contract before system txs
 		if beforeSystemTx {
 			if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-					balance := statedb.GetBalance(consensus.SystemAddress)
-					if balance.Cmp(common.U2560) > 0 {
-						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-						statedb.AddBalance(block.Header().Coinbase, balance, tracing.BalanceChangeUnspecified)
-					}
-
 					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
 					beforeSystemTx = false
 				}
@@ -791,7 +820,7 @@ txloop:
 		}
 
 		// Send the trace task over for execution
-		task := &txTraceTask{statedb: statedb.Copy(), index: i, isSystemTx: !beforeSystemTx}
+		task := &txTraceTask{statedb: statedb.Copy(), index: i, isSystemTx: i >= lastSystemTxIndex}
 		select {
 		case <-ctx.Done():
 			failed = ctx.Err()
@@ -863,12 +892,13 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 
 	// Execute transaction, either tracing all or just the requested one
 	var (
-		dumps          []string
-		signer         = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
-		chainConfig    = api.backend.ChainConfig()
-		vmctx          = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
-		canon          = true
-		beforeSystemTx = true
+		dumps             []string
+		signer            = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
+		chainConfig       = api.backend.ChainConfig()
+		vmctx             = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
+		canon             = true
+		beforeSystemTx    = true
+		lastSystemTxIndex = api.getLastSystemTxIndex(block.Transactions(), block.Header())
 	)
 	// Check if there are any overrides: the caller may wish to enable a future
 	// fork when executing this block. Note, such overrides are only applicable to the
@@ -887,16 +917,19 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		core.ProcessParentBlockHash(block.ParentHash(), evm)
 	}
 	for i, tx := range block.Transactions() {
+		// Transfer rewards from system address to coinbase
+		if i == lastSystemTxIndex {
+			balance := statedb.GetBalance(consensus.SystemAddress)
+			if balance.Cmp(common.U2560) > 0 {
+				statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+				statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
+			}
+		}
+
 		// upgrade build-in system contract before system txs
 		if beforeSystemTx {
 			if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-					balance := statedb.GetBalance(consensus.SystemAddress)
-					if balance.Cmp(common.U2560) > 0 {
-						statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-						statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
-					}
-
 					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
 					beforeSystemTx = false
 				}
