@@ -215,15 +215,24 @@ type txTraceTask struct {
 	isSystemTx bool           // Whether the transaction is a system transaction
 }
 
+func (api *API) isSystemTx(tx *types.Transaction, header *types.Header) bool {
+	if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
+		if isSystem, _ := posa.IsSystemTransaction(tx, header); isSystem {
+			return true
+		}
+	}
+	return false
+}
+
 func (api *API) getLastSystemTxIndex(txs types.Transactions, header *types.Header) int {
 	lastSystemTxIndex := -1
+	if _, ok := api.backend.Engine().(consensus.PoSA); !ok {
+		return lastSystemTxIndex
+	}
+
 	for i := len(txs) - 1; i >= 0; i-- {
-		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-			if isSystem, _ := posa.IsSystemTransaction(txs[i], header); isSystem {
-				lastSystemTxIndex = i
-				break
-			}
-		} else {
+		if api.isSystemTx(txs[i], header) {
+			lastSystemTxIndex = i
 			break
 		}
 	}
@@ -310,11 +319,9 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 
 					// upgrade build-in system contract before system txs
 					if beforeSystemTx {
-						if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-							if isSystem, _ := posa.IsSystemTransaction(tx, task.block.Header()); isSystem {
-								systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), task.block.Number(), task.parent.Time(), task.block.Time(), task.statedb, false)
-								beforeSystemTx = false
-							}
+						if api.isSystemTx(tx, task.block.Header()) {
+							systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), task.block.Number(), task.parent.Time(), task.block.Time(), task.statedb, false)
+							beforeSystemTx = false
 						}
 					}
 
@@ -325,8 +332,7 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 						TxIndex:     i,
 						TxHash:      tx.Hash(),
 					}
-					// TODO(cz): check all traceTx calls last params if it should be posa.IsSystemTransaction
-					res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config, i >= lastSystemTxIndex)
+					res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config, api.isSystemTx(tx, task.block.Header()))
 					if err != nil {
 						task.results[i] = &txTraceResult{TxHash: tx.Hash(), Error: err.Error()}
 						log.Warn("Tracing failed", "hash", tx.Hash(), "block", task.block.NumberU64(), "err", err)
@@ -592,6 +598,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		vmctx              = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 		deleteEmptyObjects = chainConfig.IsEIP158(block.Number())
 		beforeSystemTx     = true
+		lastSystemTxIndex  = api.getLastSystemTxIndex(block.Transactions(), block.Header())
 	)
 	evm := vm.NewEVM(vmctx, statedb, chainConfig, vm.Config{})
 	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
@@ -604,18 +611,21 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-				balance := statedb.GetBalance(consensus.SystemAddress)
-				if balance.Cmp(common.U2560) > 0 {
-					statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-					statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
-				}
 
-				if beforeSystemTx {
-					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
-					beforeSystemTx = false
-				}
+		// Transfer rewards from system address to coinbase
+		if i == lastSystemTxIndex {
+			balance := statedb.GetBalance(consensus.SystemAddress)
+			if balance.Cmp(common.U2560) > 0 {
+				statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+				statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
+			}
+		}
+
+		// upgrade build-in system contract before system txs
+		if beforeSystemTx {
+			if api.isSystemTx(tx, block.Header()) {
+				systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
+				beforeSystemTx = false
 			}
 		}
 
@@ -715,11 +725,9 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 
 		// upgrade build-in system contract before system txs
 		if beforeSystemTx {
-			if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
-					beforeSystemTx = false
-				}
+			if api.isSystemTx(tx, block.Header()) {
+				systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
+				beforeSystemTx = false
 			}
 		}
 
@@ -731,7 +739,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 			TxIndex:     i,
 			TxHash:      tx.Hash(),
 		}
-		res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, statedb, config, i >= lastSystemTxIndex)
+		res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, statedb, config, api.isSystemTx(tx, block.Header()))
 		if err != nil {
 			return nil, err
 		}
@@ -812,16 +820,14 @@ txloop:
 
 		// upgrade build-in system contract before system txs
 		if beforeSystemTx {
-			if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-					systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
-					beforeSystemTx = false
-				}
+			if api.isSystemTx(tx, block.Header()) {
+				systemcontracts.TryUpdateBuildInSystemContract(api.backend.ChainConfig(), block.Number(), parent.Time(), block.Time(), statedb, false)
+				beforeSystemTx = false
 			}
 		}
 
 		// Send the trace task over for execution
-		task := &txTraceTask{statedb: statedb.Copy(), index: i, isSystemTx: i >= lastSystemTxIndex}
+		task := &txTraceTask{statedb: statedb.Copy(), index: i, isSystemTx: api.isSystemTx(tx, block.Header())}
 		select {
 		case <-ctx.Done():
 			failed = ctx.Err()
@@ -1040,20 +1046,13 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 		return nil, err
 	}
 
-	var isSystemTx bool
-	if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-		if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-			isSystemTx = true
-		}
-	}
-
 	txctx := &Context{
 		BlockHash:   blockHash,
 		BlockNumber: block.Number(),
 		TxIndex:     int(index),
 		TxHash:      hash,
 	}
-	return api.traceTx(ctx, tx, msg, txctx, vmctx, statedb, config, isSystemTx)
+	return api.traceTx(ctx, tx, msg, txctx, vmctx, statedb, config, api.isSystemTx(tx, block.Header()))
 }
 
 // TraceCall lets you trace a given eth_call. It collects the structured logs
