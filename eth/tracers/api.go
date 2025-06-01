@@ -221,6 +221,7 @@ func (api *API) getLastSystemTxIndex(txs types.Transactions, header *types.Heade
 		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
 			if isSystem, _ := posa.IsSystemTransaction(txs[i], header); isSystem {
 				lastSystemTxIndex = i
+				break
 			}
 		} else {
 			break

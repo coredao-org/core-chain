@@ -268,6 +268,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 		if posa, ok := eth.Engine().(consensus.PoSA); ok {
 			if isSystem, _ := posa.IsSystemTransaction(txs[i], block.Header()); isSystem {
 				lastSystemTxIndex = i
+				break
 			}
 		} else {
 			break
