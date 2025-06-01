@@ -213,15 +213,24 @@ type txTraceTask struct {
 	isSystemTx bool           // Whether the transaction is a system transaction
 }
 
+func (api *API) isSystemTx(tx *types.Transaction, header *types.Header) bool {
+	if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
+		if isSystem, _ := posa.IsSystemTransaction(tx, header); isSystem {
+			return true
+		}
+	}
+	return false
+}
+
 func (api *API) getLastSystemTxIndex(txs types.Transactions, header *types.Header) int {
 	lastSystemTxIndex := -1
+	if _, ok := api.backend.Engine().(consensus.PoSA); !ok {
+		return lastSystemTxIndex
+	}
+
 	for i := len(txs) - 1; i >= 0; i-- {
-		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-			if isSystem, _ := posa.IsSystemTransaction(txs[i], header); isSystem {
-				lastSystemTxIndex = i
-				break
-			}
-		} else {
+		if api.isSystemTx(txs[i], header) {
+			lastSystemTxIndex = i
 			break
 		}
 	}
@@ -312,7 +321,7 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 						TxIndex:     i,
 						TxHash:      tx.Hash(),
 					}
-					res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config, i >= lastSystemTxIndex)
+					res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, task.statedb, config, api.isSystemTx(tx, task.block.Header()))
 					if err != nil {
 						task.results[i] = &txTraceResult{TxHash: tx.Hash(), Error: err.Error()}
 						log.Warn("Tracing failed", "hash", tx.Hash(), "block", task.block.NumberU64(), "err", err)
@@ -688,7 +697,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 			TxIndex:     i,
 			TxHash:      tx.Hash(),
 		}
-		res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, statedb, config, i >= lastSystemTxIndex)
+		res, err := api.traceTx(ctx, tx, msg, txctx, blockCtx, statedb, config, api.isSystemTx(tx, block.Header()))
 		if err != nil {
 			return nil, err
 		}
@@ -762,7 +771,7 @@ txloop:
 		}
 
 		// Send the trace task over for execution
-		task := &txTraceTask{statedb: statedb.Copy(), index: i, isSystemTx: i >= lastSystemTxIndex}
+		task := &txTraceTask{statedb: statedb.Copy(), index: i, isSystemTx: api.isSystemTx(tx, block.Header())}
 		select {
 		case <-ctx.Done():
 			failed = ctx.Err()
