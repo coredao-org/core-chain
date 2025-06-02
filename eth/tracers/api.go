@@ -976,20 +976,13 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 		return nil, err
 	}
 
-	var isSystemTx bool
-	if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-		if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-			isSystemTx = true
-		}
-	}
-
 	txctx := &Context{
 		BlockHash:   blockHash,
 		BlockNumber: block.Number(),
 		TxIndex:     int(index),
 		TxHash:      hash,
 	}
-	return api.traceTx(ctx, tx, msg, txctx, vmctx, statedb, config, isSystemTx)
+	return api.traceTx(ctx, tx, msg, txctx, vmctx, statedb, config, api.isSystemTx(tx, block.Header()))
 }
 
 // TraceCall lets you trace a given eth_call. It collects the structured logs
