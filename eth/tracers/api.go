@@ -574,6 +574,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		chainConfig        = api.backend.ChainConfig()
 		vmctx              = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
 		deleteEmptyObjects = chainConfig.IsEIP158(block.Number())
+		lastSystemTxIndex  = api.getLastSystemTxIndex(block.Transactions(), block.Header())
 	)
 	evm := vm.NewEVM(vmctx, statedb, chainConfig, vm.Config{})
 	if beaconRoot := block.BeaconRoot(); beaconRoot != nil {
@@ -588,13 +589,11 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 			txContext = core.NewEVMTxContext(msg)
 		)
 
-		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
-			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
-				balance := statedb.GetBalance(consensus.SystemAddress)
-				if balance.Cmp(common.U2560) > 0 {
-					statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-					statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
-				}
+		if i == lastSystemTxIndex {
+			balance := statedb.GetBalance(consensus.SystemAddress)
+			if balance.Cmp(common.U2560) > 0 {
+				statedb.SetBalance(consensus.SystemAddress, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
+				statedb.AddBalance(vmctx.Coinbase, balance, tracing.BalanceChangeUnspecified)
 			}
 		}
 
