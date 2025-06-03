@@ -770,7 +770,8 @@ txloop:
 		}
 
 		// Send the trace task over for execution
-		task := &txTraceTask{statedb: statedb.Copy(), index: i, isSystemTx: api.isSystemTx(tx, block.Header())}
+		isSystemTx := api.isSystemTx(tx, block.Header())
+		task := &txTraceTask{statedb: statedb.Copy(), index: i, isSystemTx: isSystemTx}
 		select {
 		case <-ctx.Done():
 			failed = ctx.Err()
@@ -781,7 +782,9 @@ txloop:
 		// Generate the next state snapshot fast without tracing
 		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
 		statedb.SetTxContext(tx.Hash(), i)
-		evm.SetTxContext(core.NewEVMTxContext(msg))
+		txContext := core.NewEVMTxContext(msg)
+		txContext.IsSystemTx = isSystemTx
+		evm.SetTxContext(txContext)
 		if _, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.GasLimit)); err != nil {
 			failed = err
 			break txloop
@@ -900,6 +903,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 			}
 		}
 		// Execute the transaction and flush any traces to disk
+		txContext.IsSystemTx = api.isSystemTx(tx, block.Header())
 		evm.SetTxContext(txContext)
 		statedb.SetTxContext(tx.Hash(), i)
 		if vmConf.Tracer.OnTxStart != nil {
@@ -1123,7 +1127,7 @@ func (api *API) traceTx(ctx context.Context, tx *types.Transaction, message *cor
 
 	// Call Prepare to clear out the statedb access list
 	statedb.SetTxContext(txctx.TxHash, txctx.TxIndex)
-	_, err = core.ApplyTransactionWithEVM(message, api.backend.ChainConfig(), new(core.GasPool).AddGas(message.GasLimit), statedb, vmctx.BlockNumber, txctx.BlockHash, tx, &usedGas, evm)
+	_, err = core.ApplyTransactionWithEVM(message, api.backend.ChainConfig(), new(core.GasPool).AddGas(message.GasLimit), statedb, vmctx.BlockNumber, txctx.BlockHash, tx, &usedGas, evm, isSystemTx)
 	if err != nil {
 		return nil, fmt.Errorf("tracing failed: %w", err)
 	}

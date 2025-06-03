@@ -281,6 +281,12 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 		// Assemble the transaction call message and return if the requested offset
 		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
 		txContext := core.NewEVMTxContext(msg)
+		if posa, ok := eth.Engine().(consensus.PoSA); ok {
+			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
+				// Mark the TX as a system transaction
+				txContext.IsSystemTx = isSystem
+			}
+		}
 		evm.SetTxContext(txContext)
 
 		// Not yet the searched for transaction, execute on top of the current state
