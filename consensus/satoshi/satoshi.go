@@ -1471,7 +1471,7 @@ func (p *Satoshi) applyTransaction(
 		}
 	}
 
-	gasUsed, err := applyMessage(msg, evm, state, header, p.chainConfig, chainContext)
+	gasUsed, err := applyMessage(msg, evm, state, header, p.chainConfig, chainContext, tracer)
 	if err != nil {
 		log.Error(fmt.Sprintf("Apply system transaction failed, to: %v, calldata: %v, error: %v", expectedTx.To(), expectedTx.Data(), err.Error()))
 	}
@@ -1637,6 +1637,7 @@ func applyMessage(
 	header *types.Header,
 	chainConfig *params.ChainConfig,
 	chainContext core.ChainContext,
+	tracer *tracing.Hooks,
 ) (uint64, error) {
 	// Increment the nonce for the next transaction
 	state.SetNonce(msg.From, state.GetNonce(msg.From)+1, tracing.NonceChangeEoACall)
@@ -1650,6 +1651,30 @@ func applyMessage(
 	)
 	if err != nil {
 		log.Error("apply message failed", "msg", string(ret), "err", err)
+	}
+
+	gasUsed := msg.GasLimit - returnGas
+
+	if chainConfig.IsTheseus(header.Number, header.Time) {
+		// Before EIP-3529: refunds were capped to gasUsed / 2
+		refundQuotient := params.RefundQuotient
+		if chainConfig.IsLondon(header.Number) {
+			// After EIP-3529: refunds are capped to gasUsed / 5
+			refundQuotient = params.RefundQuotientEIP3529
+		}
+
+		// Apply refund counter, capped to a refund quotient
+		refund := gasUsed / refundQuotient
+		if refund > state.GetRefund() {
+			refund = state.GetRefund()
+		}
+
+		returnGas += refund
+
+		// No need to call AddBalance as GasPrice=0
+		if tracer != nil && tracer.OnGasChange != nil && returnGas > 0 {
+			tracer.OnGasChange(returnGas, 0, tracing.GasChangeTxLeftOverReturned)
+		}
 	}
 	return msg.GasLimit - returnGas, err
 }
