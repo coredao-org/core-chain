@@ -783,7 +783,7 @@ func (w *worker) applyTransaction(env *environment, tx *types.Transaction, recei
 		gp   = env.gasPool.Gas()
 	)
 
-	receipt, err := core.ApplyTransaction(w.chainConfig, env.evm, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, receiptProcessors...)
+	receipt, err := core.ApplyTransaction(w.chainConfig, env.evm, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, false, receiptProcessors...)
 	if err != nil {
 		env.state.RevertToSnapshot(snap)
 		env.gasPool.SetGas(gp)

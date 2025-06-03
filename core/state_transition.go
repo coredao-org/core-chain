@@ -463,7 +463,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if st.evm.ChainConfig().Satoshi != nil && isTheseus {
 		// Check if is a contract call
 		isContractCall := contractCreation || (msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0)
-		if vmerr == nil && isContractCall {
+		if vmerr == nil && isContractCall && !st.evm.TxContext.IsSystemTx {
 			// Get a snapshot of the state before the distribution
 			snapshot := st.state.Snapshot()
 
