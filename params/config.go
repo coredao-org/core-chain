@@ -1198,12 +1198,14 @@ func (err *ConfigCompatError) Error() string {
 // phases.
 type Rules struct {
 	ChainID                                                 *big.Int
+	IsSatoshi                                               bool
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
 	IsMerge                                                 bool
 	IsHashPower                                             bool
 	IsShanghai, IsKepler, IsCancun, IsHaber                 bool
+	IsDemeter, IsAthena, IsTheseus                          bool
 	IsPrague, IsVerkle                                      bool
 }
 
@@ -1217,6 +1219,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 	isMerge = isMerge && c.IsLondon(num)
 	return Rules{
 		ChainID:          new(big.Int).Set(chainID),
+		IsSatoshi:        c.Satoshi != nil,
 		IsHomestead:      c.IsHomestead(num),
 		IsEIP150:         c.IsEIP150(num),
 		IsEIP155:         c.IsEIP155(num),
@@ -1231,6 +1234,9 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsHashPower:      c.IsHashPower(num),
 		IsShanghai:       c.IsShanghai(num, timestamp),
 		IsKepler:         c.IsKepler(num, timestamp),
+		IsDemeter:        c.IsDemeter(num, timestamp),
+		IsAthena:         c.IsAthena(num, timestamp),
+		IsTheseus:        c.IsTheseus(num, timestamp),
 		IsCancun:         c.IsCancun(num, timestamp),
 		IsHaber:          c.IsHaber(num, timestamp),
 		IsPrague:         c.IsPrague(num, timestamp),
