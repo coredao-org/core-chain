@@ -466,6 +466,8 @@ type ChainConfig struct {
 	DemeterTime  *uint64 `json:"demeterTime,omitempty" `  // Demeter switch time (nil = no fork, 0 = already on demeter)
 	AthenaTime   *uint64 `json:"athenaTime,omitempty"`    // Athena switch time (nil = no fork, 0 = already on athena)
 	CancunTime   *uint64 `json:"cancunTime,omitempty" `   // Cancun switch time (nil = no fork, 0 = already on cancun)
+	LubanTime    *uint64 `json:"lubanTime,omitempty"`     // Luban switch time (nil = no fork, 0 = already on luban)
+	PlatoTime   *uint64 `json:"platoTime,omitempty"`      // Plato switch time (nil = no fork, 0 = already on plato)
 	HaberTime    *uint64 `json:"haberTime,omitempty"`     // Haber switch time (nil = no fork, 0 = already on haber)
 	PragueTime   *uint64 `json:"pragueTime,omitempty" `   // Prague switch time (nil = no fork, 0 = already on prague)
 	VerkleTime   *uint64 `json:"verkleTime,omitempty" `   // Verkle switch time (nil = no fork, 0 = already on verkle)
@@ -484,8 +486,6 @@ type ChainConfig struct {
 	ZeusBlock      *big.Int `json:"zeusBlock,omitempty"`
 	HeraBlock      *big.Int `json:"heraBlock,omitempty"`
 	PoseidonBlock  *big.Int `json:"poseidonBlock,omitempty"`
-	LubanBlock     *big.Int `json:"lubanBlock,omitempty" toml:",omitempty"` // lubanBlock switch block (nil = no fork, 0 = already activated)
-	PlatoBlock     *big.Int `json:"platoBlock,omitempty" toml:",omitempty"` // platoBlock switch block (nil = no fork, 0 = already activated)
 	HertzBlock     *big.Int `json:"hertzBlock,omitempty" toml:",omitempty"` // hertzBlock switch block (nil = no fork, 0 = already activated)
 	// Various consensus engines
 	Ethash  *EthashConfig  `json:"ethash,omitempty" toml:",omitempty"`
@@ -573,12 +573,22 @@ func (c *ChainConfig) String() string {
 		CancunTime = big.NewInt(0).SetUint64(*c.CancunTime)
 	}
 
+	var LubanTime *big.Int
+	if c.LubanTime != nil {
+		LubanTime = big.NewInt(0).SetUint64(*c.LubanTime)
+	}
+
+	var PlatoTime *big.Int
+	if c.PlatoTime != nil {
+		PlatoTime = big.NewInt(0).SetUint64(*c.PlatoTime)
+	}
+
 	var HaberTime *big.Int
 	if c.HaberTime != nil {
 		HaberTime = big.NewInt(0).SetUint64(*c.HaberTime)
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, AthenaTime: %v, TheseusTime: %v, CancunTime: %v, HaberTime: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, AthenaTime: %v, TheseusTime: %v, CancunTime: %v, LubanTime: %v, PlatoTime: %v, HaberTime: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -598,8 +608,6 @@ func (c *ChainConfig) String() string {
 		c.ZeusBlock,
 		c.HeraBlock,
 		c.PoseidonBlock,
-		c.LubanBlock,
-		c.PlatoBlock,
 		c.HertzBlock,
 		ShanghaiTime,
 		KeplerTime,
@@ -607,6 +615,8 @@ func (c *ChainConfig) String() string {
 		AthenaTime,
 		TheseusTime,
 		CancunTime,
+		LubanTime,
+		PlatoTime,
 		HaberTime,
 		engine,
 	)
@@ -645,26 +655,6 @@ func (c *ChainConfig) IsByzantium(num *big.Int) bool {
 // IsConstantinople returns whether num is either equal to the Constantinople fork block or greater.
 func (c *ChainConfig) IsConstantinople(num *big.Int) bool {
 	return isBlockForked(c.ConstantinopleBlock, num)
-}
-
-// IsLuban returns whether num is either equal to the first fast finality fork block or greater.
-func (c *ChainConfig) IsLuban(num *big.Int) bool {
-	return isBlockForked(c.LubanBlock, num)
-}
-
-// IsOnLuban returns whether num is equal to the first fast finality fork block.
-func (c *ChainConfig) IsOnLuban(num *big.Int) bool {
-	return configBlockEqual(c.LubanBlock, num)
-}
-
-// IsPlato returns whether num is either equal to the second fast finality fork block or greater.
-func (c *ChainConfig) IsPlato(num *big.Int) bool {
-	return isBlockForked(c.PlatoBlock, num)
-}
-
-// IsOnPlato returns whether num is equal to the second fast finality fork block.
-func (c *ChainConfig) IsOnPlato(num *big.Int) bool {
-	return configBlockEqual(c.PlatoBlock, num)
 }
 
 // IsHertz returns whether num is either equal to the block of enabling Berlin EIPs or greater.
@@ -827,6 +817,34 @@ func (c *ChainConfig) IsOnTheseus(currentBlockNumber *big.Int, lastBlockTime uin
 // IsCancun returns whether num is either equal to the Cancun fork time or greater.
 func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
+}
+
+// IsOnCancun returns whether currentBlockTime is either equal to the cancun fork time or greater firstly.
+func (c *ChainConfig) IsLuban(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.LubanTime, time)
+}
+
+// IsOnLuban returns whether num is equal to the first fast finality fork block.
+func (c *ChainConfig) IsOnLuban(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsLuban(lastBlockNumber, lastBlockTime) && c.IsLuban(currentBlockNumber, currentBlockTime)
+}
+
+// IsPlato returns whether num is either equal to the second fast finality fork block or greater.
+func (c *ChainConfig) IsPlato(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.PlatoTime, time)
+}
+
+// IsOnPlato returns whether num is equal to the second fast finality fork block.
+func (c *ChainConfig) IsOnPlato(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsPlato(lastBlockNumber, lastBlockTime) && c.IsPlato(currentBlockNumber, currentBlockTime)
 }
 
 // IsHaber returns whether time is either equal to the Haber fork time or greater.
@@ -1000,12 +1018,6 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	if isForkBlockIncompatible(c.PoseidonBlock, newcfg.PoseidonBlock, headNumber) {
 		return newBlockCompatError("hera fork block", c.PoseidonBlock, newcfg.PoseidonBlock)
 	}
-	if isForkBlockIncompatible(c.LubanBlock, newcfg.LubanBlock, headNumber) {
-		return newBlockCompatError("luban fork block", c.LubanBlock, newcfg.LubanBlock)
-	}
-	if isForkBlockIncompatible(c.PlatoBlock, newcfg.PlatoBlock, headNumber) {
-		return newBlockCompatError("plato fork block", c.PlatoBlock, newcfg.PlatoBlock)
-	}
 	if isForkBlockIncompatible(c.HertzBlock, newcfg.HertzBlock, headNumber) {
 		return newBlockCompatError("hertz fork block", c.HertzBlock, newcfg.HertzBlock)
 	}
@@ -1027,6 +1039,12 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {
 		return newTimestampCompatError("Cancun fork timestamp", c.CancunTime, newcfg.CancunTime)
 	}
+	if isForkTimestampIncompatible(c.LubanTime, newcfg.LubanTime, headTimestamp) {
+		return newTimestampCompatError("Luban fork timestamp", c.LubanTime, newcfg.LubanTime)
+	}
+	if isForkTimestampIncompatible(c.PlatoTime, newcfg.PlatoTime, headTimestamp) {
+		return newTimestampCompatError("Plato fork timestamp", c.PlatoTime, newcfg.PlatoTime)
+	} 
 	if isForkTimestampIncompatible(c.PragueTime, newcfg.PragueTime, headTimestamp) {
 		return newTimestampCompatError("Prague fork timestamp", c.PragueTime, newcfg.PragueTime)
 	}
