@@ -25,6 +25,8 @@ import (
 	"math"
 	"sort"
 
+	lru "github.com/hashicorp/golang-lru"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -32,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 // Snapshot is the state of the validatorSet at a given point.
@@ -66,6 +67,7 @@ func newSnapshot(
 	number uint64,
 	hash common.Hash,
 	validators []common.Address,
+	voteAddrs []types.BLSPublicKey,
 	ethAPI *ethapi.BlockChainAPI,
 ) *Snapshot {
 	snap := &Snapshot{
@@ -81,8 +83,23 @@ func newSnapshot(
 		RecentForkHashes: make(map[uint64]string),
 		Validators:       make(map[common.Address]*ValidatorInfo),
 	}
-	for _, v := range validators {
-		snap.Validators[v] = &ValidatorInfo{}
+	for idx, v := range validators {
+		// The luban fork from the genesis block
+		if len(voteAddrs) == len(validators) {
+			snap.Validators[v] = &ValidatorInfo{
+				VoteAddress: voteAddrs[idx],
+			}
+		} else {
+			snap.Validators[v] = &ValidatorInfo{}
+		}
+	}
+
+	// The luban fork from the genesis block
+	if len(voteAddrs) == len(validators) {
+		validators := snap.validators()
+		for idx, v := range validators {
+			snap.Validators[v].Index = idx + 1 // offset by 1
+		}
 	}
 	return snap
 }
@@ -147,13 +164,24 @@ func (s *Snapshot) copy() *Snapshot {
 	}
 
 	for v := range s.Validators {
-		cpy.Validators[v] = &ValidatorInfo{}
+		cpy.Validators[v] = &ValidatorInfo{
+			Index:       s.Validators[v].Index,
+			VoteAddress: s.Validators[v].VoteAddress,
+		}
 	}
 	for block, v := range s.Recents {
 		cpy.Recents[block] = v
 	}
 	for block, id := range s.RecentForkHashes {
 		cpy.RecentForkHashes[block] = id
+	}
+	if s.Attestation != nil {
+		cpy.Attestation = &types.VoteData{
+			SourceNumber: s.Attestation.SourceNumber,
+			SourceHash:   s.Attestation.SourceHash,
+			TargetNumber: s.Attestation.TargetNumber,
+			TargetHash:   s.Attestation.TargetHash,
+		}
 	}
 	return cpy
 }
@@ -169,7 +197,7 @@ func (s *Snapshot) isMajorityFork(forkHash string) bool {
 }
 
 func (s *Snapshot) updateAttestation(header *types.Header, chainConfig *params.ChainConfig, epochLength uint64) {
-	if !chainConfig.IsLuban(header.Number) {
+	if !chainConfig.IsLuban(header.Number, header.Time) {
 		return
 	}
 
@@ -337,8 +365,12 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 			newVals := make(map[common.Address]*ValidatorInfo, len(newValArr))
 			for idx, val := range newValArr {
-				newVals[val] = &ValidatorInfo{
-					VoteAddress: voteAddrs[idx],
+				if !chainConfig.IsLuban(header.Number, header.Time) {
+					newVals[val] = &ValidatorInfo{}
+				} else {
+					newVals[val] = &ValidatorInfo{
+						VoteAddress: voteAddrs[idx],
+					}
 				}
 			}
 			if chainConfig.IsBohr(header.Number, header.Time) {
@@ -356,7 +388,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 			}
 			snap.Validators = newVals
-			if chainConfig.IsLuban(header.Number) {
+			if chainConfig.IsLuban(header.Number, header.Time) {
 				validators := snap.validators()
 				for idx, val := range validators {
 					snap.Validators[val].Index = idx + 1 // offset by 1
@@ -367,6 +399,8 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 		}
 	}
+
+	// TODO(cz): On BEP126 review, the recents has been moved from https://github.com/bnb-chain/bsc/commit/3cade73e409a663366f4dbd620563fae251af627#diff-aa72bdade344cf9e9c5e5e13ff68422763139cfab7f45a0bd5e9b7da870fa506R271-R284
 	snap.Number += uint64(len(headers))
 	snap.Hash = headers[len(headers)-1].Hash()
 	return snap, nil
@@ -452,6 +486,10 @@ func (s *Snapshot) enoughDistance(validator common.Address, header *types.Header
 }
 
 func (s *Snapshot) indexOfVal(validator common.Address) int {
+	if validator, ok := s.Validators[validator]; ok && validator.Index > 0 {
+		return validator.Index - 1 // Index is offset by 1
+	}
+
 	validators := s.validators()
 	for idx, val := range validators {
 		if val == validator {
@@ -466,14 +504,24 @@ func parseValidators(header *types.Header, chainConfig *params.ChainConfig, epoc
 	if len(validatorsBytes) == 0 {
 		return nil, nil, errors.New("invalid validators bytes")
 	}
-	n := len(validatorsBytes) / validatorBytesLength
-	result := make([]common.Address, n)
-	for i := 0; i < n; i++ {
-		address := make([]byte, validatorBytesLength)
-		copy(address, validatorsBytes[i*validatorBytesLength:(i+1)*validatorBytesLength])
-		result[i] = common.BytesToAddress(address)
+
+	if !chainConfig.IsLuban(header.Number, header.Time) {
+		n := len(validatorsBytes) / validatorBytesLengthBeforeLuban
+		result := make([]common.Address, n)
+		for i := 0; i < n; i++ {
+			result[i] = common.BytesToAddress(validatorsBytes[i*validatorBytesLengthBeforeLuban : (i+1)*validatorBytesLengthBeforeLuban])
+		}
+		return result, nil, nil
 	}
-	return result, nil
+
+	n := len(validatorsBytes) / validatorBytesLength
+	cnsAddrs := make([]common.Address, n)
+	voteAddrs := make([]types.BLSPublicKey, n)
+	for i := 0; i < n; i++ {
+		cnsAddrs[i] = common.BytesToAddress(validatorsBytes[i*validatorBytesLength : i*validatorBytesLength+common.AddressLength])
+		copy(voteAddrs[i][:], validatorsBytes[i*validatorBytesLength+common.AddressLength:(i+1)*validatorBytesLength])
+	}
+	return cnsAddrs, voteAddrs, nil
 }
 
 func parseTurnLength(header *types.Header, chainConfig *params.ChainConfig, epochLength uint64) (*uint8, error) {
