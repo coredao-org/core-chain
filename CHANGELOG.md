@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.17
+
+Same changes with 1.0.16, but this version is for mainnet.
+
 ## v1.0.16
 
 Improvements
