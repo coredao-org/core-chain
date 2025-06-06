@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -461,9 +462,14 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// If no rewards, the gas is refunded to the user.
 	isTheseus := st.evm.ChainConfig().IsTheseus(st.evm.Context.BlockNumber, st.evm.Context.Time)
 	if st.evm.ChainConfig().Satoshi != nil && isTheseus {
+		isSystemTx := false
+		if msg.To != nil && slices.Contains(systemcontracts.ActiveSystemContractAddresses(rules), *msg.To) {
+			isSystemTx = true
+		}
+
 		// Check if is a contract call
 		isContractCall := contractCreation || (msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0)
-		if vmerr == nil && isContractCall {
+		if vmerr == nil && isContractCall && !isSystemTx {
 			// Get a snapshot of the state before the distribution
 			snapshot := st.state.Snapshot()
 
