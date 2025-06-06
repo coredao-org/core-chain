@@ -112,11 +112,12 @@ type StructLogger struct {
 	cfg Config
 	env *tracing.VMContext
 
-	storage map[common.Address]Storage
-	logs    []StructLog
-	output  []byte
-	err     error
-	usedGas uint64
+	storage             map[common.Address]Storage
+	logs                []StructLog
+	output              []byte
+	err                 error
+	usedGas             uint64
+	systemTxRefundedGas uint64
 
 	interrupt atomic.Bool // Atomic flag to signal execution interruption
 	reason    error       // Textual reason for the interruption
@@ -143,6 +144,8 @@ func (l *StructLogger) Hooks() *tracing.Hooks {
 		OnExit:                    l.OnExit,
 		OnOpcode:                  l.OnOpcode,
 		OnSystemTxFixIntrinsicGas: l.OnSystemTxFixIntrinsicGas,
+		OnGasChange:               l.OnGasChange,
+		OnSystemTxEnd:             l.OnSystemTxEnd,
 	}
 }
 
@@ -294,6 +297,18 @@ func (l *StructLogger) OnTxEnd(receipt *types.Receipt, err error) {
 
 func (l *StructLogger) OnSystemTxFixIntrinsicGas(intrinsicGas uint64) {
 	l.usedGas -= intrinsicGas
+}
+
+func (l *StructLogger) OnGasChange(old, new uint64, reason tracing.GasChangeReason) {
+	if reason == tracing.GasChangeTxRefunds && new >= old {
+		l.systemTxRefundedGas = new - old
+	}
+}
+
+func (l *StructLogger) OnSystemTxEnd() {
+	if l.systemTxRefundedGas > 0 {
+		l.usedGas += l.systemTxRefundedGas
+	}
 }
 
 // StructLogs returns the captured log entries.

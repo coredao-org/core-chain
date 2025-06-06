@@ -111,12 +111,13 @@ type callFrameMarshaling struct {
 }
 
 type callTracer struct {
-	callstack []callFrame
-	config    callTracerConfig
-	gasLimit  uint64
-	depth     int
-	interrupt atomic.Bool // Atomic flag to signal execution interruption
-	reason    error       // Textual reason for the interruption
+	callstack           []callFrame
+	config              callTracerConfig
+	gasLimit            uint64
+	depth               int
+	interrupt           atomic.Bool // Atomic flag to signal execution interruption
+	reason              error       // Textual reason for the interruption
+	systemTxRefundedGas uint64
 }
 
 type callTracerConfig struct {
@@ -139,6 +140,8 @@ func newCallTracer(ctx *tracers.Context, cfg json.RawMessage, chainConfig *param
 			OnExit:                    t.OnExit,
 			OnLog:                     t.OnLog,
 			OnSystemTxFixIntrinsicGas: t.OnSystemTxFixIntrinsicGas,
+			OnGasChange:               t.OnGasChange,
+			OnSystemTxEnd:             t.OnSystemTxEnd,
 		},
 		GetResult: t.GetResult,
 		Stop:      t.Stop,
@@ -236,6 +239,18 @@ func (t *callTracer) OnTxEnd(receipt *types.Receipt, err error) {
 
 func (t *callTracer) OnSystemTxFixIntrinsicGas(intrinsicGas uint64) {
 	t.callstack[0].GasUsed -= intrinsicGas
+}
+
+func (t *callTracer) OnGasChange(old, new uint64, reason tracing.GasChangeReason) {
+	if reason == tracing.GasChangeTxRefunds && new >= old {
+		t.systemTxRefundedGas = new - old
+	}
+}
+
+func (t *callTracer) OnSystemTxEnd() {
+	if t.systemTxRefundedGas > 0 {
+		t.callstack[0].GasUsed += t.systemTxRefundedGas
+	}
 }
 
 func (t *callTracer) OnLog(log *types.Log) {

@@ -149,6 +149,8 @@ func newFlatCallTracer(ctx *tracers.Context, cfg json.RawMessage, chainConfig *p
 			OnEnter:                   ft.OnEnter,
 			OnExit:                    ft.OnExit,
 			OnSystemTxFixIntrinsicGas: ft.OnSystemTxFixIntrinsicGas,
+			OnGasChange:               t.OnGasChange,
+			OnSystemTxEnd:             t.OnSystemTxEnd,
 		},
 		Stop:      ft.Stop,
 		GetResult: ft.GetResult,
@@ -221,6 +223,14 @@ func (t *flatCallTracer) OnTxEnd(receipt *types.Receipt, err error) {
 
 func (t *flatCallTracer) OnSystemTxFixIntrinsicGas(intrinsicGas uint64) {
 	t.tracer.OnSystemTxFixIntrinsicGas(intrinsicGas)
+}
+
+func (t *flatCallTracer) OnGasChange(old, new uint64, reason tracing.GasChangeReason) {
+	t.tracer.OnGasChange(old, new, reason)
+}
+
+func (t *flatCallTracer) OnSystemTxEnd() {
+	t.tracer.OnSystemTxEnd()
 }
 
 // GetResult returns an empty json object.
