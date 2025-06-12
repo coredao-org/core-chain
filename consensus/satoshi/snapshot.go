@@ -79,10 +79,10 @@ func newSnapshot(
 		TurnLength:       defaultTurnLength,
 		Recents:          make(map[uint64]common.Address),
 		RecentForkHashes: make(map[uint64]string),
-		Validators:       make(map[common.Address]struct{}),
+		Validators:       make(map[common.Address]*ValidatorInfo),
 	}
 	for _, v := range validators {
-		snap.Validators[v] = struct{}{}
+		snap.Validators[v] = &ValidatorInfo{}
 	}
 	return snap
 }
@@ -147,7 +147,7 @@ func (s *Snapshot) copy() *Snapshot {
 	}
 
 	for v := range s.Validators {
-		cpy.Validators[v] = struct{}{}
+		cpy.Validators[v] = &ValidatorInfo{}
 	}
 	for block, v := range s.Recents {
 		cpy.Recents[block] = v
@@ -274,7 +274,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			delete(snap.RecentForkHashes, number-limit)
 		}
 		// Resolve the authorization key and check against signers
-		validator, err := ecrecover(header, s.sigCache, chainId)
+		validator, err := ecrecover(header, s.sigCache, chainConfig.ChainID)
 		if err != nil {
 			return nil, err
 		}
@@ -335,9 +335,11 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			if err != nil {
 				return nil, err
 			}
-			newVals := make(map[common.Address]struct{}, len(newValArr))
-			for _, val := range newValArr {
-				newVals[val] = struct{}{}
+			newVals := make(map[common.Address]*ValidatorInfo, len(newValArr))
+			for idx, val := range newValArr {
+				newVals[val] = &ValidatorInfo{
+					VoteAddress: voteAddrs[idx],
+				}
 			}
 			if chainConfig.IsBohr(header.Number, header.Time) {
 				// BEP-404: Clear Miner History when Switching Validators Set

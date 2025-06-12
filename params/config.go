@@ -525,23 +525,21 @@ type ChainConfig struct {
 
 	// Fork scheduling was switched from blocks to timestamps here
 
-	ShanghaiTime   *uint64 `json:"shanghaiTime,omitempty"`   // Shanghai switch time (nil = no fork, 0 = already on shanghai)
-	KeplerTime     *uint64 `json:"keplerTime,omitempty"`     // Kepler switch time (nil = no fork, 0 = already activated)
-	DemeterTime    *uint64 `json:"demeterTime,omitempty" `   // Demeter switch time (nil = no fork, 0 = already on demeter)
-	AthenaTime     *uint64 `json:"athenaTime,omitempty"`     // Athena switch time (nil = no fork, 0 = already on athena)
-	FeynmanTime    *uint64 `json:"feynmanTime,omitempty"`    // Feynman switch time (nil = no fork, 0 = already activated)
-	FeynmanFixTime *uint64 `json:"feynmanFixTime,omitempty"` // FeynmanFix switch time (nil = no fork, 0 = already activated)
-	CancunTime     *uint64 `json:"cancunTime,omitempty"`     // Cancun switch time (nil = no fork, 0 = already on cancun)
-	HaberTime      *uint64 `json:"haberTime,omitempty"`      // Haber switch time (nil = no fork, 0 = already on haber)
-	HaberFixTime   *uint64 `json:"haberFixTime,omitempty"`   // HaberFix switch time (nil = no fork, 0 = already on haberFix)
-	BohrTime       *uint64 `json:"bohrTime,omitempty"`       // Bohr switch time (nil = no fork, 0 = already on bohr)
-	PascalTime     *uint64 `json:"pascalTime,omitempty"`     // Pascal switch time (nil = no fork, 0 = already on pascal)
-	PragueTime     *uint64 `json:"pragueTime,omitempty"`     // Prague switch time (nil = no fork, 0 = already on prague)
-	OsakaTime      *uint64 `json:"osakaTime,omitempty"`      // Osaka switch time (nil = no fork, 0 = already on osaka)
-	LorentzTime    *uint64 `json:"lorentzTime,omitempty"`    // Lorentz switch time (nil = no fork, 0 = already on lorentz)
-	MaxwellTime    *uint64 `json:"maxwellTime,omitempty"`    // Maxwell switch time (nil = no fork, 0 = already on maxwell)
-	VerkleTime     *uint64 `json:"verkleTime,omitempty"`     // Verkle switch time (nil = no fork, 0 = already on verkle)
-	HermesTime     *uint64 `json:"hermesTime,omitempty" `    // Hermes switch time (nil = no fork, 0 = already on hermes)
+	ShanghaiTime *uint64 `json:"shanghaiTime,omitempty"` // Shanghai switch time (nil = no fork, 0 = already on shanghai)
+	KeplerTime   *uint64 `json:"keplerTime,omitempty"`   // Kepler switch time (nil = no fork, 0 = already activated)
+	DemeterTime  *uint64 `json:"demeterTime,omitempty" ` // Demeter switch time (nil = no fork, 0 = already on demeter)
+	AthenaTime   *uint64 `json:"athenaTime,omitempty"`   // Athena switch time (nil = no fork, 0 = already on athena)
+	CancunTime   *uint64 `json:"cancunTime,omitempty"`   // Cancun switch time (nil = no fork, 0 = already on cancun)
+	HaberTime    *uint64 `json:"haberTime,omitempty"`    // Haber switch time (nil = no fork, 0 = already on haber)
+	HaberFixTime *uint64 `json:"haberFixTime,omitempty"` // HaberFix switch time (nil = no fork, 0 = already on haberFix)
+	BohrTime     *uint64 `json:"bohrTime,omitempty"`     // Bohr switch time (nil = no fork, 0 = already on bohr)
+	PascalTime   *uint64 `json:"pascalTime,omitempty"`   // Pascal switch time (nil = no fork, 0 = already on pascal)
+	PragueTime   *uint64 `json:"pragueTime,omitempty"`   // Prague switch time (nil = no fork, 0 = already on prague)
+	OsakaTime    *uint64 `json:"osakaTime,omitempty"`    // Osaka switch time (nil = no fork, 0 = already on osaka)
+	LorentzTime  *uint64 `json:"lorentzTime,omitempty"`  // Lorentz switch time (nil = no fork, 0 = already on lorentz)
+	MaxwellTime  *uint64 `json:"maxwellTime,omitempty"`  // Maxwell switch time (nil = no fork, 0 = already on maxwell)
+	VerkleTime   *uint64 `json:"verkleTime,omitempty"`   // Verkle switch time (nil = no fork, 0 = already on verkle)
+	HermesTime   *uint64 `json:"hermesTime,omitempty" `  // Hermes switch time (nil = no fork, 0 = already on hermes)
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
@@ -1545,7 +1543,7 @@ type Rules struct {
 	IsPlato                                                 bool
 	IsHertz                                                 bool
 	IsHertzfix                                              bool
-	IsShanghai, IsKepler, IsFeynman, IsCancun, IsHaber      bool
+	IsShanghai, IsKepler, IsCancun, IsHaber                 bool
 	IsBohr, IsPascal, IsPrague, IsLorentz, IsMaxwell        bool
 	IsOsaka, IsVerkle                                       bool
 }

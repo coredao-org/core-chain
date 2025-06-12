@@ -1162,11 +1162,12 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	blockTime := p.blockTimeForRamanujanFork(snap, header, parent)
-	header.Time = blockTime / 1000 // get seconds
-	if p.chainConfig.IsLorentz(header.Number, header.Time) {
-		header.SetMilliseconds(blockTime % 1000)
-	} else {
+	header.Time = parent.Time + p.config.Period + p.backOffTime(snap, header, p.val)
+	if header.Time < uint64(time.Now().Unix()) {
+		header.Time = uint64(time.Now().Unix())
+	}
+	// TODO(cz): check if this is correct
+	if !p.chainConfig.IsLorentz(header.Number, header.Time) {
 		header.MixDigest = common.Hash{}
 	}
 
@@ -1300,37 +1301,17 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 func (p *Satoshi) EstimateGasReservedForSystemTxs(chain consensus.ChainHeaderReader, header *types.Header) uint64 {
 	parent := chain.GetHeaderByHash(header.ParentHash)
 	if parent != nil {
-		// Mainnet and Chapel have both passed Feynman. Now, simplify the logic before and during the Feynman hard fork.
-		if p.chainConfig.IsFeynman(header.Number, header.Time) &&
-			!p.chainConfig.IsOnFeynman(header.Number, parent.Time, header.Time) {
-			// const (
-			// 	the following values represent the maximum values found in the most recent blocks on the mainnet
-			// 	depositTxGas         = uint64(60_000)
-			// 	slashTxGas           = uint64(140_000)
-			// 	finalityRewardTxGas  = uint64(350_000)
-			// 	updateValidatorTxGas = uint64(12_160_000)
-			// )
-			// suggestReservedGas := depositTxGas
-			// if header.Difficulty.Cmp(diffInTurn) != 0 {
-			// 	snap, err := p.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
-			// 	if err != nil || !snap.SignRecently(snap.inturnValidator()) {
-			// 		suggestReservedGas += slashTxGas
-			// 	}
-			// }
-			// if header.Number.Uint64()%p.config.Epoch == 0 {
-			// 	suggestReservedGas += finalityRewardTxGas
-			// }
-			// if isBreatheBlock(parent.Time, header.Time) {
-			// 	suggestReservedGas += updateValidatorTxGas
-			// }
-			// return suggestReservedGas * 150 / 100
-			if !isBreatheBlock(parent.Time, header.Time) {
+		if p.chainConfig.IsHermes(header.Number, header.Time) &&
+			!p.chainConfig.IsOnHermes(header.Number, parent.Time, header.Time) {
+			if !p.isRoundEnd(chain, header) {
+				// TODO(cz): fix comment
 				// params.SystemTxsGasSoftLimit > (depositTxGas+slashTxGas+finalityRewardTxGas)*150/100
 				return params.SystemTxsGasSoftLimit
 			}
 		}
 	}
 
+	// TODO(cz): fix comment
 	// params.SystemTxsGasHardLimit > (depositTxGas+slashTxGas+finalityRewardTxGas+updateValidatorTxGas)*150/100
 	return params.SystemTxsGasHardLimit
 }
@@ -1368,25 +1349,7 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 
 	systemcontracts.TryUpdateBuildInSystemContract(p.chainConfig, header.Number, parent.Time, header.Time, state, false)
 
-	if p.chainConfig.IsOnFeynman(header.Number, parent.Time, header.Time) {
-		err := p.initializeFeynmanContract(state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
-		if err != nil {
-			return err
-		}
-		// sort validator by address
-		sort.Sort(validatorsAscending(newValidators))
-		validatorsBytes := make([]byte, len(newValidators)*validatorBytesLength)
-		for i, validator := range newValidators {
-			copy(validatorsBytes[i*validatorBytesLength:], validator.Bytes())
-		}
-
-		extraSuffix := len(header.Extra) - extraSeal
-		if !bytes.Equal(header.Extra[extraVanity:extraSuffix], validatorsBytes) {
-			return errMismatchingEpochValidators
-		}
-	}
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	cx := chainContext{Chain: chain, satoshi: p}
 	if header.Number.Cmp(common.Big1) == 0 {
 		err := p.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
 		if err != nil {
@@ -1432,16 +1395,6 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 		}
 	}
 
-	// update validators every day
-	if p.chainConfig.IsFeynman(header.Number, header.Time) && isBreatheBlock(parent.Time, header.Time) {
-		// we should avoid update validators in the Feynman upgrade block
-		if !p.chainConfig.IsOnFeynman(header.Number, parent.Time, header.Time) {
-			if err := p.updateValidatorSetV2(state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer); err != nil {
-				return err
-			}
-		}
-	}
-
 	if len(*systemTxs) > 0 {
 		return errors.New("the length of systemTxs do not match")
 	}
@@ -1468,14 +1421,6 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 	}
 
 	systemcontracts.TryUpdateBuildInSystemContract(p.chainConfig, header.Number, parent.Time, header.Time, state, false)
-
-	// TODO(cz): check this, why is it separate than init?
-	if p.chainConfig.IsOnFeynman(header.Number, parent.Time, header.Time) {
-		err := p.initializeFeynmanContract(state, header, cx, &body.Transactions, &receipts, nil, &header.GasUsed, true, tracer)
-		if err != nil {
-			log.Error("init feynman contract failed", "error", err)
-		}
-	}
 
 	if header.Number.Cmp(common.Big1) == 0 {
 		err := p.initContract(state, header, cx, &body.Transactions, &receipts, nil, &header.GasUsed, true, tracer)
@@ -1511,21 +1456,9 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 		return nil, nil, err
 	}
 
-	// TODO(cz): check this
-	if p.chainConfig.IsPlato(header.Number) {
+	if p.chainConfig.IsHermes(header.Number, header.Time) {
 		if err := p.distributeFinalityReward(chain, state, header, cx, &body.Transactions, &receipts, nil, &header.GasUsed, true, tracer); err != nil {
 			return nil, nil, err
-		}
-	}
-
-	// TODO(cz): check this
-	// update validators every day
-	if p.chainConfig.IsFeynman(header.Number, header.Time) && isBreatheBlock(parent.Time, header.Time) {
-		// we should avoid update validators in the Feynman upgrade block
-		if !p.chainConfig.IsOnFeynman(header.Number, parent.Time, header.Time) {
-			if err := p.updateValidatorSetV2(state, header, cx, &body.Transactions, &receipts, nil, &header.GasUsed, true, tracer); err != nil {
-				return nil, nil, err
-			}
 		}
 	}
 
