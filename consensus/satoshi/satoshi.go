@@ -1498,6 +1498,14 @@ func (p *Satoshi) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header 
 	return ok && (checkVoteKeyFn == nil || (validatorInfo != nil && checkVoteKeyFn(&validatorInfo.VoteAddress)))
 }
 
+func (s *Satoshi) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, header []*types.Header) (uint64, common.Hash, error) {
+	return 0, common.Hash{}, errors.New("GetJustifiedNumberAndHash not implemented at satoshi")
+}
+
+func (s *Satoshi) GetFinalizedHeader(chain consensus.ChainHeaderReader, header *types.Header) *types.Header {
+	return nil
+}
+
 // VerifyVote will verify: 1. If the vote comes from valid validators 2. If the vote's sourceNumber and sourceHash are correct
 func (p *Satoshi) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
 	targetNumber := vote.Data.TargetNumber
