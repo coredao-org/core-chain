@@ -541,6 +541,7 @@ type ChainConfig struct {
 	LorentzTime    *uint64 `json:"lorentzTime,omitempty"`    // Lorentz switch time (nil = no fork, 0 = already on lorentz)
 	MaxwellTime    *uint64 `json:"maxwellTime,omitempty"`    // Maxwell switch time (nil = no fork, 0 = already on maxwell)
 	VerkleTime     *uint64 `json:"verkleTime,omitempty"`     // Verkle switch time (nil = no fork, 0 = already on verkle)
+	HermesTime     *uint64 `json:"hermesTime,omitempty" `    // Hermes switch time (nil = no fork, 0 = already on hermes)
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
@@ -1072,6 +1073,20 @@ func (c *ChainConfig) IsOsaka(num *big.Int, time uint64) bool {
 // IsVerkle returns whether time is either equal to the Verkle fork time or greater.
 func (c *ChainConfig) IsVerkle(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.VerkleTime, time)
+}
+
+// IsHermes returns whether time is either equal to the Hermes fork time or greater.
+func (c *ChainConfig) IsHermes(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.HermesTime, time)
+}
+
+// IsOnHermes returns whether currentBlockTime is either equal to the Hermes fork time or greater firstly.
+func (c *ChainConfig) IsOnHermes(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsHermes(lastBlockNumber, lastBlockTime) && c.IsHermes(currentBlockNumber, currentBlockTime)
 }
 
 // IsVerkleGenesis checks whether the verkle fork is activated at the genesis block.
