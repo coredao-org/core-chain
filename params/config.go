@@ -985,11 +985,6 @@ func (c *ChainConfig) IsOnPlato(currentBlockNumber *big.Int, lastBlockTime uint6
 	return !c.IsPlato(lastBlockNumber, lastBlockTime) && c.IsPlato(currentBlockNumber, currentBlockTime)
 }
 
-// IsHaber returns whether time is either equal to the Haber fork time or greater.
-func (c *ChainConfig) IsHaber(num *big.Int, time uint64) bool {
-	return c.IsLondon(num) && isTimestampForked(c.HaberTime, time)
-}
-
 // IsHaberFix returns whether time is either equal to the HaberFix fork time or greater.
 func (c *ChainConfig) IsHaberFix(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.HaberFixTime, time)

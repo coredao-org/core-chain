@@ -781,6 +781,7 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 		// piled up more headers than allowed to be reorged (chain reinit from a freezer),
 		// consider the checkpoint trusted and snapshot it.
 
+		// TODO(cz): verify the numbers below for core, either way we won't apply any changes for now
 		// Unable to retrieve the exact EpochLength here.
 		// As known
 		// 		defaultEpochLength = 200 && turnLength = 1 or 4
@@ -793,7 +794,8 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 				checkpoint    *types.Header
 				blockHash     common.Hash
 				blockInterval = defaultBlockInterval
-				epochLength   = defaultEpochLength
+				// TODO(cz): the default should come from the config
+				epochLength = defaultEpochLength
 			)
 			if number == 0 {
 				checkpoint = chain.GetHeaderByNumber(0)
@@ -1705,6 +1707,12 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 	if number == 0 {
 		return errUnknownBlock
 	}
+	// TODO(cz): check if we need this for dev mode
+	// For 0-period chains, refuse to seal empty blocks (no reward but would spin sealing)
+	// if p.config.Period == 0 && len(block.Transactions()) == 0 {
+	// 	log.Info("Sealing paused, waiting for transactions")
+	// 	return nil
+	// }
 	// Don't hold the val fields for the entire sealing procedure
 	p.lock.RLock()
 	val, signFn := p.val, p.signFn
@@ -2402,6 +2410,7 @@ func (p *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val 
 
 // BlockInterval returns number of blocks in one epoch for the given header
 func (p *Satoshi) epochLength(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (uint64, error) {
+	// TODO(cz): the default should come from the config, default equals to genesis for Core
 	if header == nil {
 		return defaultEpochLength, errUnknownBlock
 	}
@@ -2417,6 +2426,7 @@ func (p *Satoshi) epochLength(chain consensus.ChainHeaderReader, header *types.H
 
 // BlockInterval returns the block interval in milliseconds for the given header
 func (p *Satoshi) BlockInterval(chain consensus.ChainHeaderReader, header *types.Header) (uint64, error) {
+	// TODO(cz): the default should come from the config, default equals to genesis for Core
 	if header == nil {
 		return defaultBlockInterval, errUnknownBlock
 	}
