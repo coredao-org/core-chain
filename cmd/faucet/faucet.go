@@ -52,10 +52,9 @@ import (
 )
 
 var (
-	genesisFlag       = flag.String("genesis", "", "Genesis json file to seed the chain with")
-	apiPortFlag       = flag.Int("apiport", 8080, "Listener port for the HTTP API connection")
-	wsEndpoint        = flag.String("ws", "http://127.0.0.1:7777/", "Url to ws endpoint")
-	wsEndpointMainnet = flag.String("ws.mainnet", "", "Url to ws endpoint of BSC mainnet")
+	genesisFlag = flag.String("genesis", "", "Genesis json file to seed the chain with")
+	apiPortFlag = flag.Int("apiport", 8080, "Listener port for the HTTP API connection")
+	wsEndpoint  = flag.String("ws", "http://127.0.0.1:7777/", "Url to ws endpoint")
 
 	netnameFlag = flag.String("faucet.name", "", "Network name to assign to the faucet")
 	payoutFlag  = flag.Int("faucet.amount", 1, "Number of Ethers to pay out per user request")
@@ -79,7 +78,6 @@ var (
 	resendBatchSize   = 3
 	resendMaxGasPrice = big.NewInt(50 * params.GWei)
 	wsReadTimeout     = 5 * time.Minute
-	minMainnetBalance = big.NewInt(2 * 1e6 * params.GWei) // 0.002 bnb
 )
 
 var (
@@ -88,12 +86,6 @@ var (
 
 //go:embed faucet.html
 var websiteTmpl string
-
-func weiToEtherStringFx(wei *big.Int, prec int) string {
-	etherValue := new(big.Float).Quo(new(big.Float).SetInt(wei), big.NewFloat(params.Ether))
-	// Format the big.Float directly to a string with the specified precision
-	return etherValue.Text('f', prec)
-}
 
 func main() {
 	// Parse the flags and set up the logger to print everything requested

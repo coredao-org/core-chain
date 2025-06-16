@@ -254,14 +254,14 @@ const validatorSetABI = `
   {
     "anonymous": false,
     "inputs": [
-      
+
     ],
     "name": "validatorSetUpdated",
     "type": "event"
   },
   {
     "inputs": [
-      
+
     ],
     "name": "BLOCK_REWARD",
     "outputs": [
@@ -276,7 +276,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "BLOCK_REWARD_INCENTIVE_PERCENT",
     "outputs": [
@@ -291,7 +291,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "BTCLST_STAKE_ADDR",
     "outputs": [
@@ -306,7 +306,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "BTCLST_TOKEN_ADDR",
     "outputs": [
@@ -321,7 +321,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "BTC_AGENT_ADDR",
     "outputs": [
@@ -336,7 +336,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "BTC_STAKE_ADDR",
     "outputs": [
@@ -351,7 +351,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "BURN_ADDR",
     "outputs": [
@@ -366,7 +366,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "CANDIDATE_HUB_ADDR",
     "outputs": [
@@ -381,7 +381,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "CONFIGURATION_ADDR",
     "outputs": [
@@ -396,7 +396,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "CORE_AGENT_ADDR",
     "outputs": [
@@ -411,7 +411,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "FOUNDATION_ADDR",
     "outputs": [
@@ -426,7 +426,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "GOV_HUB_ADDR",
     "outputs": [
@@ -441,7 +441,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "HASH_AGENT_ADDR",
     "outputs": [
@@ -456,7 +456,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "INIT_VALIDATORSET_BYTES",
     "outputs": [
@@ -471,7 +471,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "INIT_VOTE_REWARD_PERCENT",
     "outputs": [
@@ -486,7 +486,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "LIGHT_CLIENT_ADDR",
     "outputs": [
@@ -501,7 +501,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "PLEDGE_AGENT_ADDR",
     "outputs": [
@@ -516,7 +516,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "REDUCE_FACTOR",
     "outputs": [
@@ -531,7 +531,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "RELAYER_HUB_ADDR",
     "outputs": [
@@ -546,7 +546,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "SLASH_CONTRACT_ADDR",
     "outputs": [
@@ -561,7 +561,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "STAKE_HUB_ADDR",
     "outputs": [
@@ -576,7 +576,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "SUBSIDY_REDUCE_INTERVAL",
     "outputs": [
@@ -591,7 +591,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "SYSTEM_REWARD_ADDR",
     "outputs": [
@@ -606,7 +606,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "VALIDATOR_CONTRACT_ADDR",
     "outputs": [
@@ -621,7 +621,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "alreadyInit",
     "outputs": [
@@ -636,7 +636,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "blockReward",
     "outputs": [
@@ -651,7 +651,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "blockRewardIncentivePercent",
     "outputs": [
@@ -742,7 +742,7 @@ const validatorSetABI = `
     ],
     "name": "deposit",
     "outputs": [
-      
+
     ],
     "stateMutability": "payable",
     "type": "function"
@@ -786,7 +786,7 @@ const validatorSetABI = `
     ],
     "name": "felony",
     "outputs": [
-      
+
     ],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -812,7 +812,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "getValidatorOps",
     "outputs": [
@@ -827,7 +827,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "getValidators",
     "outputs": [
@@ -842,7 +842,7 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "getValidatorsAndVoteAddresses",
     "outputs": [
@@ -862,11 +862,11 @@ const validatorSetABI = `
   },
   {
     "inputs": [
-      
+
     ],
     "name": "init",
     "outputs": [
-      
+
     ],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -900,14 +900,14 @@ const validatorSetABI = `
     ],
     "name": "misdemeanor",
     "outputs": [
-      
+
     ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [
-      
+
     ],
     "name": "totalInCome",
     "outputs": [
@@ -935,7 +935,7 @@ const validatorSetABI = `
     ],
     "name": "updateParam",
     "outputs": [
-      
+
     ],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -970,7 +970,7 @@ const validatorSetABI = `
     ],
     "name": "updateValidatorSet",
     "outputs": [
-      
+
     ],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2029,4 +2029,4 @@ const candidateHubABI = `
 `
 
 // TODO(cz): temp holder till we know how to handle the stake hub contract
-const stakeHubABI = ``
+const stakeHubABI = `` // nolint:unused

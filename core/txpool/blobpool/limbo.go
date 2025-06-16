@@ -117,7 +117,7 @@ func (l *limbo) parseBlob(id uint64, data []byte) error {
 // finalize evicts all blobs belonging to a recently finalized block or older.
 func (l *limbo) finalize(currentBlockHeight uint64) {
 	for block, ids := range l.groups {
-		if block > currentBlockHeight - maxReservedBlock {
+		if block > currentBlockHeight-maxReservedBlock {
 			continue
 		}
 		for id, owner := range ids {

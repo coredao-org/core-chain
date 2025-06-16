@@ -466,14 +466,14 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 				signedRecent, err := p.SignRecently(w.chain, head.Header)
 				if err != nil {
 					log.Debug("Not allowed to propose block", "err", err)
-					if p.IsRoundEnd(w.chain, head.Block.Header()) {
+					if p.IsRoundEnd(w.chain, head.Header) {
 						commit(commitInterruptNewHead)
 					}
 					continue
 				}
 				if signedRecent {
 					log.Info("Signed recently, must wait")
-					if p.IsRoundEnd(w.chain, head.Block.Header()) {
+					if p.IsRoundEnd(w.chain, head.Header) {
 						commit(commitInterruptNewHead)
 					}
 					continue
@@ -1298,7 +1298,7 @@ LOOP:
 		prevWork = work
 		workList = append(workList, work)
 
-		err = w.engine.BeforePackTx(w.chain, work.header, work.state, &work.txs, nil, &work.receipts)
+		err = w.engine.BeforePackTx(w.chain, work.header, work.state, &work.txs, nil, &work.receipts, nil)
 		if err != nil {
 			log.Error("Failed to pack system tx", "err", err)
 			return

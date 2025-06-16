@@ -18,7 +18,6 @@ package core
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -578,11 +577,6 @@ func (st *stateTransition) validateAuthorization(auth *types.SetCodeAuthorizatio
 	authority, err = auth.Authority()
 	if err != nil {
 		return authority, fmt.Errorf("%w: %v", ErrAuthorizationInvalidSignature, err)
-	}
-	for _, blackListAddr := range types.NanoBlackList {
-		if blackListAddr == authority {
-			return authority, errors.New("block blacklist account")
-		}
 	}
 	// Check the authority account
 	//  1) doesn't have code or has exisiting delegation

@@ -60,29 +60,13 @@ var (
 	athenaUpgrade = make(map[string]*Upgrade)
 
 	// TODO(cz): Chech which ones to keep below
-	gibbsUpgrade = make(map[string]*Upgrade)
+	// haberFixUpgrade = make(map[string]*Upgrade)
 
-	moranUpgrade = make(map[string]*Upgrade)
+	// bohrUpgrade = make(map[string]*Upgrade)
 
-	planckUpgrade = make(map[string]*Upgrade)
+	// pascalUpgrade = make(map[string]*Upgrade)
 
-	lubanUpgrade = make(map[string]*Upgrade)
-
-	platoUpgrade = make(map[string]*Upgrade)
-
-	keplerUpgrade = make(map[string]*Upgrade)
-
-	feynmanUpgrade = make(map[string]*Upgrade)
-
-	feynmanFixUpgrade = make(map[string]*Upgrade)
-
-	haberFixUpgrade = make(map[string]*Upgrade)
-
-	bohrUpgrade = make(map[string]*Upgrade)
-
-	pascalUpgrade = make(map[string]*Upgrade)
-
-	lorentzUpgrade = make(map[string]*Upgrade)
+	// lorentzUpgrade = make(map[string]*Upgrade)
 )
 
 func init() {
@@ -660,55 +644,6 @@ func upgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 	if config.IsOnAthena(blockNumber, lastBlockTime, blockTime) {
 		applySystemContractUpgrade(athenaUpgrade[network], blockNumber, statedb, logger)
 	}
-	// TODO(cz): check which ones to keep below
-	if config.IsOnMoran(blockNumber) {
-		applySystemContractUpgrade(moranUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnPlanck(blockNumber) {
-		applySystemContractUpgrade(planckUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnLuban(blockNumber) {
-		applySystemContractUpgrade(lubanUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnPlato(blockNumber) {
-		applySystemContractUpgrade(platoUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnShanghai(blockNumber, lastBlockTime, blockTime) {
-		logger.Info("Empty upgrade config for shanghai", "height", blockNumber.String())
-	}
-
-	if config.IsOnKepler(blockNumber, lastBlockTime, blockTime) {
-		applySystemContractUpgrade(keplerUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnFeynman(blockNumber, lastBlockTime, blockTime) {
-		applySystemContractUpgrade(feynmanUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnFeynmanFix(blockNumber, lastBlockTime, blockTime) {
-		applySystemContractUpgrade(feynmanFixUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnHaberFix(blockNumber, lastBlockTime, blockTime) {
-		applySystemContractUpgrade(haberFixUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnBohr(blockNumber, lastBlockTime, blockTime) {
-		applySystemContractUpgrade(bohrUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnPascal(blockNumber, lastBlockTime, blockTime) {
-		applySystemContractUpgrade(pascalUpgrade[network], blockNumber, statedb, logger)
-	}
-
-	if config.IsOnLorentz(blockNumber, lastBlockTime, blockTime) {
-		applySystemContractUpgrade(lorentzUpgrade[network], blockNumber, statedb, logger)
-	}
-
 	/*
 		apply other upgrades
 	*/

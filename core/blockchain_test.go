@@ -3337,6 +3337,7 @@ func preShanghaiConfig() *params.ChainConfig {
 	config.ShanghaiTime = nil
 	config.KeplerTime = nil
 	config.DemeterTime = nil
+	config.AthenaTime = nil
 	config.CancunTime = nil
 	return &config
 }
@@ -4202,6 +4203,16 @@ func (c *mockSatoshi) VerifyHeaders(chain consensus.ChainHeaderReader, headers [
 		results <- nil
 	}
 	return abort, results
+}
+
+func (c *mockSatoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, txs *[]*types.Transaction, uncles []*types.Header,
+	receipts *[]*types.Receipt, _ *[]*types.Transaction, _ *uint64, tracer *tracing.Hooks) (err error) {
+	return
+}
+
+func (c *mockSatoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt, tracer *tracing.Hooks) (err error) {
+	return
 }
 
 func (c *mockSatoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, _ *[]*types.Transaction, uncles []*types.Header, withdrawals []*types.Withdrawal,

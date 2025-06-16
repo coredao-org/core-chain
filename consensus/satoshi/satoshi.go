@@ -613,7 +613,7 @@ func (p *Satoshi) verifyHeader(chain consensus.ChainHeaderReader, header *types.
 		}
 	}
 	// Ensure that the block doesn't contain any uncles which are meaningless in PoA
-	if header.UncleHash != types.EmptyUncleHash {
+	if header.UncleHash != uncleHash {
 		return errInvalidUncleHash
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
@@ -707,7 +707,7 @@ func (p *Satoshi) verifyCascadingFields(chain consensus.ChainHeaderReader, heade
 	}
 
 	// blockTimeVerify
-	if header.Time < parent.Time+p.config.Period+p.backOffTime(snap, header, header.Coinbase) {
+	if header.Time < parent.Time+p.config.Period+p.backOffTime(snap, parent, header, header.Coinbase) {
 		return consensus.ErrFutureBlock
 	}
 
@@ -977,7 +977,7 @@ func (p *Satoshi) verifySeal(chain consensus.ChainHeaderReader, header *types.He
 	return nil
 }
 
-func (p *Satoshi) prepareValidators(chain consensus.ChainHeaderReader, header *types.Header) error {
+func (p *Satoshi) prepareValidators(chain consensus.ChainHeaderReader, header, parent *types.Header) error {
 	epochLength, err := p.epochLength(chain, header, nil)
 	if err != nil {
 		return err
@@ -986,7 +986,7 @@ func (p *Satoshi) prepareValidators(chain consensus.ChainHeaderReader, header *t
 		return nil
 	}
 
-	newValidators, voteAddressMap, err := p.getCurrentValidators(header.ParentHash, new(big.Int).Sub(header.Number, big.NewInt(1)))
+	newValidators, voteAddressMap, err := p.getCurrentValidators(parent)
 	if err != nil {
 		return err
 	}
@@ -1153,7 +1153,7 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	header.Time = parent.Time + p.config.Period + p.backOffTime(snap, header, p.val)
+	header.Time = parent.Time + p.config.Period + p.backOffTime(snap, parent, header, p.val)
 	if header.Time < uint64(time.Now().Unix()) {
 		header.Time = uint64(time.Now().Unix())
 	}
@@ -1166,7 +1166,7 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, chain.GenesisHeader().Time, number, header.Time)
 	header.Extra = append(header.Extra, nextForkHash[:]...)
 
-	if err := p.prepareValidators(chain, header); err != nil {
+	if err := p.prepareValidators(chain, header, parent); err != nil {
 		return err
 	}
 
@@ -1179,7 +1179,7 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	return nil
 }
 
-func (p *Satoshi) verifyValidators(chain consensus.ChainHeaderReader, header *types.Header) error {
+func (p *Satoshi) verifyValidators(chain consensus.ChainHeaderReader, header, parent *types.Header) error {
 	epochLength, err := p.epochLength(chain, header, nil)
 	if err != nil {
 		return err
@@ -1218,61 +1218,10 @@ func (p *Satoshi) verifyValidators(chain consensus.ChainHeaderReader, header *ty
 			copy(validatorsBytes[i*validatorBytesLength+common.AddressLength:], voteAddressMap[validator].Bytes())
 		}
 	}
-	if !bytes.Equal(getValidatorBytesFromHeader(header, p.chainConfig, p.config), validatorsBytes) {
+	if !bytes.Equal(getValidatorBytesFromHeader(header, p.chainConfig, epochLength), validatorsBytes) {
 		return errMismatchingEpochValidators
 	}
 	return nil
-}
-
-func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, state vm.StateDB, header *types.Header,
-	cx core.ChainContext, txs *[]*types.Transaction, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction,
-	usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
-	chainConfig := chain.Config()
-
-	head := chain.GetHeaderByHash(header.ParentHash)
-	if head == nil {
-		return fmt.Errorf("header %v not find", header.Hash())
-	}
-	voteAttestation, err := getVoteAttestationFromHeader(head, chainConfig, p.config)
-	if err != nil {
-		return err
-	}
-	if voteAttestation == nil {
-		return nil
-	}
-	justifiedBlock := chain.GetHeaderByHash(voteAttestation.Data.TargetHash)
-	if justifiedBlock == nil {
-		log.Warn("justifiedBlock is nil at height %d", voteAttestation.Data.TargetNumber)
-		return nil
-	}
-
-	snap, err := p.snapshot(chain, justifiedBlock.Number.Uint64()-1, justifiedBlock.ParentHash, nil)
-	if err != nil {
-		return err
-	}
-	validators := snap.validators()
-	validatorsBitSet := bitset.From([]uint64{uint64(voteAttestation.VoteAddressSet)})
-	if validatorsBitSet.Count() > uint(len(validators)) {
-		log.Error("invalid attestation, vote number larger than validators number")
-		return nil
-	}
-
-	voteValidators := make([]common.Address, 0)
-	for index, val := range validators {
-		if validatorsBitSet.Test(uint(index)) {
-			voteValidators = append(voteValidators, val)
-		}
-	}
-
-	// generate system transaction
-	method := "distributeFinalityReward"
-	data, err := p.validatorSetABI.Pack(method, voteValidators)
-	if err != nil {
-		log.Error("Unable to pack tx for distributeFinalityReward", "error", err)
-		return err
-	}
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), params.SystemTxsGas, data, common.Big0)
-	return p.applyTransaction(msg, state, header, cx, txs, receipts, systemTxs, usedGas, mining, tracer)
 }
 
 func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, txs *[]*types.Transaction,
@@ -1280,23 +1229,16 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 	cx := chainContext{Chain: chain, satoshi: p}
 
 	parent := chain.GetHeaderByHash(header.ParentHash)
-	isOnDemeter := p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time)
-	isOnTheseus := p.chainConfig.IsOnTheseus(header.Number, parent.Time, header.Time)
-	if isOnDemeter || isOnTheseus {
-		contracts := []string{}
-		if isOnDemeter {
-			contracts = append(contracts, systemcontracts.StakeHubContract)
-			contracts = append(contracts, systemcontracts.CoreAgentContract)
-			contracts = append(contracts, systemcontracts.HashAgentContract)
-			contracts = append(contracts, systemcontracts.BTCAgentContract)
-			contracts = append(contracts, systemcontracts.BTCStakeContract)
-			contracts = append(contracts, systemcontracts.BTCLSTStakeContract)
-			contracts = append(contracts, systemcontracts.BTCLSTTokenContract)
+	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
+		contracts := []string{
+			systemcontracts.StakeHubContract,
+			systemcontracts.CoreAgentContract,
+			systemcontracts.HashAgentContract,
+			systemcontracts.BTCAgentContract,
+			systemcontracts.BTCStakeContract,
+			systemcontracts.BTCLSTStakeContract,
+			systemcontracts.BTCLSTTokenContract,
 		}
-		if isOnTheseus {
-			contracts = append(contracts, systemcontracts.FeeMarketContract)
-		}
-
 		err := p.initContractWithContracts(state, header, cx, txs, receipts, systemTxs, usedGas, false, contracts, tracer)
 		if err != nil {
 			log.Error("init contract failed on demeter fork")
@@ -1307,16 +1249,48 @@ func (p *Satoshi) BeforeValidateTx(chain consensus.ChainHeaderReader, header *ty
 	if p.isRoundEnd(chain, header) {
 		// try turnRound
 		log.Trace("turn round", "block hash", header.Hash())
-		err = p.turnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+		err = p.turnRound(state, header, cx, txs, receipts, systemTxs, usedGas, false, tracer)
 		if err != nil {
 			// it is possible that turn round failed.
 			log.Error("turn round failed", "block hash", header.Hash())
 		}
 	}
-	if !bytes.Equal(getValidatorBytesFromHeader(header, p.chainConfig, epochLength), validatorsBytes) {
-		return errMismatchingEpochValidators
-	}
 	return nil
+}
+
+func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs *[]*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt, tracer *tracing.Hooks) (err error) {
+	cx := chainContext{Chain: chain, satoshi: p}
+
+	parent := chain.GetHeaderByHash(header.ParentHash)
+	if p.chainConfig.IsOnDemeter(header.Number, parent.Time, header.Time) {
+		contracts := []string{
+			systemcontracts.StakeHubContract,
+			systemcontracts.CoreAgentContract,
+			systemcontracts.HashAgentContract,
+			systemcontracts.BTCAgentContract,
+			systemcontracts.BTCStakeContract,
+			systemcontracts.BTCLSTStakeContract,
+			systemcontracts.BTCLSTTokenContract,
+		}
+
+		err := p.initContractWithContracts(state, header, cx, txs, receipts, nil, &header.GasUsed, true, contracts, tracer)
+		if err != nil {
+			log.Error("init contract failed on demeter fork")
+		}
+	}
+
+	// If the block is the last one in a round, execute turn round to update the validator set.
+	if p.isRoundEnd(chain, header) {
+		// try turnRound
+		log.Trace("turn round", "block hash", header.Hash())
+		err = p.turnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true, tracer)
+		if err != nil {
+			// it is possible that turn round failed.
+			log.Error("turn round failed", "block hash", header.Hash())
+		}
+	}
+	return
 }
 
 func (p *Satoshi) verifyTurnLength(chain consensus.ChainHeaderReader, header *types.Header) error {
@@ -1368,18 +1342,38 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 		}
 		voteAttestation, err := getVoteAttestationFromHeader(head, chain.Config(), epochLength)
 		if err != nil {
-			log.Error("init contract failed on demeter fork")
+			return err
 		}
-	}
+		if voteAttestation == nil {
+			continue
+		}
+		justifiedBlock := chain.GetHeaderByHash(voteAttestation.Data.TargetHash)
+		if justifiedBlock == nil {
+			log.Warn("justifiedBlock is nil at height %d", voteAttestation.Data.TargetNumber)
+			continue
+		}
 
-	// If the block is the last one in a round, execute turn round to update the validator set.
-	if p.isRoundEnd(chain, header) {
-		// try turnRound
-		log.Trace("turn round", "block hash", header.Hash())
-		err = p.turnRound(state, header, cx, txs, receipts, nil, &header.GasUsed, true)
+		snap, err := p.snapshot(chain, justifiedBlock.Number.Uint64()-1, justifiedBlock.ParentHash, nil)
 		if err != nil {
-			// it is possible that turn round failed.
-			log.Error("turn round failed", "block hash", header.Hash())
+			return err
+		}
+		validators := snap.validators()
+		validatorsBitSet := bitset.From([]uint64{uint64(voteAttestation.VoteAddressSet)})
+		if validatorsBitSet.Count() > uint(len(validators)) {
+			log.Error("invalid attestation, vote number larger than validators number")
+			continue
+		}
+		validVoteCount := 0
+		for index, val := range validators {
+			if validatorsBitSet.Test(uint(index)) {
+				accumulatedWeights[val] += 1
+				validVoteCount += 1
+			}
+		}
+		// TODO(cz): do we need this?
+		quorum := cmath.CeilDiv(len(snap.Validators)*2, 3)
+		if validVoteCount > quorum {
+			accumulatedWeights[head.Coinbase] += uint64((validVoteCount - quorum) * collectAdditionalVotesRewardRatio / 100)
 		}
 	}
 
@@ -1438,7 +1432,7 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 	}
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
-	if err := p.verifyValidators(chain, header); err != nil {
+	if err := p.verifyValidators(chain, header, chain.GetHeader(header.ParentHash, number-1)); err != nil {
 		return err
 	}
 
@@ -1582,7 +1576,7 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 	if header.GasLimit < header.GasUsed {
 		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
 	}
-	header.UncleHash = types.EmptyUncleHash
+	header.UncleHash = types.CalcUncleHash(nil)
 	var blk *types.Block
 	var rootHash common.Hash
 	wg := sync.WaitGroup{}
@@ -1673,7 +1667,12 @@ func (p *Satoshi) Authorize(val common.Address, signFn SignerFn, signTxFn Signer
 
 // Argument leftOver is the time reserved for block finalize(calculate root, distribute income...)
 func (p *Satoshi) Delay(chain consensus.ChainReader, header *types.Header, leftOver *time.Duration) *time.Duration {
-	delay := time.Until(time.Unix(int64(header.Time), 0))
+	number := header.Number.Uint64()
+	snap, err := p.snapshot(chain, number-1, header.ParentHash, nil)
+	if err != nil {
+		return nil
+	}
+	delay := time.Until(time.UnixMilli(int64(header.MilliTimestamp())))
 
 	if *leftOver >= time.Duration(snap.BlockInterval)*time.Millisecond {
 		// ignore invalid leftOver
@@ -2033,14 +2032,14 @@ func (p *Satoshi) slash(spoiledVal common.Address, state vm.StateDB, header *typ
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), params.SystemTxsGas, data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), data, common.Big0)
 	// apply message
-	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
 
 // turnRound call candidate contract to execute turn round
-func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+func (p *Satoshi) turnRound(state vm.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	// method
 	method := "turnRound"
 
@@ -2051,7 +2050,7 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), header.GasLimit-params.SystemTxsGas, data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), data, common.Big0)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
@@ -2059,8 +2058,6 @@ func (p *Satoshi) turnRound(state *state.StateDB, header *types.Header, chain co
 // init contract
 func (p *Satoshi) initContract(state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
-	// method
-	method := "init"
 	// contracts
 	contracts := []string{
 		systemcontracts.ValidatorContract,
@@ -2084,11 +2081,11 @@ func (p *Satoshi) initContract(state vm.StateDB, header *types.Header, chain cor
 		contracts = append(contracts, systemcontracts.BTCLSTTokenContract)
 	}
 
-	return p.initContractWithContracts(state, header, chain, txs, receipts, receivedTxs, usedGas, mining, contracts)
+	return p.initContractWithContracts(state, header, chain, txs, receipts, receivedTxs, usedGas, mining, contracts, tracer)
 }
 
-func (p *Satoshi) initContractWithContracts(state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, contracts []string) error {
+func (p *Satoshi) initContractWithContracts(state vm.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, contracts []string, tracer *tracing.Hooks) error {
 	// method
 	method := "init"
 
@@ -2099,7 +2096,7 @@ func (p *Satoshi) initContractWithContracts(state *state.StateDB, header *types.
 		return err
 	}
 	for _, c := range contracts {
-		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), header.GasLimit, data, common.Big0)
+		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), data, common.Big0)
 		// apply message
 		log.Trace("init contract", "block hash", header.Hash(), "contract", c)
 		err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
@@ -2134,7 +2131,7 @@ func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Addres
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), params.SystemTxsGas, data, amount)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), data, amount)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
@@ -2311,7 +2308,7 @@ func (p *Satoshi) GetFinalizedHeader(chain consensus.ChainHeaderReader, header *
 }
 
 // ===========================     utility function        ==========================
-func (s *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val common.Address) uint64 {
+func (p *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val common.Address) uint64 {
 	if snap.inturn(val) {
 		log.Debug("backOffTime", "blockNumber", header.Number, "in turn validator", val)
 		return 0
@@ -2328,7 +2325,7 @@ func (s *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val 
 		}
 		validators := snap.validators()
 		// TODO(cz): was IsPlanck on bsc
-		if s.chainConfig.IsZeus(header.Number) {
+		if p.chainConfig.IsZeus(header.Number) {
 			counts := snap.countRecents()
 			for addr, seenTimes := range counts {
 				log.Trace("backOffTime", "blockNumber", header.Number, "validator", addr, "seenTimes", seenTimes)
@@ -2352,7 +2349,7 @@ func (s *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val 
 				if snap.signRecentlyByCounts(addr, counts) {
 					continue
 				}
-				if s.chainConfig.IsBohr(header.Number, header.Time) {
+				if p.chainConfig.IsBohr(header.Number, header.Time) {
 					if addr == inTurnAddr {
 						continue
 					}

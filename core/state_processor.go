@@ -123,9 +123,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			}
 		}
 	}
-	err := p.engine.BeforeValidateTx(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
+	err = p.chain.engine.BeforeValidateTx(p.chain, header, tracingStateDB, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas, cfg.Tracer)
 	if err != nil {
-		return statedb, receipts, allLogs, *usedGas, err
+		return &ProcessResult{
+			Receipts: receipts,
+			Requests: nil, // TODO(cz): check requests,
+			Logs:     allLogs,
+			GasUsed:  *usedGas,
+		}, err
 	}
 	for i, tx := range block.Transactions() {
 		if isPoSA {

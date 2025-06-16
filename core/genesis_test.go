@@ -79,29 +79,38 @@ func testSetupGenesis(t *testing.T, scheme string) {
 		{
 			name: "mainnet block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, *params.ConfigCompatError, error) {
-				DefaultBSCGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
+				DefaultGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
 				return SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
-			wantHash:   params.BSCGenesisHash,
-			wantConfig: params.BSCChainConfig,
+			wantHash:   params.MainnetGenesisHash,
+			wantConfig: params.MainnetChainConfig,
 		},
 		{
-			name: "chapel block in DB, genesis == nil",
+			name: "core block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, *params.ConfigCompatError, error) {
-				DefaultChapelGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
+				DefaultCOREGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
 				return SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
-			wantHash:   params.ChapelGenesisHash,
-			wantConfig: params.ChapelChainConfig,
+			wantHash:   params.CoreGenesisHash,
+			wantConfig: params.CoreChainConfig,
 		},
 		{
-			name: "chapel block in DB, genesis == chapel",
+			name: "pigeon block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, *params.ConfigCompatError, error) {
-				DefaultChapelGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
-				return SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), DefaultChapelGenesisBlock())
+				DefaultPigeonGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
+				return SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
-			wantHash:   params.ChapelGenesisHash,
-			wantConfig: params.ChapelChainConfig,
+			wantHash:   params.PigeonGenesisHash,
+			wantConfig: params.PigeonChainConfig,
+		},
+		{
+			name: "pigeon block in DB, genesis == pigeon",
+			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, *params.ConfigCompatError, error) {
+				DefaultPigeonGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
+				return SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), DefaultPigeonGenesisBlock())
+			},
+			wantHash:   params.PigeonGenesisHash,
+			wantConfig: params.PigeonChainConfig,
 		},
 		{
 			name: "custom block in DB, genesis == nil",
@@ -112,17 +121,6 @@ func testSetupGenesis(t *testing.T, scheme string) {
 			},
 			wantHash:   customghash,
 			wantConfig: customg.Config,
-		},
-		{
-			name: "custom block in DB, genesis == chapel",
-			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, *params.ConfigCompatError, error) {
-				tdb := triedb.NewDatabase(db, newDbConfig(scheme))
-				customg.Commit(db, tdb)
-				return SetupGenesisBlock(db, tdb, DefaultBuffaloGenesisBlock())
-			},
-			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.BuffaloGenesisHash},
-			wantHash:   params.BuffaloGenesisHash,
-			wantConfig: params.BuffaloChainConfig,
 		},
 		{
 			name: "compatible config in DB",
@@ -274,7 +272,7 @@ func TestConfigOrDefault(t *testing.T) {
 		t.Errorf("initial config should have HeraBlock = nil, but instead HeraBlock = %v", defaultGenesis.Config.HeraBlock)
 	}
 	gHash := params.CoreGenesisHash
-	config := defaultGenesis.configOrDefault(gHash)
+	config := defaultGenesis.chainConfigOrDefault(gHash, nil)
 
 	if config.ChainID.Cmp(params.CoreChainConfig.ChainID) != 0 {
 		t.Errorf("ChainID of resulting config should be %v, but is %v instead", params.CoreChainConfig.ChainID, config.ChainID)

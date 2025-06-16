@@ -62,7 +62,6 @@ var (
 		Flags: slices.Concat([]cli.Flag{
 			utils.CachePreimagesFlag,
 			utils.OverrideCancun,
-			utils.OverrideHaber,
 			utils.OverridePassedForkTime,
 			utils.OverrideLorentz,
 			utils.OverrideMaxwell,
