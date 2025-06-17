@@ -77,6 +77,8 @@ const (
 	defaultInitialBackOffTime        = uint64(1) // second, Default backoff time for the second validator permitted to produce blocks
 	lorentzInitialBackOffTime uint64 = 2000      // milliseconds, Backoff time for the second validator permitted to produce blocks from the Lorentz hard fork
 
+	millisecondsUnit = 500 // Set to 250 if block interval is 750ms; not enforced at the consensus level
+
 	systemRewardPercent = 4 // it means 1/2^4 = 1/16 percentage of gas fee incoming will be distributed to system
 
 	collectAdditionalVotesRewardRatio = 100 // ratio of additional reward for collecting more votes than needed, the denominator is 100
@@ -88,9 +90,8 @@ const (
 )
 
 var (
-	uncleHash  = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
-	diffInTurn = big.NewInt(2)            // Block difficulty for in-turn signatures
-	diffNoTurn = big.NewInt(1)            // Block difficulty for out-of-turn signatures
+	diffInTurn = big.NewInt(2) // Block difficulty for in-turn signatures
+	diffNoTurn = big.NewInt(1) // Block difficulty for out-of-turn signatures
 	// 100 native token
 	maxSystemBalance                  = new(uint256.Int).Mul(uint256.NewInt(100), uint256.NewInt(params.Ether))
 	verifyVoteAttestationErrorCounter = metrics.NewRegisteredCounter("satoshi/verifyVoteAttestation/error", nil)
@@ -613,7 +614,7 @@ func (p *Satoshi) verifyHeader(chain consensus.ChainHeaderReader, header *types.
 		}
 	}
 	// Ensure that the block doesn't contain any uncles which are meaningless in PoA
-	if header.UncleHash != uncleHash {
+	if header.UncleHash != types.EmptyUncleHash {
 		return errInvalidUncleHash
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
@@ -1155,12 +1156,15 @@ func (p *Satoshi) Prepare(chain consensus.ChainHeaderReader, header *types.Heade
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	header.Time = parent.Time + p.config.Period + p.backOffTime(snap, parent, header, p.val)
-	if header.Time < uint64(time.Now().Unix()) {
-		header.Time = uint64(time.Now().Unix())
+	blockTime := parent.MilliTimestamp() + snap.BlockInterval + p.backOffTime(snap, parent, header, p.val)
+	if now := uint64(time.Now().UnixMilli()); blockTime < now {
+		// Just to make the millisecond part of the time look more aligned.
+		blockTime = uint64(cmath.CeilDiv(int(now), millisecondsUnit)) * millisecondsUnit
 	}
-	// TODO(cz): check if this is correct
-	if !p.chainConfig.IsLorentz(header.Number, header.Time) {
+	header.Time = blockTime / 1000 // get seconds
+	if p.chainConfig.IsLorentz(header.Number, header.Time) {
+		header.SetMilliseconds(blockTime % 1000)
+	} else {
 		header.MixDigest = common.Hash{}
 	}
 
@@ -1390,10 +1394,10 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 	}
 
 	// generate system transaction
-	method := "distributeFinalityReward"
+	method := "vote"
 	data, err := p.validatorSetABI.Pack(method, validators, weights)
 	if err != nil {
-		log.Error("Unable to pack tx for distributeFinalityReward", "error", err)
+		log.Error("Unable to pack tx for vote", "error", err)
 		return err
 	}
 	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), data, common.Big0)
@@ -1578,7 +1582,7 @@ func (p *Satoshi) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header 
 	if header.GasLimit < header.GasUsed {
 		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
 	}
-	header.UncleHash = types.CalcUncleHash(nil)
+	header.UncleHash = types.EmptyUncleHash
 	var blk *types.Block
 	var rootHash common.Hash
 	wg := sync.WaitGroup{}
@@ -1971,11 +1975,11 @@ func (p *Satoshi) getCurrentValidators(parent *types.Header) ([]common.Address, 
 		return nil, nil, err
 	}
 
-	voteAddrmap := make(map[common.Address]*types.BLSPublicKey, len(valSet))
+	voteAddrMap := make(map[common.Address]*types.BLSPublicKey, len(valSet))
 	for i := 0; i < len(valSet); i++ {
-		voteAddrmap[valSet[i]] = &(voteAddrSet)[i]
+		voteAddrMap[valSet[i]] = &(voteAddrSet)[i]
 	}
-	return valSet, voteAddrmap, nil
+	return valSet, voteAddrMap, nil
 }
 
 func (p *Satoshi) isIntentionalDelayMining(chain consensus.ChainHeaderReader, header *types.Header) (bool, error) {
@@ -2332,7 +2336,6 @@ func (p *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val 
 			delay = lorentzInitialBackOffTime
 		}
 		validators := snap.validators()
-		// TODO(cz): was IsPlanck on bsc
 		if p.chainConfig.IsZeus(header.Number) {
 			counts := snap.countRecents()
 			for addr, seenTimes := range counts {

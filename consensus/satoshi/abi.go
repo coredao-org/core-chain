@@ -1591,6 +1591,3 @@ const candidateHubABI = `
 		}
 	]
 `
-
-// TODO(cz): temp holder till we know how to handle the stake hub contract
-const stakeHubABI = `` // nolint:unused

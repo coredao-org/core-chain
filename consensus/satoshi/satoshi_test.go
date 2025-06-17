@@ -684,7 +684,7 @@ func TestSatoshi_applyTransactionTracing(t *testing.T) {
 		t.Fatalf("failed to create stateDB: %v", err)
 	}
 
-	method := "distributeFinalityReward"
+	method := "vote"
 	data, err := engine.validatorSetABI.Pack(method, make([]common.Address, 0), make([]*big.Int, 0))
 	if err != nil {
 		t.Fatalf("failed to pack system contract method %s: %v", method, err)
