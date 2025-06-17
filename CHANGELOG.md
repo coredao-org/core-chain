@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.18
+
+Improvements
+* Remove deprecated personal API from geth
+
+
 ## v1.0.12
 
 THIS RELEASE CHANGELOG IS UNFINISHED (DRAFT).
