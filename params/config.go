@@ -1549,7 +1549,7 @@ type Rules struct {
 	IsPlato                                                 bool
 	IsHertz                                                 bool
 	IsHertzfix                                              bool
-	IsShanghai, IsKepler, IsCancun, IsHaber                 bool
+	IsShanghai, IsKepler, IsCancun                          bool
 	IsBohr, IsPascal, IsPrague, IsLorentz, IsMaxwell        bool
 	IsOsaka, IsVerkle                                       bool
 }
@@ -1581,7 +1581,6 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsShanghai:       c.IsShanghai(num, timestamp),
 		IsKepler:         c.IsKepler(num, timestamp),
 		IsCancun:         c.IsCancun(num, timestamp),
-		IsHaber:          c.IsHaber(num, timestamp),
 		IsBohr:           c.IsBohr(num, timestamp),
 		IsPascal:         c.IsPascal(num, timestamp),
 		IsPrague:         c.IsPrague(num, timestamp),
