@@ -686,11 +686,6 @@ func (c *ChainConfig) String() string {
 		PlatoTime = big.NewInt(0).SetUint64(*c.PlatoTime)
 	}
 
-	var HaberTime *big.Int
-	if c.HaberTime != nil {
-		HaberTime = big.NewInt(0).SetUint64(*c.HaberTime)
-	}
-
 	var HaberFixTime *big.Int
 	if c.HaberFixTime != nil {
 		HaberFixTime = big.NewInt(0).SetUint64(*c.HaberFixTime)
@@ -721,7 +716,7 @@ func (c *ChainConfig) String() string {
 		MaxwellTime = big.NewInt(0).SetUint64(*c.MaxwellTime)
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Luban: %v, Plato: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, AthenaTime: %v, CancunTime: %v, HaberTime: %v, HaberFixTime: %v, BohrTime: %v, PascalTime: %v, PragueTime: %v, LorentzTime: %v, MaxwellTime: %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, AthenaTime: %v, CancunTime: %v, Luban: %v, Plato: %v, HaberFixTime: %v, BohrTime: %v, PascalTime: %v, PragueTime: %v, LorentzTime: %v, MaxwellTime: %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -749,7 +744,6 @@ func (c *ChainConfig) String() string {
 		CancunTime,
 		LubanTime,
 		PlatoTime,
-		HaberTime,
 		HaberFixTime,
 		BohrTime,
 		PascalTime,
