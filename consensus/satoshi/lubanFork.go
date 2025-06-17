@@ -22,7 +22,7 @@ func (p *Satoshi) getCurrentValidatorsBeforeLuban(blockHash common.Hash, blockNu
 	ctx, cancel := context.WithCancel(context.Background())
 	// cancel when we are finished consuming integers
 	defer cancel()
-	data, err := p.validatorSetABI.Pack(method)
+	data, err := p.validatorSetABIBeforeLuban.Pack(method)
 	if err != nil {
 		log.Error("Unable to pack tx for getValidators", "error", err)
 		return nil, err
@@ -41,6 +41,6 @@ func (p *Satoshi) getCurrentValidatorsBeforeLuban(blockHash common.Hash, blockNu
 	}
 
 	var valSet []common.Address
-	err = p.validatorSetABI.UnpackIntoInterface(&valSet, method, result)
+	err = p.validatorSetABIBeforeLuban.UnpackIntoInterface(&valSet, method, result)
 	return valSet, err
 }

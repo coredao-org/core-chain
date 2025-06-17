@@ -260,11 +260,12 @@ type Satoshi struct {
 
 	lock sync.RWMutex // Protects the signer fields
 
-	ethAPI          *ethapi.BlockChainAPI
-	VotePool        consensus.VotePool
-	validatorSetABI abi.ABI
-	slashABI        abi.ABI
-	candidateHubABI abi.ABI
+	ethAPI                     *ethapi.BlockChainAPI
+	VotePool                   consensus.VotePool
+	validatorSetABIBeforeLuban abi.ABI
+	validatorSetABI            abi.ABI
+	slashABI                   abi.ABI
+	candidateHubABI            abi.ABI
 
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
@@ -304,6 +305,10 @@ func New(
 	if err != nil {
 		panic(err)
 	}
+	vABIBeforeLuban, err := abi.JSON(strings.NewReader(validatorSetABIBeforeLuban))
+	if err != nil {
+		panic(err)
+	}
 	vABI, err := abi.JSON(strings.NewReader(validatorSetABI))
 	if err != nil {
 		panic(err)
@@ -317,18 +322,19 @@ func New(
 		panic(err)
 	}
 	c := &Satoshi{
-		chainConfig:     chainConfig,
-		config:          satoshiConfig,
-		genesisHash:     genesisHash,
-		db:              db,
-		ethAPI:          ethAPI,
-		recentSnaps:     recentSnaps,
-		recentHeaders:   recentHeaders,
-		signatures:      signatures,
-		validatorSetABI: vABI,
-		slashABI:        sABI,
-		candidateHubABI: cABI,
-		signer:          types.LatestSigner(chainConfig),
+		chainConfig:                chainConfig,
+		config:                     satoshiConfig,
+		genesisHash:                genesisHash,
+		db:                         db,
+		ethAPI:                     ethAPI,
+		recentSnaps:                recentSnaps,
+		recentHeaders:              recentHeaders,
+		signatures:                 signatures,
+		validatorSetABIBeforeLuban: vABIBeforeLuban,
+		validatorSetABI:            vABI,
+		slashABI:                   sABI,
+		candidateHubABI:            cABI,
+		signer:                     types.LatestSigner(chainConfig),
 	}
 
 	return c
@@ -1296,6 +1302,13 @@ func (p *Satoshi) BeforePackTx(chain consensus.ChainHeaderReader, header *types.
 			log.Error("turn round failed", "block hash", header.Hash())
 		}
 	}
+
+	// TODO(cz): test moving this logic here after Fliex's comment
+	// if p.chainConfig.IsPlato(header.Number, header.Time) {
+	// 	if err := p.distributeFinalityReward(chain, state, header, cx, txs, receipts, nil, &header.GasUsed, false, tracer); err != nil {
+	// 		log.Error("distribute finality reward failed", "block hash", header.Hash())
+	// 	}
+	// }
 	return
 }
 

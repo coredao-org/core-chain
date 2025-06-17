@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/systemcontracts/demeter"
 	hashPower "github.com/ethereum/go-ethereum/core/systemcontracts/hash_power"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/hera"
+	"github.com/ethereum/go-ethereum/core/systemcontracts/luban"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/poseidon"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/zeus"
 	"github.com/ethereum/go-ethereum/core/tracing"
@@ -58,6 +59,8 @@ var (
 	demeterUpgrade = make(map[string]*Upgrade)
 
 	athenaUpgrade = make(map[string]*Upgrade)
+
+	lubanUpgrade = make(map[string]*Upgrade)
 
 	// TODO(cz): Chech which ones to keep below
 	// haberFixUpgrade = make(map[string]*Upgrade)
@@ -585,6 +588,26 @@ func init() {
 			},
 		},
 	}
+	lubanUpgrade[defaultNet] = &Upgrade{
+		UpgradeName: "luban",
+		Configs: []*UpgradeConfig{
+			{
+				ContractAddr: common.HexToAddress(ValidatorContract),
+				CommitUrl:    "https://github.com/bnb-chain/bsc-genesis-contract/commit/b57652fbdd87e6436dd1685663b87b6036bdd762",
+				Code:         luban.DefaultValidatorContract,
+			},
+			{
+				ContractAddr: common.HexToAddress(SlashContract),
+				CommitUrl:    "https://github.com/bnb-chain/bsc-genesis-contract/commit/b57652fbdd87e6436dd1685663b87b6036bdd762",
+				Code:         luban.DefaultSlashContract,
+			},
+			{
+				ContractAddr: common.HexToAddress(CandidateHubContract),
+				CommitUrl:    "https://github.com/bnb-chain/bsc-genesis-contract/commit/b57652fbdd87e6436dd1685663b87b6036bdd762",
+				Code:         luban.DefaultCandidateHubContract,
+			},
+		},
+	}
 }
 
 // TODO(cz): check this as it is being called with atBlockBegin from more places
@@ -643,6 +666,9 @@ func upgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 	}
 	if config.IsOnAthena(blockNumber, lastBlockTime, blockTime) {
 		applySystemContractUpgrade(athenaUpgrade[network], blockNumber, statedb, logger)
+	}
+	if config.IsOnLuban(blockNumber, lastBlockTime, blockTime) {
+		applySystemContractUpgrade(lubanUpgrade[network], blockNumber, statedb, logger)
 	}
 	/*
 		apply other upgrades
