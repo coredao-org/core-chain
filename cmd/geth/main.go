@@ -340,8 +340,6 @@ func main() {
 func prepare(ctx *cli.Context) {
 	// If we're running a known preset, log it for convenience.
 	switch {
-	case ctx.IsSet(utils.BuffaloFlag.Name):
-		log.Info("Starting CORE on Buffalo testnet...")
 	case ctx.IsSet(utils.PigeonFlag.Name):
 		log.Info("Starting CORE on Pigeon testnet...")
 
@@ -369,8 +367,7 @@ func prepare(ctx *cli.Context) {
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
 	if !ctx.IsSet(utils.CacheFlag.Name) && !ctx.IsSet(utils.NetworkIdFlag.Name) {
 		// Make sure we're not on any supported preconfigured testnet either
-		if !ctx.IsSet(utils.DeveloperFlag.Name) &&
-			!ctx.IsSet(utils.BuffaloFlag.Name) && !ctx.IsSet(utils.PigeonFlag.Name) {
+		if !ctx.IsSet(utils.DeveloperFlag.Name) && !ctx.IsSet(utils.PigeonFlag.Name) {
 			// Nope, we're really on mainnet. Bump that cache up!
 			log.Info("Bumping default cache on mainnet", "provided", ctx.Int(utils.CacheFlag.Name), "updated", 4096)
 			ctx.Set(utils.CacheFlag.Name, strconv.Itoa(4096))

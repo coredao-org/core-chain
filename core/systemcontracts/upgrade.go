@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/athena"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/demeter"
-	hashPower "github.com/ethereum/go-ethereum/core/systemcontracts/hash_power"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/hera"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/luban"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/poseidon"
@@ -38,7 +37,6 @@ type upgradeHook func(blockNumber *big.Int, contractAddr common.Address, statedb
 
 const (
 	mainNet    = "Mainnet"
-	buffaloNet = "Buffalo"
 	pigeonNet  = "Pigeon"
 	defaultNet = "Default"
 )
@@ -73,96 +71,6 @@ var (
 )
 
 func init() {
-	hashPowerUpgrade[buffaloNet] = &Upgrade{
-		UpgradeName: "hashPower",
-		Configs: []*UpgradeConfig{
-			{
-				ContractAddr: common.HexToAddress(ValidatorContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloValidatorContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(SlashContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloSlashContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(SystemRewardContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloSystemRewardContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(LightClientContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloLightClientContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(RelayerHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloRelayerHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(CandidateHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloCandidateHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(GovHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloGovHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(PledgeCandidateContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloPledgeCandidateContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(BurnContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloBurnContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(FoundationContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/52afb1322a69f8e695ab35227bcdff6c65ee752a",
-				Code:         hashPower.BuffaloFoundationContract,
-			},
-		},
-	}
-	zeusUpgrade[buffaloNet] = &Upgrade{
-		UpgradeName: "zeus",
-		Configs: []*UpgradeConfig{
-			{
-				ContractAddr: common.HexToAddress(ValidatorContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/4c8ca83979a34333ee8734fd57ab84f309539b5b",
-				Code:         zeus.BuffaloValidatorContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(LightClientContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/4c8ca83979a34333ee8734fd57ab84f309539b5b",
-				Code:         zeus.BuffaloLightClientContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(CandidateHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/4c8ca83979a34333ee8734fd57ab84f309539b5b",
-				Code:         zeus.BuffaloCandidateHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(GovHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/4c8ca83979a34333ee8734fd57ab84f309539b5b",
-				Code:         zeus.BuffaloGovHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(PledgeCandidateContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/4c8ca83979a34333ee8734fd57ab84f309539b5b",
-				Code:         zeus.BuffaloPledgeCandidateContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(FoundationContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/4c8ca83979a34333ee8734fd57ab84f309539b5b",
-				Code:         zeus.BuffaloFoundationContract,
-			},
-		},
-	}
 	zeusUpgrade[mainNet] = &Upgrade{
 		UpgradeName: "zeus",
 		Configs: []*UpgradeConfig{
@@ -198,16 +106,6 @@ func init() {
 			},
 		},
 	}
-	heraUpgrade[buffaloNet] = &Upgrade{
-		UpgradeName: "hera",
-		Configs: []*UpgradeConfig{
-			{
-				ContractAddr: common.HexToAddress(LightClientContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/11af2de8a60dec511b6752f6f42a86f372c32b5f",
-				Code:         hera.BuffaloLightClientContract,
-			},
-		},
-	}
 	heraUpgrade[mainNet] = &Upgrade{
 		UpgradeName: "hera",
 		Configs: []*UpgradeConfig{
@@ -215,31 +113,6 @@ func init() {
 				ContractAddr: common.HexToAddress(LightClientContract),
 				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/6b8aad810e5e023352bedadc022eed9a280b6367",
 				Code:         hera.MainnetLightClientContract,
-			},
-		},
-	}
-	poseidonUpgrade[buffaloNet] = &Upgrade{
-		UpgradeName: "poseidon",
-		Configs: []*UpgradeConfig{
-			{
-				ContractAddr: common.HexToAddress(ValidatorContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/f95ba12cc2baf8f4c13e2dd2c4278f33a0081aed",
-				Code:         poseidon.BuffaloValidatorContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(LightClientContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/f95ba12cc2baf8f4c13e2dd2c4278f33a0081aed",
-				Code:         poseidon.BuffaloLightClientContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(CandidateHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/f95ba12cc2baf8f4c13e2dd2c4278f33a0081aed",
-				Code:         poseidon.BuffaloCandidateHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(PledgeCandidateContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/f95ba12cc2baf8f4c13e2dd2c4278f33a0081aed",
-				Code:         poseidon.BuffaloPledgeCandidateContract,
 			},
 		},
 	}
@@ -265,96 +138,6 @@ func init() {
 				ContractAddr: common.HexToAddress(PledgeCandidateContract),
 				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/5e846bfd00de9d59ab32005e0bb7916615d8c764",
 				Code:         poseidon.MainnetPledgeCandidateContract,
-			},
-		},
-	}
-	demeterUpgrade[buffaloNet] = &Upgrade{
-		UpgradeName: "demeter",
-		Configs: []*UpgradeConfig{
-			{
-				ContractAddr: common.HexToAddress(ValidatorContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloValidatorContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(SlashContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloSlashContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(SystemRewardContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloSystemRewardContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(LightClientContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloLightClientContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(RelayerHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloRelayerHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(CandidateHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloCandidateHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(GovHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloGovHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(PledgeCandidateContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloPledgeCandidateContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(BurnContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloBurnContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(FoundationContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloFoundationContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(StakeHubContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloStakeHubContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(CoreAgentContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloCoreAgentContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(HashAgentContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloHashAgentContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(BTCAgentContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloBTCAgentContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(BTCStakeContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloBTCStakeContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(BTCLSTStakeContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloBTCLSTStakeContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(BTCLSTTokenContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-				Code:         demeter.BuffaloBTCLSTTokenContract,
 			},
 		},
 	}
@@ -640,8 +423,6 @@ func upgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 	/* Add mainnet genesis hash */
 	case params.CoreGenesisHash:
 		network = mainNet
-	case params.BuffaloGenesisHash:
-		network = buffaloNet
 	case params.PigeonGenesisHash:
 		network = pigeonNet
 	default:

@@ -456,7 +456,7 @@ func TestTable_filterNode(t *testing.T) {
 
 	// Check wrong genesis ENR record
 	var r2 enr.Record
-	r2.Set(enr.WithEntry("eth", eth{ForkID: forkid.NewID(params.CoreChainConfig, core.DefaultBuffaloGenesisBlock().ToBlock(), uint64(0), uint64(0))}))
+	r2.Set(enr.WithEntry("eth", eth{ForkID: forkid.NewID(params.CoreChainConfig, core.DefaultPigeonGenesisBlock().ToBlock(), uint64(0), uint64(0))}))
 	if enrFilter(&r2) {
 		t.Fatalf("filterNode doesn't work correctly for wrong genesis entry")
 	}

@@ -93,21 +93,7 @@ func TestUpgrade(t *testing.T) {
 		commitHash string
 		network    string
 	}{
-		// HashPower upgrades
-		{
-			name:       "hashPower_buffalo",
-			upgrade:    hashPowerUpgrade[buffaloNet],
-			commitHash: "52afb1322a69f8e695ab35227bcdff6c65ee752a",
-			network:    buffaloNet,
-		},
-
 		// Zeus upgrades
-		{
-			name:       "zeus_buffalo",
-			upgrade:    zeusUpgrade[buffaloNet],
-			commitHash: "4c8ca83979a34333ee8734fd57ab84f309539b5b",
-			network:    buffaloNet,
-		},
 		{
 			name:       "zeus_mainnet",
 			upgrade:    zeusUpgrade[mainNet],
@@ -117,12 +103,6 @@ func TestUpgrade(t *testing.T) {
 
 		// Hera upgrades
 		{
-			name:       "hera_buffalo",
-			upgrade:    heraUpgrade[buffaloNet],
-			commitHash: "11af2de8a60dec511b6752f6f42a86f372c32b5f",
-			network:    buffaloNet,
-		},
-		{
 			name:       "hera_mainnet",
 			upgrade:    heraUpgrade[mainNet],
 			commitHash: "6b8aad810e5e023352bedadc022eed9a280b6367",
@@ -131,12 +111,6 @@ func TestUpgrade(t *testing.T) {
 
 		// Poseidon upgrades
 		{
-			name:       "poseidon_buffalo",
-			upgrade:    poseidonUpgrade[buffaloNet],
-			commitHash: "f95ba12cc2baf8f4c13e2dd2c4278f33a0081aed",
-			network:    buffaloNet,
-		},
-		{
 			name:       "poseidon_mainnet",
 			upgrade:    poseidonUpgrade[mainNet],
 			commitHash: "5e846bfd00de9d59ab32005e0bb7916615d8c764",
@@ -144,12 +118,6 @@ func TestUpgrade(t *testing.T) {
 		},
 
 		// Demeter upgrades
-		{
-			name:       "demeter_buffalo",
-			upgrade:    demeterUpgrade[buffaloNet],
-			commitHash: "8c4176806d6646c5ce37a33ac3dd067dae3294f7",
-			network:    buffaloNet,
-		},
 		{
 			name:       "demeter_mainnet",
 			upgrade:    demeterUpgrade[mainNet],

@@ -30,9 +30,8 @@ import (
 var (
 	MainnetGenesisHash = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 
-	CoreGenesisHash    = common.HexToHash("0xf7fc87f11e61508a5828cd1508060ed1714c8d32a92744ae10acb43c953357ad")
-	BuffaloGenesisHash = common.HexToHash("0xd90508c51efd64e75363cdf51114d9f2a90a79e6cd0f78f3c3038b47695c034a")
-	PigeonGenesisHash  = common.HexToHash("0xdfe68477f9fbc0d3e362940fcf87fa54add5bc97c4afd7d3dee31919df40212c")
+	CoreGenesisHash   = common.HexToHash("0xf7fc87f11e61508a5828cd1508060ed1714c8d32a92744ae10acb43c953357ad")
+	PigeonGenesisHash = common.HexToHash("0xdfe68477f9fbc0d3e362940fcf87fa54add5bc97c4afd7d3dee31919df40212c")
 )
 
 func newUint64(val uint64) *uint64 { return &val }
@@ -175,34 +174,6 @@ var (
 		KeplerTime:          newUint64(1731999600),
 		DemeterTime:         newUint64(1731999600),
 		AthenaTime:          newUint64(1738544400), // 2025-02-03 1:00:00 AM UTC
-		Satoshi: &SatoshiConfig{
-			Period: 3,
-			Epoch:  200,
-			Round:  86400,
-		},
-	}
-
-	BuffaloChainConfig = &ChainConfig{
-		ChainID:             big.NewInt(1115),
-		HomesteadBlock:      big.NewInt(0),
-		EIP150Block:         big.NewInt(0),
-		EIP155Block:         big.NewInt(0),
-		EIP158Block:         big.NewInt(0),
-		ByzantiumBlock:      big.NewInt(0),
-		ConstantinopleBlock: big.NewInt(0),
-		PetersburgBlock:     big.NewInt(0),
-		IstanbulBlock:       big.NewInt(0),
-		MuirGlacierBlock:    big.NewInt(0),
-		HashPowerBlock:      big.NewInt(4_545_256),
-		ZeusBlock:           big.NewInt(12_666_000),
-		HeraBlock:           big.NewInt(16_472_288),
-		PoseidonBlock:       big.NewInt(18_253_800),
-		BerlinBlock:         big.NewInt(24_127_766),
-		LondonBlock:         big.NewInt(24_127_766),
-		HertzBlock:          big.NewInt(24_127_766),
-		ShanghaiTime:        newUint64(1729132200), // 2024-10-17 2:30:00 AM UTC
-		KeplerTime:          newUint64(1729132200),
-		DemeterTime:         newUint64(1729132200),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -459,8 +430,6 @@ func GetBuiltInChainConfig(ghash common.Hash) *ChainConfig {
 		return MainnetChainConfig
 	case CoreGenesisHash:
 		return CoreChainConfig
-	case BuffaloGenesisHash:
-		return BuffaloChainConfig
 	case PigeonGenesisHash:
 		return PigeonChainConfig
 	default:
