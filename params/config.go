@@ -489,8 +489,6 @@ type ChainConfig struct {
 	IstanbulBlock       *big.Int `json:"istanbulBlock,omitempty"`       // Istanbul switch block (nil = no fork, 0 = already on istanbul)
 	MuirGlacierBlock    *big.Int `json:"muirGlacierBlock,omitempty"`    // Eip-2384 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	BerlinBlock         *big.Int `json:"berlinBlock,omitempty"`         // Berlin switch block (nil = no fork, 0 = already on berlin)
-	YoloV3Block         *big.Int `json:"yoloV3Block,omitempty"`         // YOLO v3: Gas repricings TODO @holiman add EIP references
-	CatalystBlock       *big.Int `json:"catalystBlock,omitempty"`       // Catalyst switch block (nil = no fork, 0 = already on catalyst)
 	LondonBlock         *big.Int `json:"londonBlock,omitempty"`         // London switch block (nil = no fork, 0 = already on london)
 	ArrowGlacierBlock   *big.Int `json:"arrowGlacierBlock,omitempty"`   // Eip-4345 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	GrayGlacierBlock    *big.Int `json:"grayGlacierBlock,omitempty"`    // Eip-5133 (bomb delay) switch block (nil = no fork, 0 = already activated)
@@ -1232,7 +1230,7 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 		return newBlockCompatError("hera fork block", c.HeraBlock, newcfg.HeraBlock)
 	}
 	if isForkBlockIncompatible(c.PoseidonBlock, newcfg.PoseidonBlock, headNumber) {
-		return newBlockCompatError("hera fork block", c.PoseidonBlock, newcfg.PoseidonBlock)
+		return newBlockCompatError("poseidon fork block", c.PoseidonBlock, newcfg.PoseidonBlock)
 	}
 	if isForkBlockIncompatible(c.HertzBlock, newcfg.HertzBlock, headNumber) {
 		return newBlockCompatError("hertz fork block", c.HertzBlock, newcfg.HertzBlock)
