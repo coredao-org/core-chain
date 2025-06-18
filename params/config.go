@@ -578,8 +578,8 @@ type SatoshiConfig struct {
 }
 
 // String implements the stringer interface, returning the consensus engine details.
-func (b *SatoshiConfig) String() string {
-	return "satoshi"
+func (s *SatoshiConfig) String() string {
+	return fmt.Sprintf("satoshi(period: %d, epoch: %d, round: %d)", s.Period, s.Epoch, s.Round)
 }
 
 func (c *ChainConfig) Description() string {
@@ -620,107 +620,66 @@ func (c *ChainConfig) String() string {
 		engine = "unknown"
 	}
 
-	var ShanghaiTime *big.Int
-	if c.ShanghaiTime != nil {
-		ShanghaiTime = big.NewInt(0).SetUint64(*c.ShanghaiTime)
+	fields := []struct {
+		name  string
+		value interface{}
+	}{
+		{"ChainID", c.ChainID},
+		{"Homestead", c.HomesteadBlock},
+		{"DAO", c.DAOForkBlock},
+		{"DAOSupport", c.DAOForkSupport},
+		{"EIP150", c.EIP150Block},
+		{"EIP155", c.EIP155Block},
+		{"EIP158", c.EIP158Block},
+		{"Byzantium", c.ByzantiumBlock},
+		{"Constantinople", c.ConstantinopleBlock},
+		{"Petersburg", c.PetersburgBlock},
+		{"Istanbul", c.IstanbulBlock},
+		{"Muir Glacier", c.MuirGlacierBlock},
+		{"Berlin", c.BerlinBlock},
+		{"London", c.LondonBlock},
+		{"ArrowGlacier", c.ArrowGlacierBlock},
+		{"GrayGlacier", c.GrayGlacierBlock},
+		{"HashPower", c.HashPowerBlock},
+		{"Zeus", c.ZeusBlock},
+		{"Hera", c.HeraBlock},
+		{"Poseidon", c.PoseidonBlock},
+		{"Hertz", c.HertzBlock},
+		{"ShanghaiTime", c.ShanghaiTime},
+		{"KeplerTime", c.KeplerTime},
+		{"DemeterTime", c.DemeterTime},
+		{"AthenaTime", c.AthenaTime},
+		{"CancunTime", c.CancunTime},
+		{"LubanTime", c.LubanTime},
+		{"PlatoTime", c.PlatoTime},
+		{"HaberTime", c.HaberTime},
+		{"HaberFixTime", c.HaberFixTime},
+		{"BohrTime", c.BohrTime},
+		{"PascalTime", c.PascalTime},
+		{"PragueTime", c.PragueTime},
+		{"OsakaTime", c.OsakaTime},
+		{"LorentzTime", c.LorentzTime},
+		{"MaxwellTime", c.MaxwellTime},
+		{"VerkleTime", c.VerkleTime},
+		{"HermesTime", c.HermesTime},
+		{"BlobScheduleConfig", c.BlobScheduleConfig},
+		{"TerminalTotalDifficulty", c.TerminalTotalDifficulty},
+		{"TerminalTotalDifficultyPassed", c.TerminalTotalDifficultyPassed},
+		{"DepositContractAddress", c.DepositContractAddress},
+		{"EnableVerkleAtGenesis", c.EnableVerkleAtGenesis},
+		{"Engine", engine},
 	}
 
-	var KeplerTime *big.Int
-	if c.KeplerTime != nil {
-		KeplerTime = big.NewInt(0).SetUint64(*c.KeplerTime)
+	var result string
+	for _, field := range fields {
+		val := field.value
+		if timestamp, ok := field.value.(*uint64); ok && timestamp != nil {
+			val = *timestamp
+		}
+		result += fmt.Sprintf("%s: %v, ", field.name, val)
 	}
 
-	var DemeterTime *big.Int
-	if c.DemeterTime != nil {
-		DemeterTime = big.NewInt(0).SetUint64(*c.DemeterTime)
-	}
-
-	var AthenaTime *big.Int
-	if c.AthenaTime != nil {
-		AthenaTime = big.NewInt(0).SetUint64(*c.AthenaTime)
-	}
-
-	var CancunTime *big.Int
-	if c.CancunTime != nil {
-		CancunTime = big.NewInt(0).SetUint64(*c.CancunTime)
-	}
-
-	var LubanTime *big.Int
-	if c.LubanTime != nil {
-		LubanTime = big.NewInt(0).SetUint64(*c.LubanTime)
-	}
-
-	var PlatoTime *big.Int
-	if c.PlatoTime != nil {
-		PlatoTime = big.NewInt(0).SetUint64(*c.PlatoTime)
-	}
-
-	var HaberFixTime *big.Int
-	if c.HaberFixTime != nil {
-		HaberFixTime = big.NewInt(0).SetUint64(*c.HaberFixTime)
-	}
-
-	var BohrTime *big.Int
-	if c.BohrTime != nil {
-		BohrTime = big.NewInt(0).SetUint64(*c.BohrTime)
-	}
-
-	var PascalTime *big.Int
-	if c.PascalTime != nil {
-		PascalTime = big.NewInt(0).SetUint64(*c.PascalTime)
-	}
-
-	var PragueTime *big.Int
-	if c.PragueTime != nil {
-		PragueTime = big.NewInt(0).SetUint64(*c.PragueTime)
-	}
-
-	var LorentzTime *big.Int
-	if c.LorentzTime != nil {
-		LorentzTime = big.NewInt(0).SetUint64(*c.LorentzTime)
-	}
-
-	var MaxwellTime *big.Int
-	if c.MaxwellTime != nil {
-		MaxwellTime = big.NewInt(0).SetUint64(*c.MaxwellTime)
-	}
-
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, London: %v, HashPower: %v, Zeus: %v, Hera: %v, Poseidon: %v, Hertz: %v, ShanghaiTime: %v, KeplerTime: %v, DemeterTime: %v, AthenaTime: %v, CancunTime: %v, Luban: %v, Plato: %v, HaberFixTime: %v, BohrTime: %v, PascalTime: %v, PragueTime: %v, LorentzTime: %v, MaxwellTime: %v, Engine: %v}",
-		c.ChainID,
-		c.HomesteadBlock,
-		c.DAOForkBlock,
-		c.DAOForkSupport,
-		c.EIP150Block,
-		c.EIP155Block,
-		c.EIP158Block,
-		c.ByzantiumBlock,
-		c.ConstantinopleBlock,
-		c.PetersburgBlock,
-		c.IstanbulBlock,
-		c.MuirGlacierBlock,
-		c.BerlinBlock,
-		c.YoloV3Block,
-		c.LondonBlock,
-		c.HashPowerBlock,
-		c.ZeusBlock,
-		c.HeraBlock,
-		c.PoseidonBlock,
-		c.HertzBlock,
-		ShanghaiTime,
-		KeplerTime,
-		DemeterTime,
-		AthenaTime,
-		CancunTime,
-		LubanTime,
-		PlatoTime,
-		HaberFixTime,
-		BohrTime,
-		PascalTime,
-		PragueTime,
-		LorentzTime,
-		MaxwellTime,
-		engine,
-	)
+	return "{" + result[:len(result)-2] + "}" // Remove trailing comma and space
 }
 
 // BlobConfig specifies the target and max blobs per block for the associated fork.
