@@ -3164,7 +3164,7 @@ Block: %v (%#x)
 Miner: %v
 Error: %v
 Platform: %v%v
-Chain config: %#v
+Chain config: %s
 Receipts: %v
 ##############################
 `, block.Number(), block.Hash(), block.Coinbase(), err, platform, vcs, config, receiptString)
