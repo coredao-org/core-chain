@@ -1413,7 +1413,7 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 		log.Error("Unable to pack tx for vote", "error", err)
 		return err
 	}
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), params.SystemTxsGas, data, common.Big0)
 	return p.applyTransaction(msg, state, header, cx, txs, receipts, systemTxs, usedGas, mining, tracer)
 }
 
@@ -1957,6 +1957,8 @@ func (p *Satoshi) getCurrentValidators(parent *types.Header) ([]common.Address, 
 		return validators, nil, err
 	}
 
+	fmt.Println("🛑 skipped getCurrentValidatorsBeforeLuban", blockHash, blockNum)
+
 	// method
 	method := "getValidatorsAndVoteAddresses"
 
@@ -2057,7 +2059,7 @@ func (p *Satoshi) slash(spoiledVal common.Address, state vm.StateDB, header *typ
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), params.SystemTxsGas, data, common.Big0)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
@@ -2075,7 +2077,7 @@ func (p *Satoshi) turnRound(state vm.StateDB, header *types.Header, chain core.C
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.CandidateHubContract), header.GasLimit-params.SystemTxsGas, data, common.Big0)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
@@ -2121,7 +2123,7 @@ func (p *Satoshi) initContractWithContracts(state vm.StateDB, header *types.Head
 		return err
 	}
 	for _, c := range contracts {
-		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), data, common.Big0)
+		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), header.GasLimit, data, common.Big0)
 		// apply message
 		log.Trace("init contract", "block hash", header.Hash(), "contract", c)
 		err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
@@ -2135,7 +2137,7 @@ func (p *Satoshi) initContractWithContracts(state vm.StateDB, header *types.Head
 func (p *Satoshi) distributeToSystem(amount *big.Int, state vm.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SystemRewardContract), nil, amount)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SystemRewardContract), params.SystemTxsGas, nil, amount)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
@@ -2156,16 +2158,16 @@ func (p *Satoshi) distributeToValidator(amount *big.Int, validator common.Addres
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), data, amount)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), params.SystemTxsGas, data, amount)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }
 
 // get system message
-func (p *Satoshi) getSystemMessage(from, toAddress common.Address, data []byte, value *big.Int) *core.Message {
+func (p *Satoshi) getSystemMessage(from, toAddress common.Address, gas uint64, data []byte, value *big.Int) *core.Message {
 	return &core.Message{
 		From:     from,
-		GasLimit: math.MaxUint64 / 2,
+		GasLimit: gas,
 		GasPrice: big.NewInt(0),
 		Value:    value,
 		To:       &toAddress,
