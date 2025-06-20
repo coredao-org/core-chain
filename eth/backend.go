@@ -393,7 +393,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	// Create voteManager instance
 	if posa, ok := eth.engine.(consensus.PoSA); ok {
 		// Create votePool instance
-		// TODO(cz): Do we want the VotePool in Satoshi?
 		votePool := vote.NewVotePool(eth.blockchain, posa)
 		eth.votePool = votePool
 		if satoshi, ok := eth.engine.(*satoshi.Satoshi); ok {
@@ -592,7 +591,7 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.config.EnableTrustProtocol {
 		protos = append(protos, trust.MakeProtocols((*trustHandler)(s.handler))...)
 	}
-	// TODO(cz): Do we want the BSC protocol in Satoshi?
+	// TODO(f): Do we want the BSC protocol in Satoshi? Probably yes, for BEP-126 as well to transmit the votes
 	protos = append(protos, bsc.MakeProtocols((*bscHandler)(s.handler))...)
 
 	return protos

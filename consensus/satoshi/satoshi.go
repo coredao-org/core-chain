@@ -1355,6 +1355,8 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 
 	head := header
 	accumulatedWeights := make(map[common.Address]uint64)
+	// TODO(f): do we need this?
+	// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L1254
 	for height := currentHeight - 1; height+finalityRewardInterval >= currentHeight && height >= 1; height-- {
 		head = chain.GetHeaderByHash(head.ParentHash)
 		if head == nil {
@@ -1394,7 +1396,8 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 				validVoteCount += 1
 			}
 		}
-		// TODO(cz): do we need this?
+		// TODO(f): do we need this? Seems that you left it out on purpose
+		// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L1293
 		quorum := cmath.CeilDiv(len(snap.Validators)*2, 3)
 		if validVoteCount > quorum {
 			accumulatedWeights[head.Coinbase] += uint64((validVoteCount - quorum) * collectAdditionalVotesRewardRatio / 100)
@@ -1626,7 +1629,8 @@ func (p *Satoshi) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header 
 func (p *Satoshi) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
 	targetNumber := vote.Data.TargetNumber
 	targetHash := vote.Data.TargetHash
-	// TODO(cz): let Fliex know about https://github.com/bnb-chain/bsc/commit/7b8d28b425c7312abf90abaaa7f28bad289f03ae#diff-7c199a2e5208a5ff8460e89bc19a9f9734312a8a4b15052d9d3e7e65c74aaa06L1365
+	// TODO(f): shall we use the GetVerifiedBlockByHash?
+	// BSC: https://github.com/bnb-chain/bsc/commit/7b8d28b425c7312abf90abaaa7f28bad289f03ae#diff-7c199a2e5208a5ff8460e89bc19a9f9734312a8a4b15052d9d3e7e65c74aaa06L1365
 	header := chain.GetVerifiedBlockByHash(targetHash)
 	if header == nil {
 		log.Warn("BlockHeader at current voteBlockNumber is nil", "targetNumber", targetNumber, "targetHash", targetHash)
@@ -1719,7 +1723,7 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 	if number == 0 {
 		return errUnknownBlock
 	}
-	// TODO(cz): check if we need this for dev mode
+	// TODO(f)(cz): remove this? It will never be 0, as we set the default on New()
 	// For 0-period chains, refuse to seal empty blocks (no reward but would spin sealing)
 	// if p.config.Period == 0 && len(block.Transactions()) == 0 {
 	// 	log.Info("Sealing paused, waiting for transactions")
@@ -1776,7 +1780,7 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 		copy(header.Extra[len(header.Extra)-extraSeal:], sig)
 
 		if p.shouldWaitForCurrentBlockProcess(chain, header, snap) {
-			// TODO(cz): compare processBackOffTime with waitProcessEstimate
+			// TODO(f)(cz): do you think that 100_000_000 is reasonable at our chain?
 			highestVerifiedHeader := chain.GetHighestVerifiedHeader()
 			// including time for writing and committing blocks
 			waitProcessEstimate := math.Ceil(float64(highestVerifiedHeader.GasUsed) / float64(100_000_000))
@@ -2402,7 +2406,6 @@ func (p *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val 
 			backOffSteps[i], backOffSteps[j] = backOffSteps[j], backOffSteps[i]
 		})
 
-		// TODO(cz): check if this is correct
 		if delay == 0 && isParerntLorentz {
 			// If the in-turn validator has signed recently, the expected backoff times are [0, 2, 3, ...].
 			if backOffSteps[idx] == 0 {
@@ -2495,7 +2498,6 @@ func applyMessage(
 	chainConfig *params.ChainConfig,
 	chainContext core.ChainContext,
 ) (uint64, error) {
-	// TODO(cz): we have to change the activation to later hardfork and not Cancun
 	// Apply the transaction to the current state (included in the env)
 	if chainConfig.IsHermes(header.Number, header.Time) {
 		rules := evm.ChainConfig().Rules(evm.Context.BlockNumber, evm.Context.Random != nil, evm.Context.Time)

@@ -536,7 +536,6 @@ type ChainConfig struct {
 	// those cases.
 	EnableVerkleAtGenesis bool `json:"enableVerkleAtGenesis,omitempty"`
 
-	// TODO(cz): remove these forks byBlock if not needed
 	HashPowerBlock *big.Int `json:"hashPowerBlock,omitempty"`
 	ZeusBlock      *big.Int `json:"zeusBlock,omitempty"`
 	HeraBlock      *big.Int `json:"heraBlock,omitempty"`

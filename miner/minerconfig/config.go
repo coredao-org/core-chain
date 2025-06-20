@@ -56,16 +56,16 @@ type Config struct {
 
 // DefaultConfig contains default settings for miner.
 var DefaultConfig = Config{
-	// TODO(cz): set this to 40000000
-	GasCeil:  0,
+	// TODO(f): I think it doesn't make sense to keep 0, what do you think? I want to run tests to it, as I just reviewed the code.
+	// BSC: https://github.com/bnb-chain/bsc/pull/2688
+	GasCeil:  40000000,
 	GasPrice: big.NewInt(params.GWei),
 
 	// The default recommit time is chosen as two seconds since
 	// consensus-layer usually will wait a half slot of time(6s)
 	// for payload generation. It should be enough for Geth to
 	// run 3 rounds.
-	Recommit: 3 * time.Second,
-	// TODO(cz): check why NewPayloadTimeout is removed
+	Recommit:      3 * time.Second,
 	DelayLeftOver: &defaultDelayLeftOver,
 
 	// The default value is set to 30 seconds.
