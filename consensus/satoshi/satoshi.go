@@ -714,7 +714,7 @@ func (p *Satoshi) verifyCascadingFields(chain consensus.ChainHeaderReader, heade
 	}
 
 	// blockTimeVerify
-	if header.Time < parent.Time+p.config.Period+p.backOffTime(snap, parent, header, header.Coinbase) {
+	if header.MilliTimestamp() < parent.MilliTimestamp()+snap.BlockInterval+p.backOffTime(snap, parent, header, header.Coinbase) {
 		return consensus.ErrFutureBlock
 	}
 
@@ -1693,7 +1693,7 @@ func (p *Satoshi) Delay(chain consensus.ChainReader, header *types.Header, leftO
 		delay = delay - *leftOver
 	}
 
-	// The blocking time should be no more than half of period when snap.TurnLength == 1
+	// The blocking time should be no more than half of period
 	timeForMining := time.Duration(snap.BlockInterval) * time.Millisecond / 2
 	if !snap.lastBlockInOneTurn(header.Number.Uint64()) {
 		timeForMining = time.Duration(snap.BlockInterval) * time.Millisecond * 2 / 3
@@ -1742,7 +1742,7 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 	}
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
-	delay := time.Until(time.Unix(int64(header.Time), 0))
+	delay := time.Until(time.UnixMilli(int64(header.MilliTimestamp())))
 
 	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", val.Hex())
 
