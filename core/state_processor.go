@@ -138,7 +138,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 				continue
 			}
 		}
-		// TODO(cz): Do we want this check? It will break for turnRound. Also if we keep it, move it to another hardfork and not Cancun (is already activated)
+		// TODO(f)(cz): Do we want this check? It will break for turnRound. Also if we keep it, move it to another hardfork and not Cancun (is already activated)
 		if p.config.IsCancun(block.Number(), block.Time()) {
 			if len(systemTxs) > 0 {
 				bloomProcessors.Close()
