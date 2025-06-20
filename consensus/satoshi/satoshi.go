@@ -55,7 +55,6 @@ const (
 
 	checkpointInterval = 1024 // Number of blocks after which to save the snapshot to the database
 
-	// TODO(cz): defaultEpochLength on core is 100, on bsc is 200
 	defaultEpochLength   uint64 = 200   // Default number of blocks of checkpoint to update validatorSet from contract
 	lorentzEpochLength   uint64 = 500   // Epoch length starting from the Lorentz hard fork
 	maxwellEpochLength   uint64 = 1000  // Epoch length starting from the Maxwell hard fork
@@ -788,7 +787,6 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 		// piled up more headers than allowed to be reorged (chain reinit from a freezer),
 		// consider the checkpoint trusted and snapshot it.
 
-		// TODO(cz): verify the numbers below for core, either way we won't apply any changes for now
 		// Unable to retrieve the exact EpochLength here.
 		// As known
 		// 		defaultEpochLength = 200 && turnLength = 1 or 4
@@ -798,12 +796,19 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 		offset := uint64(200)
 		if number == 0 || (number%maxwellEpochLength == offset && (len(headers) > int(params.FullImmutabilityThreshold))) {
 			var (
-				checkpoint    *types.Header
-				blockHash     common.Hash
+				checkpoint *types.Header
+				blockHash  common.Hash
+				// TODO(f): check if reading from config is correct
+				// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L785-L786
 				blockInterval = defaultBlockInterval
-				// TODO(cz): the default should come from the config
-				epochLength = defaultEpochLength
+				epochLength   = defaultEpochLength
 			)
+			if p.config.Period != 0 {
+				blockInterval = p.config.Period * 1000
+			}
+			if p.config.Epoch != 0 {
+				epochLength = p.config.Epoch
+			}
 			if number == 0 {
 				checkpoint = chain.GetHeaderByNumber(0)
 				if checkpoint != nil {
@@ -2397,6 +2402,7 @@ func (p *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val 
 			backOffSteps[i], backOffSteps[j] = backOffSteps[j], backOffSteps[i]
 		})
 
+		// TODO(cz): check if this is correct
 		if delay == 0 && isParerntLorentz {
 			// If the in-turn validator has signed recently, the expected backoff times are [0, 2, 3, ...].
 			if backOffSteps[idx] == 0 {
@@ -2411,32 +2417,44 @@ func (p *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val 
 
 // BlockInterval returns number of blocks in one epoch for the given header
 func (p *Satoshi) epochLength(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (uint64, error) {
-	// TODO(cz): the default should come from the config, default equals to genesis for Core
+	// TODO(f): check if reading from config is correct
+	// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L2310
+	epochLength := defaultEpochLength
+	if p.config.Epoch != 0 {
+		epochLength = p.config.Epoch
+	}
+
 	if header == nil {
-		return defaultEpochLength, errUnknownBlock
+		return epochLength, errUnknownBlock
 	}
 	if header.Number.Uint64() == 0 {
-		return defaultEpochLength, nil
+		return epochLength, nil
 	}
 	snap, err := p.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents)
 	if err != nil {
-		return defaultEpochLength, err
+		return epochLength, err
 	}
 	return snap.EpochLength, nil
 }
 
 // BlockInterval returns the block interval in milliseconds for the given header
 func (p *Satoshi) BlockInterval(chain consensus.ChainHeaderReader, header *types.Header) (uint64, error) {
-	// TODO(cz): the default should come from the config, default equals to genesis for Core
+	// TODO(f): check if reading from config is correct
+	// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L2310
+	blockInterval := defaultBlockInterval
+	if p.config.Period != 0 {
+		blockInterval = p.config.Period * 1000
+	}
+
 	if header == nil {
-		return defaultBlockInterval, errUnknownBlock
+		return blockInterval, errUnknownBlock
 	}
 	if header.Number.Uint64() == 0 {
-		return defaultBlockInterval, nil
+		return blockInterval, nil
 	}
 	snap, err := p.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
 	if err != nil {
-		return defaultBlockInterval, err
+		return blockInterval, err
 	}
 	return snap.BlockInterval, nil
 }
