@@ -40,10 +40,6 @@ const (
 	TxGas                uint64 = 21000  // Per transaction not creating a contract. NOTE: Not payable on data of calls between transactions.
 	SystemTxsGas         uint64 = 500000 // The gas reserved for system txs; only for satoshi consensus
 
-	// TODO(CZ): check the new config for the limits
-	SystemTxsGasHardLimit uint64 = 20000000 // Maximum gas reserved for system transactions (Satoshi consensus only)
-	SystemTxsGasSoftLimit uint64 = 1000000  // Maximum gas reserved for system transactions, excluding validator update transactions (Satoshi consensus only)
-
 	TxGasContractCreation uint64 = 53000 // Per transaction that creates a contract. NOTE: Not payable on data of calls between transactions.
 	TxDataZeroGas         uint64 = 4     // Per byte of data attached to a transaction that equals zero. NOTE: Not payable on data of calls between transactions.
 	QuadCoeffDiv          uint64 = 512   // Divisor for the quadratic particle of the memory cost equation.

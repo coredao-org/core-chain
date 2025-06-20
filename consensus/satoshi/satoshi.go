@@ -1418,21 +1418,11 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 }
 
 func (p *Satoshi) EstimateGasReservedForSystemTxs(chain consensus.ChainHeaderReader, header *types.Header) uint64 {
-	parent := chain.GetHeaderByHash(header.ParentHash)
-	if parent != nil {
-		if p.chainConfig.IsHermes(header.Number, header.Time) &&
-			!p.chainConfig.IsOnHermes(header.Number, parent.Time, header.Time) {
-			if !p.isRoundEnd(chain, header) {
-				// TODO(cz): fix comment
-				// params.SystemTxsGasSoftLimit > (depositTxGas+slashTxGas+finalityRewardTxGas)*150/100
-				return params.SystemTxsGasSoftLimit
-			}
-		}
-	}
-
-	// TODO(cz): fix comment
-	// params.SystemTxsGasHardLimit > (depositTxGas+slashTxGas+finalityRewardTxGas+updateValidatorTxGas)*150/100
-	return params.SystemTxsGasHardLimit
+	// The following values represent the maximum values found in the most recent blocks on the mainnet
+	// depositTxGas   = uint64(60_000)
+	// slashTxGas     = uint64(210_000)
+	// validatorTxGas = uint64(7_800_000)
+	return params.SystemTxsGas
 }
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
