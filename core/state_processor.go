@@ -146,6 +146,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 				return nil, fmt.Errorf("normal tx %d [%v] after systemTx", i, tx.Hash().Hex())
 			}
 		}
+
 		msg, err := TransactionToMessage(tx, signer, header.BaseFee)
 		if err != nil {
 			bloomProcessors.Close()
@@ -158,7 +159,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			bloomProcessors.Close()
 			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
-
 		commonTxs = append(commonTxs, tx)
 		receipts = append(receipts, receipt)
 	}

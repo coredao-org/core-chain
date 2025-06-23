@@ -97,7 +97,7 @@ var PrecompiledContractsIstanbul = PrecompiledContracts{
 
 // PrecompiledContractsHashPower contains the default set of pre-compiled Ethereum
 // contracts used in the HashPower release.
-var PrecompiledContractsHashPower = map[common.Address]PrecompiledContract{
+var PrecompiledContractsHashPower = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x1}): &ecrecover{},
 	common.BytesToAddress([]byte{0x2}): &sha256hash{},
 	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
@@ -113,7 +113,7 @@ var PrecompiledContractsHashPower = map[common.Address]PrecompiledContract{
 
 // PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
 // contracts used in the Berlin release.
-var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
+var PrecompiledContractsBerlin = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x1}): &ecrecover{},
 	common.BytesToAddress([]byte{0x2}): &sha256hash{},
 	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},

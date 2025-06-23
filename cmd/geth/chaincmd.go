@@ -653,6 +653,8 @@ func importHistory(ctx *cli.Context) error {
 		switch {
 		case ctx.Bool(utils.COREMainnetFlag.Name):
 			network = "mainnet"
+		case ctx.Bool(utils.PigeonFlag.Name):
+			network = "pigeon"
 		}
 	} else {
 		// No network flag set, try to determine network based on files

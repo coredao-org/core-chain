@@ -262,6 +262,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 		beforeSystemTx = true
 	)
 	for idx, tx := range block.Transactions() {
+		// upgrade build-in system contract before system txs
 		if beforeSystemTx {
 			if posa, ok := eth.Engine().(consensus.PoSA); ok {
 				if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
