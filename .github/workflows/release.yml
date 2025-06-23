@@ -56,7 +56,7 @@ jobs:
           GIT_COMMIT=$(git rev-parse HEAD)
           GIT_COMMIT_DATE=$(git log -n1 --pretty='format:%cd' --date=format:'%Y%m%d')
           GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CC=$(pwd)/x86_64-linux-musl-cross/bin/x86_64-linux-musl-gcc go build -ldflags "-X main.gitCommit=$GIT_COMMIT -X main.gitDate=$GIT_COMMIT_DATE -extldflags=-static" -o ./build/bin/geth -a ./cmd/geth
-      
+
       - name: Build Binary for ${{matrix.os}}
         if: matrix.os != 'ubuntu-latest'
         run: |
@@ -94,7 +94,7 @@ jobs:
         with:
           name: macos
           path: ./build/bin/geth
-      
+
       - name: Upload Windows Build
         uses: actions/upload-artifact@v4.3.3
         if: matrix.os == 'windows-latest'
@@ -129,33 +129,31 @@ jobs:
         with:
           name: linux
           path: ./linux
-      
+
       - name: Download Artifacts
         uses: actions/download-artifact@v4.1.7
         with:
           name: macos
           path: ./macos
-      
+
       - name: Download Artifacts
         uses: actions/download-artifact@v4.1.7
         with:
           name: windows
           path: ./windows
-      
+
       - name: Download Artifacts
         uses: actions/download-artifact@v4.1.7
         with:
           name: arm64
           path: ./arm64
-      
+
       - name: Download Config File
         run: |
           . ./.github/release.env
           echo "mainnet.zip url: $MAINNET_FILE_URL"
-          echo "testnet.zip url: $TESTNET_FILE_URL"
           echo "testnet2.zip url: $TESTNET2_FILE_URL"
           curl -L $MAINNET_FILE_URL -o ./mainnet.zip
-          curl -L $TESTNET_FILE_URL -o ./testnet.zip
           curl -L $TESTNET2_FILE_URL -o ./testnet2.zip
       # ==============================
       #       Create release
@@ -188,7 +186,6 @@ jobs:
           prerelease: false
           files: |
             ./mainnet.zip
-            ./testnet.zip
             ./testnet2.zip
             ./linux/geth_linux
             ./macos/geth_macos

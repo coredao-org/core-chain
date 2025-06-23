@@ -155,9 +155,8 @@ jobs:
         run: |
           . ./.github/release.env
           echo "mainnet.zip url: $MAINNET_FILE_URL"
-          echo "testnet.zip url: $TESTNET_FILE_URL"
           echo "testnet2.zip url: $TESTNET2_FILE_URL"
-          curl -L $TESTNET_FILE_URL -o ./testnet.zip
+          curl -L $MAINNET_FILE_URL -o ./mainnet.zip
           curl -L $TESTNET2_FILE_URL -o ./testnet2.zip
       # ==============================
       #       Create release
@@ -183,7 +182,6 @@ jobs:
           prerelease: true
           files: |
             ./mainnet.zip
-            ./testnet.zip
             ./testnet2.zip
             ./linux/geth_linux
             ./macos/geth_macos
