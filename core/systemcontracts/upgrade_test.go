@@ -138,6 +138,20 @@ func TestUpgrade(t *testing.T) {
 			commitHash: "48ab9c0505af2478b0f958d8c4f42a09ba2d072b",
 			network:    mainNet,
 		},
+
+		// Theseus upgrades
+		{
+			name:       "theseus_pigeon",
+			upgrade:    theseusUpgrade[pigeonNet],
+			commitHash: "15121cba9d0e6dcb99c144118539484abfb1240b",
+			network:    pigeonNet,
+		},
+		{
+			name:       "theseus_mainnet",
+			upgrade:    theseusUpgrade[mainNet],
+			commitHash: "0689a1e5d69d25f0d74c2363dee640d790130817",
+			network:    mainNet,
+		},
 	}
 
 	for _, tc := range testCases {
