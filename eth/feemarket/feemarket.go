@@ -8,7 +8,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -61,7 +60,7 @@ type FeeMarket struct {
 // NewFeeMarket creates a new fee market integration using storage access
 func NewFeeMarket() *FeeMarket {
 	return &FeeMarket{
-		contractAddress: common.HexToAddress(systemcontracts.FeeMarketContract),
+		contractAddress: common.HexToAddress("0x0000000000000000000000000000000000001016"),
 	}
 }
 

@@ -63,8 +63,6 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RPCGasCap               uint64
 		RPCEVMTimeout           time.Duration
 		RPCTxFeeCap             float64
-		OverrideCancun          *uint64 `toml:",omitempty"`
-		OverrideHaber           *uint64 `toml:",omitempty"`
 		OverridePassedForkTime  *uint64 `toml:",omitempty"`
 		OverrideLorentz         *uint64 `toml:",omitempty"`
 		OverrideMaxwell         *uint64 `toml:",omitempty"`
@@ -119,9 +117,6 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RPCGasCap = c.RPCGasCap
 	enc.RPCEVMTimeout = c.RPCEVMTimeout
 	enc.RPCTxFeeCap = c.RPCTxFeeCap
-	// TODO(cz): check to remove them
-	// enc.OverrideCancun = c.OverrideCancun
-	// enc.OverrideHaber = c.OverrideHaber
 	enc.OverridePassedForkTime = c.OverridePassedForkTime
 	enc.OverrideLorentz = c.OverrideLorentz
 	enc.OverrideMaxwell = c.OverrideMaxwell
@@ -180,8 +175,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RPCGasCap               *uint64
 		RPCEVMTimeout           *time.Duration
 		RPCTxFeeCap             *float64
-		OverrideCancun          *uint64 `toml:",omitempty"`
-		OverrideHaber           *uint64 `toml:",omitempty"`
 		OverridePassedForkTime  *uint64 `toml:",omitempty"`
 		OverrideLorentz         *uint64 `toml:",omitempty"`
 		OverrideMaxwell         *uint64 `toml:",omitempty"`
