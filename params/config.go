@@ -181,6 +181,9 @@ var (
 			Epoch:  200,
 			Round:  86400,
 		},
+		BlobScheduleConfig: &BlobScheduleConfig{
+			Cancun: DefaultCancunBlobConfig,
+		},
 	}
 
 	PigeonChainConfig = &ChainConfig{
@@ -211,6 +214,9 @@ var (
 			Period: 3,
 			Epoch:  200,
 			Round:  86400,
+		},
+		BlobScheduleConfig: &BlobScheduleConfig{
+			Cancun: DefaultCancunBlobConfig,
 		},
 	}
 
