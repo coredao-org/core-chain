@@ -2,7 +2,7 @@
 # with Go source code. If you know what GOPATH is then you probably
 # don't need to bother with make.
 
-.PHONY: geth faucet all test truffle-test lint fmt clean devtools help
+.PHONY: geth faucet all test lint fmt clean devtools help
 .PHONY: docker
 
 GOBIN = ./build/bin
