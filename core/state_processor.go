@@ -138,15 +138,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 				continue
 			}
 		}
-		// TODO(f)(cz): Do we want this check? It will break for turnRound. Also if we keep it, move it to another hardfork and not Cancun (is already activated)
-		if p.config.IsCancun(block.Number(), block.Time()) {
-			if len(systemTxs) > 0 {
-				bloomProcessors.Close()
-				// systemTxs should be always at the end of block.
-				return nil, fmt.Errorf("normal tx %d [%v] after systemTx", i, tx.Hash().Hex())
-			}
-		}
-
 		msg, err := TransactionToMessage(tx, signer, header.BaseFee)
 		if err != nil {
 			bloomProcessors.Close()

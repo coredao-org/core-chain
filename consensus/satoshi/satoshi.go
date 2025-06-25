@@ -76,6 +76,7 @@ const (
 	wiggleTime                       = uint64(1) // second, Random delay (per signer) to allow concurrent signers
 	defaultInitialBackOffTime        = uint64(1) // second, Default backoff time for the second validator permitted to produce blocks
 	lorentzInitialBackOffTime uint64 = 2000      // milliseconds, Backoff time for the second validator permitted to produce blocks from the Lorentz hard fork
+	processBackOffTime               = uint64(1) // second
 
 	millisecondsUnit = 500 // Set to 250 if block interval is 750ms; not enforced at the consensus level
 
@@ -798,10 +799,8 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 		offset := uint64(200)
 		if number == 0 || (number%maxwellEpochLength == offset && (len(headers) > int(params.FullImmutabilityThreshold))) {
 			var (
-				checkpoint *types.Header
-				blockHash  common.Hash
-				// TODO(f): check if reading from config is correct
-				// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L785-L786
+				checkpoint    *types.Header
+				blockHash     common.Hash
 				blockInterval = defaultBlockInterval
 				epochLength   = defaultEpochLength
 			)
@@ -1369,8 +1368,6 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 
 	head := header
 	accumulatedWeights := make(map[common.Address]uint64)
-	// TODO(f): do we need this?
-	// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L1254
 	for height := currentHeight - 1; height+finalityRewardInterval >= currentHeight && height >= 1; height-- {
 		head = chain.GetHeaderByHash(head.ParentHash)
 		if head == nil {
@@ -1410,8 +1407,6 @@ func (p *Satoshi) distributeFinalityReward(chain consensus.ChainHeaderReader, st
 				validVoteCount += 1
 			}
 		}
-		// TODO(f): do we need this? Seems that you left it out on purpose
-		// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L1293
 		quorum := cmath.CeilDiv(len(snap.Validators)*2, 3)
 		if validVoteCount > quorum {
 			accumulatedWeights[head.Coinbase] += uint64((validVoteCount - quorum) * collectAdditionalVotesRewardRatio / 100)
@@ -1657,8 +1652,6 @@ func (p *Satoshi) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header 
 func (p *Satoshi) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
 	targetNumber := vote.Data.TargetNumber
 	targetHash := vote.Data.TargetHash
-	// TODO(f): shall we use the GetVerifiedBlockByHash?
-	// BSC: https://github.com/bnb-chain/bsc/commit/7b8d28b425c7312abf90abaaa7f28bad289f03ae#diff-7c199a2e5208a5ff8460e89bc19a9f9734312a8a4b15052d9d3e7e65c74aaa06L1365
 	header := chain.GetVerifiedBlockByHash(targetHash)
 	if header == nil {
 		log.Warn("BlockHeader at current voteBlockNumber is nil", "targetNumber", targetNumber, "targetHash", targetHash)
@@ -1751,12 +1744,11 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 	if number == 0 {
 		return errUnknownBlock
 	}
-	// TODO(f)(cz): remove this? It will never be 0, as we set the default on New()
 	// For 0-period chains, refuse to seal empty blocks (no reward but would spin sealing)
-	// if p.config.Period == 0 && len(block.Transactions()) == 0 {
-	// 	log.Info("Sealing paused, waiting for transactions")
-	// 	return nil
-	// }
+	if p.config.Period == 0 && len(block.Transactions()) == 0 {
+		log.Info("Sealing paused, waiting for transactions")
+		return nil
+	}
 	// Don't hold the val fields for the entire sealing procedure
 	p.lock.RLock()
 	val, signFn := p.val, p.signFn
@@ -1808,16 +1800,12 @@ func (p *Satoshi) Seal(chain consensus.ChainHeaderReader, block *types.Block, re
 		copy(header.Extra[len(header.Extra)-extraSeal:], sig)
 
 		if p.shouldWaitForCurrentBlockProcess(chain, header, snap) {
-			// TODO(f)(cz): do you think that 100_000_000 is reasonable at our chain?
-			highestVerifiedHeader := chain.GetHighestVerifiedHeader()
-			// including time for writing and committing blocks
-			waitProcessEstimate := math.Ceil(float64(highestVerifiedHeader.GasUsed) / float64(100_000_000))
-			log.Info("Waiting for received in turn block to process", "waitProcessEstimate(Seconds)", waitProcessEstimate)
+			log.Info("Waiting for received in turn block to process")
 			select {
 			case <-stop:
 				log.Info("Received block process finished, abort block seal")
 				return
-			case <-time.After(time.Duration(waitProcessEstimate) * time.Second):
+			case <-time.After(time.Duration(processBackOffTime) * time.Second):
 				if chain.CurrentHeader().Number.Uint64() >= header.Number.Uint64() {
 					log.Info("Process backoff time exhausted, and current header has updated to abort this seal")
 					return
@@ -2457,8 +2445,6 @@ func (p *Satoshi) backOffTime(snap *Snapshot, parent, header *types.Header, val 
 
 // BlockInterval returns number of blocks in one epoch for the given header
 func (p *Satoshi) epochLength(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (uint64, error) {
-	// TODO(f): check if reading from config is correct
-	// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L2310
 	epochLength := defaultEpochLength
 	if p.config.Epoch != 0 {
 		epochLength = p.config.Epoch
@@ -2479,8 +2465,6 @@ func (p *Satoshi) epochLength(chain consensus.ChainHeaderReader, header *types.H
 
 // BlockInterval returns the block interval in milliseconds for the given header
 func (p *Satoshi) BlockInterval(chain consensus.ChainHeaderReader, header *types.Header) (uint64, error) {
-	// TODO(f): check if reading from config is correct
-	// BSC: https://github.com/bnb-chain/bsc/blame/v1.5.12/consensus/parlia/parlia.go#L2310
 	blockInterval := defaultBlockInterval
 	if p.config.Period != 0 {
 		blockInterval = p.config.Period * 1000

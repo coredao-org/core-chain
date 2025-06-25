@@ -399,11 +399,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 		}
 	}
-
-	// TODO(f): Check newer code with regards BEP126, the recents has been moved higher in code at https://github.com/bnb-chain/bsc/commit/3cade73e409a663366f4dbd620563fae251af627#diff-aa72bdade344cf9e9c5e5e13ff68422763139cfab7f45a0bd5e9b7da870fa506R271-R284 with regards your code https://github.com/coredao-org/core-chain/blob/8b626762f39c1428ed9193974745ff5b40db9f88/consensus/satoshi/snapshot.go
-	// The changes mostly happened for:
-	// - BEP-404: Clear Miner History when Switching Validators Set https://github.com/bnb-chain/bsc/commit/3cade73e409a663366f4dbd620563fae251af627#diff-aa72bdade344cf9e9c5e5e13ff68422763139cfab7f45a0bd5e9b7da870fa506R271-R277
-	// - BEP-341: Validators can produce consecutive blocks https://github.com/bnb-chain/bsc/commit/17e0e45a098530e1242a0f0e9f76ac857f8b79c8#diff-aa72bdade344cf9e9c5e5e13ff68422763139cfab7f45a0bd5e9b7da870fa506R80-R300
 	snap.Number += uint64(len(headers))
 	snap.Hash = headers[len(headers)-1].Hash()
 	return snap, nil

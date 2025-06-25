@@ -591,7 +591,6 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.config.EnableTrustProtocol {
 		protos = append(protos, trust.MakeProtocols((*trustHandler)(s.handler))...)
 	}
-	// TODO(f): Do we want the BSC protocol in Satoshi? Probably yes, for BEP-126 as well to transmit the votes
 	protos = append(protos, bsc.MakeProtocols((*bscHandler)(s.handler))...)
 
 	return protos

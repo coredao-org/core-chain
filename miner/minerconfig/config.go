@@ -56,9 +56,7 @@ type Config struct {
 
 // DefaultConfig contains default settings for miner.
 var DefaultConfig = Config{
-	// TODO(f): I think it doesn't make sense to keep 0, what do you think? I want to run tests to it, as I just reviewed the code.
-	// BSC: https://github.com/bnb-chain/bsc/pull/2688
-	GasCeil:  40000000,
+	GasCeil:  0,
 	GasPrice: big.NewInt(params.GWei),
 
 	// The default recommit time is chosen as two seconds since
