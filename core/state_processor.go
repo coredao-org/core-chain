@@ -81,10 +81,11 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	systemcontracts.TryUpdateBuildInSystemContract(p.config, blockNumber, lastBlock.Time, block.Time(), statedb, true)
 
 	var (
-		context vm.BlockContext
-		signer  = types.MakeSigner(p.config, header.Number, header.Time)
-		txNum   = len(block.Transactions())
-		err     error
+		context  vm.BlockContext
+		signer   = types.MakeSigner(p.config, header.Number, header.Time)
+		txNum    = len(block.Transactions())
+		requests [][]byte
+		err      error
 	)
 
 	// Apply pre-execution system calls.
@@ -127,7 +128,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	if err != nil {
 		return &ProcessResult{
 			Receipts: receipts,
-			Requests: nil, // TODO(cz): check requests,
+			Requests: requests,
 			Logs:     allLogs,
 			GasUsed:  *usedGas,
 		}, err
@@ -166,7 +167,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	bloomProcessors.Close()
 
 	// Read requests if Prague is enabled.
-	var requests [][]byte
 	if p.config.IsPrague(block.Number(), block.Time()) && p.chain.config.Satoshi == nil {
 		var allCommonLogs []*types.Log
 		for _, receipt := range receipts {

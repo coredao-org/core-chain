@@ -2047,8 +2047,8 @@ func (p *Satoshi) distributeIncoming(val common.Address, state vm.StateDB, heade
 		return nil
 	}
 
-	state.SetBalance(consensus.SystemAddress, common.U2560, tracing.BalanceDecreaseBSCDistributeReward)
-	state.AddBalance(coinbase, balance, tracing.BalanceIncreaseBSCDistributeReward)
+	state.SetBalance(consensus.SystemAddress, common.U2560, tracing.BalanceDecreaseCoreDistributeReward)
+	state.AddBalance(coinbase, balance, tracing.BalanceIncreaseCoreDistributeReward)
 	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
 	return p.distributeToValidator(balance.ToBig(), val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining, tracer)
 }

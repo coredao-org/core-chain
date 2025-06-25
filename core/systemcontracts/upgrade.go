@@ -62,15 +62,6 @@ var (
 	theseusUpgrade = make(map[string]*Upgrade)
 
 	lubanUpgrade = make(map[string]*Upgrade)
-
-	// TODO(cz): Chech which ones to keep below
-	// haberFixUpgrade = make(map[string]*Upgrade)
-
-	// bohrUpgrade = make(map[string]*Upgrade)
-
-	// pascalUpgrade = make(map[string]*Upgrade)
-
-	// lorentzUpgrade = make(map[string]*Upgrade)
 )
 
 func init() {
@@ -586,13 +577,11 @@ func init() {
 	}
 }
 
-// TODO(cz): check this as it is being called with atBlockBegin from more places
 func TryUpdateBuildInSystemContract(config *params.ChainConfig, blockNumber *big.Int, lastBlockTime uint64, blockTime uint64, statedb vm.StateDB, atBlockBegin bool) {
 	if atBlockBegin {
 		if !config.IsHermes(blockNumber, lastBlockTime) {
 			upgradeBuildInSystemContract(config, blockNumber, lastBlockTime, blockTime, statedb)
 		}
-		// TODO(cz): BEP-440 EIP-2935 https://github.com/bnb-chain/bsc/pull/2721
 		// HistoryStorageAddress is a special system contract in bsc, which can't be upgraded
 		if config.IsOnHermes(blockNumber, lastBlockTime, blockTime) {
 			statedb.SetCode(params.HistoryStorageAddress, params.HistoryStorageCode)
