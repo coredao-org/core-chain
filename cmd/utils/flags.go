@@ -296,11 +296,6 @@ var (
 		Usage:    "Manually specify the Cancun fork timestamp, overriding the bundled setting",
 		Category: flags.EthCategory,
 	}
-	RialtoHash = &cli.StringFlag{
-		Name:     "rialtohash",
-		Usage:    "Manually specify the Rialto Genesis Hash, to trigger builtin network logic",
-		Category: flags.EthCategory,
-	}
 	OverridePassedForkTime = &cli.Uint64Flag{
 		Name:     "override.passedforktime",
 		Usage:    "Manually specify the hard fork timestamps which have passed on the mainnet, overriding the bundled setting",

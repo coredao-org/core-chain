@@ -73,7 +73,6 @@ var (
 		utils.USBFlag,
 		utils.SmartCardDaemonPathFlag,
 		utils.OverrideCancun,
-		utils.RialtoHash,
 		utils.OverridePassedForkTime,
 		utils.OverrideLorentz,
 		utils.OverrideMaxwell,
