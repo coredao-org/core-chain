@@ -416,7 +416,11 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		diffQueueBuffer:    make(chan *types.DiffLayer),
 		logger:             vmConfig.Tracer,
 	}
-	bc.hc, err = NewHeaderChain(db, chainConfig, engine, bc.insertStopped)
+	// Initialize the fee market provider
+	if bc.chainConfig.Satoshi != nil {
+		bc.feeMarket = feemarket.NewFeeMarket()
+	}
+	bc.hc, err = NewHeaderChain(db, chainConfig, engine, bc.feeMarket, bc.insertStopped)
 	if err != nil {
 		return nil, err
 	}
@@ -437,11 +441,6 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	bc.currentBlock.Store(nil)
 	bc.currentSnapBlock.Store(nil)
 	bc.chasingHead.Store(nil)
-
-	// Initialize the fee market provider
-	if bc.chainConfig.Satoshi != nil {
-		bc.feeMarket = feemarket.NewFeeMarket()
-	}
 
 	// Update chain info data metrics
 	chainInfoGauge.Update(metrics.GaugeInfoValue{"chain_id": bc.chainConfig.ChainID.String()})
