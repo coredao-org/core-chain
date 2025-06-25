@@ -513,22 +513,6 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, value)
 	}
 
-	// TODO(cz): move gas Refund after Rev+
-	// Compute refund counter, capped to a refund quotient.
-	gasRefund := st.calcRefund()
-	st.gasRemaining += gasRefund
-	if rules.IsPrague {
-		// After EIP-7623: Data-heavy transactions pay the floor gas.
-		if st.gasUsed() < floorDataGas {
-			prev := st.gasRemaining
-			st.gasRemaining = st.initialGas - floorDataGas
-			if t := st.evm.Config.Tracer; t != nil && t.OnGasChange != nil {
-				t.OnGasChange(prev, st.gasRemaining, tracing.GasChangeTxDataFloor)
-			}
-		}
-	}
-	st.returnGas()
-
 	effectiveTip := msg.GasPrice
 	if rules.IsLondon {
 		effectiveTip = new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee)
@@ -537,11 +521,6 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		}
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
-	// effectiveTip := msg.GasPrice
-	// if rules.IsLondon {
-	// 	effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
-	// }
-	// effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
 	// Keep track of the distributed amounts in order to remove it from the validator fee
 	distributedAmount := uint256.NewInt(0)
@@ -675,19 +654,26 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		}
 	}
 
-	// var gasRefund uint64
-	// if !rules.IsLondon {
-	// 	// Before EIP-3529: refunds were capped to gasUsed / 2
-	// 	gasRefund = st.refundGas(params.RefundQuotient)
-	// } else {
-	// 	// After EIP-3529: refunds are capped to gasUsed / 5
-	// 	gasRefund = st.refundGas(params.RefundQuotientEIP3529)
-	// }
+	// Compute refund counter, capped to a refund quotient.
+	gasRefund := st.calcRefund()
+	st.gasRemaining += gasRefund
+	if rules.IsPrague {
+		// After EIP-7623: Data-heavy transactions pay the floor gas.
+		if st.gasUsed() < floorDataGas {
+			prev := st.gasRemaining
+			st.gasRemaining = st.initialGas - floorDataGas
+			if t := st.evm.Config.Tracer; t != nil && t.OnGasChange != nil {
+				t.OnGasChange(prev, st.gasRemaining, tracing.GasChangeTxDataFloor)
+			}
+		}
+	}
+	st.returnGas()
 
 	// Keep the fee calculation after the fee market distribution and gas refund
 	fee := new(uint256.Int).SetUint64(st.gasUsed())
 	fee.Mul(fee, effectiveTipU256)
-	// consensus engine is Satoshi
+
+	// consensus engine is satoshi
 	if st.evm.ChainConfig().Satoshi != nil {
 		// Subtract the distributed amount from the fee to validator
 		if distributedAmount.Sign() > 0 && distributedAmount.Cmp(fee) <= 0 {
