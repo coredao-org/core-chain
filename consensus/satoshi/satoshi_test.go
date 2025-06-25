@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
+	"math"
 	"math/big"
 	mrand "math/rand"
 	"slices"
@@ -690,7 +691,7 @@ func TestSatoshi_applyTransactionTracing(t *testing.T) {
 		t.Fatalf("failed to pack system contract method %s: %v", method, err)
 	}
 
-	msg := engine.getSystemMessage(genesisBlock.Coinbase(), common.HexToAddress(systemcontracts.ValidatorContract), data, common.Big0)
+	msg := engine.getSystemMessage(genesisBlock.Coinbase(), common.HexToAddress(systemcontracts.ValidatorContract), math.MaxUint64/2, data, common.Big0)
 	nonce := stateDB.GetNonce(msg.From)
 	expectedTx := types.NewTransaction(nonce, *msg.To, msg.Value, msg.GasLimit, msg.GasPrice, msg.Data)
 
