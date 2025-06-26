@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -32,17 +31,11 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/ethereum/go-ethereum/crypto/secp256r1"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/prysmaticlabs/prysm/v5/crypto/bls"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -166,16 +159,7 @@ var PrecompiledContractsPrague = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x0f}): &bls12381Pairing{},
 	common.BytesToAddress([]byte{0x10}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x11}): &bls12381MapG2{},
-
-	// TODO(cz): do we need those?
-	// common.BytesToAddress([]byte{0x64}): &tmHeaderValidate{},
-	// common.BytesToAddress([]byte{0x65}): &iavlMerkleProofValidatePlato{},
 	// common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
-	// common.BytesToAddress([]byte{0x67}): &cometBFTLightBlockValidateHertz{},
-	// common.BytesToAddress([]byte{0x68}): &verifyDoubleSignEvidence{},
-	// common.BytesToAddress([]byte{0x69}): &secp256k1SignatureRecover{},
-
-	common.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
 }
 
 var PrecompiledContractsBLS = PrecompiledContractsPrague
@@ -1302,130 +1286,4 @@ func kZGToVersionedHash(kzg kzg4844.Commitment) common.Hash {
 	h[0] = blobCommitmentVersionKZG
 
 	return h
-}
-
-// P256VERIFY (secp256r1 signature verification)
-// implemented as a native contract
-type p256Verify struct{}
-
-// RequiredGas returns the gas required to execute the precompiled contract
-func (c *p256Verify) RequiredGas(input []byte) uint64 {
-	return params.P256VerifyGas
-}
-
-// Run executes the precompiled contract with given 160 bytes of param, returning the output and the used gas
-func (c *p256Verify) Run(input []byte) ([]byte, error) {
-	// Required input length is 160 bytes
-	const p256VerifyInputLength = 160
-	// Check the input length
-	if len(input) != p256VerifyInputLength {
-		// Input length is invalid
-		return nil, nil
-	}
-
-	// Extract the hash, r, s, x, y from the input
-	hash := input[0:32]
-	r, s := new(big.Int).SetBytes(input[32:64]), new(big.Int).SetBytes(input[64:96])
-	x, y := new(big.Int).SetBytes(input[96:128]), new(big.Int).SetBytes(input[128:160])
-
-	// Verify the secp256r1 signature
-	if secp256r1.Verify(hash, r, s, x, y) {
-		// Signature is valid
-		return common.LeftPadBytes(common.Big1.Bytes(), 32), nil
-	} else {
-		// Signature is invalid
-		return nil, nil
-	}
-}
-
-// verifyDoubleSignEvidence implements bsc header verification precompile.
-type verifyDoubleSignEvidence struct{}
-
-// RequiredGas returns the gas required to execute the pre-compiled contract.
-func (c *verifyDoubleSignEvidence) RequiredGas(input []byte) uint64 {
-	return params.DoubleSignEvidenceVerifyGas
-}
-
-type DoubleSignEvidence struct {
-	ChainId      *big.Int
-	HeaderBytes1 []byte
-	HeaderBytes2 []byte
-}
-
-const (
-	extraSeal = 65
-)
-
-var (
-	errInvalidEvidence = errors.New("invalid double sign evidence")
-)
-
-// Run input: rlp encoded DoubleSignEvidence
-// return:
-// signer address| evidence height|
-// 20 bytes      | 32 bytes       |
-func (c *verifyDoubleSignEvidence) Run(input []byte) ([]byte, error) {
-	evidence := &DoubleSignEvidence{}
-	err := rlp.DecodeBytes(input, evidence)
-	if err != nil {
-		return nil, ErrExecutionReverted
-	}
-
-	header1 := &types.Header{}
-	err = rlp.DecodeBytes(evidence.HeaderBytes1, header1)
-	if err != nil {
-		return nil, ErrExecutionReverted
-	}
-
-	header2 := &types.Header{}
-	err = rlp.DecodeBytes(evidence.HeaderBytes2, header2)
-	if err != nil {
-		return nil, ErrExecutionReverted
-	}
-
-	// basic check
-	if len(header1.Number.Bytes()) > 32 || len(header2.Number.Bytes()) > 32 { // block number should be less than 2^256
-		return nil, errInvalidEvidence
-	}
-	if header1.Number.Cmp(header2.Number) != 0 {
-		return nil, errInvalidEvidence
-	}
-	if header1.ParentHash != header2.ParentHash {
-		return nil, errInvalidEvidence
-	}
-
-	if len(header1.Extra) < extraSeal || len(header2.Extra) < extraSeal {
-		return nil, errInvalidEvidence
-	}
-	sig1 := header1.Extra[len(header1.Extra)-extraSeal:]
-	sig2 := header2.Extra[len(header2.Extra)-extraSeal:]
-	if bytes.Equal(sig1, sig2) {
-		return nil, errInvalidEvidence
-	}
-
-	// check sig
-	msgHash1 := types.SealHash(header1, evidence.ChainId)
-	msgHash2 := types.SealHash(header2, evidence.ChainId)
-	if bytes.Equal(msgHash1.Bytes(), msgHash2.Bytes()) {
-		return nil, errInvalidEvidence
-	}
-	pubkey1, err := secp256k1.RecoverPubkey(msgHash1.Bytes(), sig1)
-	if err != nil {
-		return nil, ErrExecutionReverted
-	}
-	pubkey2, err := secp256k1.RecoverPubkey(msgHash2.Bytes(), sig2)
-	if err != nil {
-		return nil, ErrExecutionReverted
-	}
-	if !bytes.Equal(pubkey1, pubkey2) {
-		return nil, errInvalidEvidence
-	}
-
-	returnBz := make([]byte, 52) // 20 + 32
-	signerAddr := crypto.Keccak256(pubkey1[1:])[12:]
-	evidenceHeightBz := header1.Number.Bytes()
-	copy(returnBz[:20], signerAddr)
-	copy(returnBz[52-len(evidenceHeightBz):], evidenceHeightBz)
-
-	return returnBz, nil
 }
