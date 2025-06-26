@@ -65,7 +65,7 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x0f, 0x0e}): &bls12381Pairing{},
 	common.BytesToAddress([]byte{0x0f, 0x0f}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x0f, 0x10}): &bls12381MapG2{},
-	common.BytesToAddress([]byte{102}):        &blsSignatureVerify{},
+	common.BytesToAddress([]byte{0x65}):       &blsSignatureVerify{},
 }
 
 // EIP-152 test vectors
@@ -239,7 +239,7 @@ func BenchmarkPrecompiledBlsSignatureVerify(bench *testing.B) {
 		Expected: "01",
 		Name:     "",
 	}
-	benchmarkPrecompiled("66", t, bench)
+	benchmarkPrecompiled("65", t, bench)
 }
 
 // Tests the sample inputs from the ModExp EIP 198.
@@ -323,7 +323,7 @@ func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJson("blsPairing", "f
 func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJson("blsMapG1", "f0f", t) }
 func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJson("blsMapG2", "f10", t) }
 
-func TestPrecompiledBlsSignatureVerify(t *testing.T) { testJson("blsSignatureVerify", "66", t) }
+func TestPrecompiledBlsSignatureVerify(t *testing.T) { testJson("blsSignatureVerify", "65", t) }
 
 func TestPrecompiledPointEvaluation(t *testing.T) { testJson("pointEvaluation", "0a", t) }
 
@@ -348,7 +348,7 @@ func TestPrecompiledBLS12381PairingFail(t *testing.T)    { testJsonFail("blsPair
 func TestPrecompiledBLS12381MapG1Fail(t *testing.T)      { testJsonFail("blsMapG1", "f0f", t) }
 func TestPrecompiledBLS12381MapG2Fail(t *testing.T)      { testJsonFail("blsMapG2", "f10", t) }
 
-func TestPrecompiledBlsSignatureVerifyFail(t *testing.T) { testJson("blsSignatureVerify", "66", t) }
+func TestPrecompiledBlsSignatureVerifyFail(t *testing.T) { testJson("blsSignatureVerify", "65", t) }
 
 func loadJson(name string) ([]precompiledTest, error) {
 	data, err := os.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))

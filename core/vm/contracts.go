@@ -35,7 +35,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/prysmaticlabs/prysm/v5/crypto/bls"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -159,7 +161,8 @@ var PrecompiledContractsPrague = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x0f}): &bls12381Pairing{},
 	common.BytesToAddress([]byte{0x10}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x11}): &bls12381MapG2{},
-	// common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
+
+	common.BytesToAddress([]byte{0x65}): &blsSignatureVerify{},
 }
 
 var PrecompiledContractsBLS = PrecompiledContractsPrague
