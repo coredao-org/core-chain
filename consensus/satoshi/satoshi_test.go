@@ -652,7 +652,7 @@ func TestSatoshi_applyTransactionTracing(t *testing.T) {
 
 	config := params.SatoshiTestChainConfig
 	gspec := &core.Genesis{
-		Config: params.SatoshiTestChainConfig,
+		Config: config,
 		Alloc:  types.GenesisAlloc{testAddr: {Balance: new(big.Int).SetUint64(10 * params.Ether)}},
 	}
 
@@ -677,7 +677,7 @@ func TestSatoshi_applyTransactionTracing(t *testing.T) {
 		})
 	})
 
-	engine := New(params.SatoshiTestChainConfig, db, nil, genesisBlock.Hash())
+	engine := New(config, db, nil, genesisBlock.Hash())
 
 	stateDatabase := state.NewDatabase(trieDB, nil)
 	stateDB, err := state.New(genesisBlock.Root(), stateDatabase)
@@ -711,16 +711,16 @@ func TestSatoshi_applyTransactionTracing(t *testing.T) {
 
 	expectedRecords := []string{
 		"system tx start",
-		"tx [0xe9a5597c7f5a6a10a18959d262319fbf19cecb4d9d1ce8f2c990089bd88016fc] from [0x0000000000000000000000000000000000000000] start",
+		"tx [0xbd53b1df9a5184bf01071bdadf3efca6191b0e2c06ea747d52255dc4fe410a96] from [0x0000000000000000000000000000000000000000] start",
 		"nonce change [0x0000000000000000000000000000000000000000]: 0 -> 1",
 		"call enter [0x0000000000000000000000000000000000000000] -> [0x0000000000000000000000000000000000001000] (type 241, gas 9223372036854775807, value 0)",
 		"call exit (depth 0, gas used 0, reverted false, err: <none>)",
-		"tx [0xe9a5597c7f5a6a10a18959d262319fbf19cecb4d9d1ce8f2c990089bd88016fc] end (log count 0, cumulative gas used 0, err: <none>)",
+		"tx [0xbd53b1df9a5184bf01071bdadf3efca6191b0e2c06ea747d52255dc4fe410a96] end (log count 0, cumulative gas used 0, err: <none>)",
 		"system tx end",
 	}
 
 	if !slices.Equal(recording.records, expectedRecords) {
-		t.Errorf("expected \n%s\n\ngot\n\n%s", formatRecords(recording.records), formatRecords(expectedRecords))
+		t.Errorf("expected \n%s\n\ngot\n\n%s", formatRecords(expectedRecords), formatRecords(recording.records))
 	}
 }
 
