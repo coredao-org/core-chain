@@ -132,6 +132,13 @@ func NewEVMInterpreter(evm *EVM) *EVMInterpreter {
 		table = &frontierInstructionSet
 	}
 
+	// Modify the jump table for Satoshi
+	// - Revert the PREVRANDAO opcode to DIFFICULTY opcode
+	if evm.chainRules.IsSatoshi {
+		modifiedTable := newSatoshiRevertDifficultyInstructionSet(*table)
+		table = &modifiedTable
+	}
+
 	var extraEips []int
 	if len(evm.Config.ExtraEips) > 0 {
 		// Deep-copy jumptable to prevent modification of opcodes in other tables
