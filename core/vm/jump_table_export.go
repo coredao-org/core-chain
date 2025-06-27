@@ -24,36 +24,45 @@ import (
 
 // LookupInstructionSet returns the instruction set for the fork configured by
 // the rules.
-func LookupInstructionSet(rules params.Rules) (JumpTable, error) {
+func LookupInstructionSet(rules params.Rules) (table JumpTable, err error) {
 	switch {
 	case rules.IsVerkle:
 		return newCancunInstructionSet(), errors.New("verkle-fork not defined yet")
 	case rules.IsPrague:
 		return newCancunInstructionSet(), errors.New("prague-fork not defined yet")
 	case rules.IsCancun:
-		return newCancunInstructionSet(), nil
+		table = newCancunInstructionSet()
 	case rules.IsShanghai:
-		return newShanghaiInstructionSet(), nil
+		table = newShanghaiInstructionSet()
 	case rules.IsMerge:
-		return newMergeInstructionSet(), nil
+		table = newMergeInstructionSet()
 	case rules.IsLondon:
-		return newLondonInstructionSet(), nil
+		table = newLondonInstructionSet()
 	case rules.IsBerlin:
-		return newBerlinInstructionSet(), nil
+		table = newBerlinInstructionSet()
 	case rules.IsIstanbul:
-		return newIstanbulInstructionSet(), nil
+		table = newIstanbulInstructionSet()
 	case rules.IsConstantinople:
-		return newConstantinopleInstructionSet(), nil
+		table = newConstantinopleInstructionSet()
 	case rules.IsByzantium:
-		return newByzantiumInstructionSet(), nil
+		table = newByzantiumInstructionSet()
 	case rules.IsEIP158:
-		return newSpuriousDragonInstructionSet(), nil
+		table = newSpuriousDragonInstructionSet()
 	case rules.IsEIP150:
-		return newTangerineWhistleInstructionSet(), nil
+		table = newTangerineWhistleInstructionSet()
 	case rules.IsHomestead:
-		return newHomesteadInstructionSet(), nil
+		table = newHomesteadInstructionSet()
+	default:
+		table = newFrontierInstructionSet()
 	}
-	return newFrontierInstructionSet(), nil
+
+	// Modify the jump table for Satoshi
+	// - Revert the PREVRANDAO opcode to DIFFICULTY opcode
+	if rules.IsSatoshi {
+		table = newSatoshiRevertDifficultyInstructionSet(table)
+	}
+
+	return table, err
 }
 
 // Stack returns the minimum and maximum stack requirements.

@@ -614,6 +614,11 @@ func (c *ChainConfig) String() string {
 	)
 }
 
+// IsSatoshi returns whether the chain is a Satoshi chain.
+func (c *ChainConfig) IsSatoshi() bool {
+	return c.Satoshi != nil
+}
+
 // IsHomestead returns whether num is either equal to the homestead block or greater.
 func (c *ChainConfig) IsHomestead(num *big.Int) bool {
 	return isBlockForked(c.HomesteadBlock, num)
@@ -1200,6 +1205,7 @@ func (err *ConfigCompatError) Error() string {
 // phases.
 type Rules struct {
 	ChainID                                                 *big.Int
+	IsSatoshi                                               bool
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
@@ -1219,6 +1225,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 	isMerge = isMerge && c.IsLondon(num)
 	return Rules{
 		ChainID:          new(big.Int).Set(chainID),
+		IsSatoshi:        c.IsSatoshi(),
 		IsHomestead:      c.IsHomestead(num),
 		IsEIP150:         c.IsEIP150(num),
 		IsEIP155:         c.IsEIP155(num),

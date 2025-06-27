@@ -91,10 +91,21 @@ func newCancunInstructionSet() JumpTable {
 }
 
 func newShanghaiInstructionSet() JumpTable {
-	instructionSet := newLondonInstructionSet()
+	instructionSet := newMergeInstructionSet()
 	enable3855(&instructionSet) // PUSH0 instruction
 	enable3860(&instructionSet) // Limit and meter initcode
 
+	return validate(instructionSet)
+}
+
+func newSatoshiRevertDifficultyInstructionSet(instructionSet JumpTable) JumpTable {
+	// For Satoshi, we need to reset the PREVRANDAO opcode to DIFFICULTY opcode as we don't implement the PREVRANDAO opcode.
+	instructionSet[DIFFICULTY] = &operation{
+		execute:     opDifficulty,
+		constantGas: GasQuickStep,
+		minStack:    minStack(0, 1),
+		maxStack:    maxStack(0, 1),
+	}
 	return validate(instructionSet)
 }
 
