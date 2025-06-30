@@ -22,40 +22,19 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// LookupInstructionSet returns the instruction set for the fork configured by
-// the rules.
-func LookupInstructionSet(rules params.Rules) (JumpTable, error) {
+// LookupInstructionSet returns the instruction set for the fork configured by the rules.
+func LookupInstructionSet(rules params.Rules) (table JumpTable, err error) {
+	table = newInstructionSet(rules)
+
+	// Set error for unsupported forks
 	switch {
 	case rules.IsVerkle:
-		return newCancunInstructionSet(), errors.New("verkle-fork not defined yet")
+		err = errors.New("verkle-fork not defined yet")
 	case rules.IsOsaka:
-		return newPragueInstructionSet(), errors.New("osaka-fork not defined yet")
-	case rules.IsPrague:
-		return newPragueInstructionSet(), nil
-	case rules.IsCancun:
-		return newCancunInstructionSet(), nil
-	case rules.IsShanghai:
-		return newShanghaiInstructionSet(), nil
-	case rules.IsMerge:
-		return newMergeInstructionSet(), nil
-	case rules.IsLondon:
-		return newLondonInstructionSet(), nil
-	case rules.IsBerlin:
-		return newBerlinInstructionSet(), nil
-	case rules.IsIstanbul:
-		return newIstanbulInstructionSet(), nil
-	case rules.IsConstantinople:
-		return newConstantinopleInstructionSet(), nil
-	case rules.IsByzantium:
-		return newByzantiumInstructionSet(), nil
-	case rules.IsEIP158:
-		return newSpuriousDragonInstructionSet(), nil
-	case rules.IsEIP150:
-		return newTangerineWhistleInstructionSet(), nil
-	case rules.IsHomestead:
-		return newHomesteadInstructionSet(), nil
+		err = errors.New("osaka-fork not defined yet")
 	}
-	return newFrontierInstructionSet(), nil
+
+	return table, err
 }
 
 // Stack returns the minimum and maximum stack requirements.
