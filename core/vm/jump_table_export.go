@@ -22,44 +22,16 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// LookupInstructionSet returns the instruction set for the fork configured by
-// the rules.
+// LookupInstructionSet returns the instruction set for the fork configured by the rules.
 func LookupInstructionSet(rules params.Rules) (table JumpTable, err error) {
+	table = newInstructionSet(rules)
+
+	// Set error for unsupported forks
 	switch {
 	case rules.IsVerkle:
-		return newCancunInstructionSet(), errors.New("verkle-fork not defined yet")
+		err = errors.New("verkle-fork not defined yet")
 	case rules.IsPrague:
-		return newCancunInstructionSet(), errors.New("prague-fork not defined yet")
-	case rules.IsCancun:
-		table = newCancunInstructionSet()
-	case rules.IsShanghai:
-		table = newShanghaiInstructionSet()
-	case rules.IsMerge:
-		table = newMergeInstructionSet()
-	case rules.IsLondon:
-		table = newLondonInstructionSet()
-	case rules.IsBerlin:
-		table = newBerlinInstructionSet()
-	case rules.IsIstanbul:
-		table = newIstanbulInstructionSet()
-	case rules.IsConstantinople:
-		table = newConstantinopleInstructionSet()
-	case rules.IsByzantium:
-		table = newByzantiumInstructionSet()
-	case rules.IsEIP158:
-		table = newSpuriousDragonInstructionSet()
-	case rules.IsEIP150:
-		table = newTangerineWhistleInstructionSet()
-	case rules.IsHomestead:
-		table = newHomesteadInstructionSet()
-	default:
-		table = newFrontierInstructionSet()
-	}
-
-	// Modify the jump table for Satoshi
-	// - Revert the PREVRANDAO opcode to DIFFICULTY opcode
-	if rules.IsSatoshi {
-		table = newSatoshiRevertDifficultyInstructionSet(table)
+		err = errors.New("prague-fork not defined yet")
 	}
 
 	return table, err

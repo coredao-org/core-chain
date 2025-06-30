@@ -103,41 +103,8 @@ type EVMInterpreter struct {
 
 // NewEVMInterpreter returns a new instance of the Interpreter.
 func NewEVMInterpreter(evm *EVM) *EVMInterpreter {
-	// If jump table was not initialised we set the default one.
-	var table *JumpTable
-	switch {
-	case evm.chainRules.IsCancun:
-		table = &cancunInstructionSet
-	case evm.chainRules.IsShanghai:
-		table = &shanghaiInstructionSet
-	case evm.chainRules.IsMerge:
-		table = &mergeInstructionSet
-	case evm.chainRules.IsLondon:
-		table = &londonInstructionSet
-	case evm.chainRules.IsBerlin:
-		table = &berlinInstructionSet
-	case evm.chainRules.IsIstanbul:
-		table = &istanbulInstructionSet
-	case evm.chainRules.IsConstantinople:
-		table = &constantinopleInstructionSet
-	case evm.chainRules.IsByzantium:
-		table = &byzantiumInstructionSet
-	case evm.chainRules.IsEIP158:
-		table = &spuriousDragonInstructionSet
-	case evm.chainRules.IsEIP150:
-		table = &tangerineWhistleInstructionSet
-	case evm.chainRules.IsHomestead:
-		table = &homesteadInstructionSet
-	default:
-		table = &frontierInstructionSet
-	}
-
-	// Modify the jump table for Satoshi
-	// - Revert the PREVRANDAO opcode to DIFFICULTY opcode
-	if evm.chainRules.IsSatoshi {
-		modifiedTable := newSatoshiRevertDifficultyInstructionSet(*table)
-		table = &modifiedTable
-	}
+	instructionSet := newInstructionSet(evm.chainRules)
+	table := &instructionSet
 
 	var extraEips []int
 	if len(evm.Config.ExtraEips) > 0 {
