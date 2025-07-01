@@ -230,6 +230,8 @@ func activePrecompiledContracts(rules params.Rules) PrecompiledContracts {
 	// Add Satoshi specific contracts.
 	// This design ensures that standard Ethereum tests pass.
 	if rules.IsSatoshi && rules.IsHashPower {
+		// We need to clone the precompiles to avoid modifying the global precompiles maps.
+		precompiles = maps.Clone(precompiles)
 		for _, addr := range PrecompiledAddressesSatoshiHashPower {
 			precompiles[addr] = PrecompiledContractsSatoshiHashPower[addr]
 		}
