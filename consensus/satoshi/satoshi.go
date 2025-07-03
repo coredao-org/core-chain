@@ -1965,8 +1965,6 @@ func (p *Satoshi) getCurrentValidators(parent *types.Header) ([]common.Address, 
 		return validators, nil, err
 	}
 
-	fmt.Println("🛑 skipped getCurrentValidatorsBeforeLuban", blockHash, blockNum)
-
 	// method
 	method := "getValidatorsAndVoteAddresses"
 
