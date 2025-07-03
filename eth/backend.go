@@ -200,8 +200,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		chainConfig.ShanghaiTime = config.OverridePassedForkTime
 		chainConfig.KeplerTime = config.OverridePassedForkTime
 		chainConfig.CancunTime = config.OverridePassedForkTime
-		chainConfig.HaberTime = config.OverridePassedForkTime
-		chainConfig.HaberFixTime = config.OverridePassedForkTime
 		chainConfig.BohrTime = config.OverridePassedForkTime
 		chainConfig.PascalTime = config.OverridePassedForkTime
 		chainConfig.PragueTime = config.OverridePassedForkTime

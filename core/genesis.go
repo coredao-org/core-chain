@@ -264,7 +264,6 @@ func (e *GenesisMismatchError) Error() string {
 // Typically, these modifications involve hardforks that are not enabled on the CORE mainnet, intended for testing purposes.
 type ChainOverrides struct {
 	OverrideCancun         *uint64
-	OverrideHaber          *uint64
 	OverridePassedForkTime *uint64
 	OverrideLorentz        *uint64
 	OverrideMaxwell        *uint64
@@ -280,8 +279,6 @@ func (o *ChainOverrides) apply(cfg *params.ChainConfig) error {
 		cfg.ShanghaiTime = o.OverridePassedForkTime
 		cfg.KeplerTime = o.OverridePassedForkTime
 		cfg.CancunTime = o.OverridePassedForkTime
-		cfg.HaberTime = o.OverridePassedForkTime
-		cfg.HaberFixTime = o.OverridePassedForkTime
 		cfg.BohrTime = o.OverridePassedForkTime
 		cfg.PascalTime = o.OverridePassedForkTime
 		cfg.PragueTime = o.OverridePassedForkTime
@@ -294,9 +291,6 @@ func (o *ChainOverrides) apply(cfg *params.ChainConfig) error {
 	}
 	if o.OverrideCancun != nil {
 		cfg.CancunTime = o.OverrideCancun
-	}
-	if o.OverrideHaber != nil {
-		cfg.HaberTime = o.OverrideHaber
 	}
 	if o.OverrideVerkle != nil {
 		cfg.VerkleTime = o.OverrideVerkle

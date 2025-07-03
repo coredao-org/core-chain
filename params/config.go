@@ -513,18 +513,18 @@ type ChainConfig struct {
 	AthenaTime   *uint64 `json:"athenaTime,omitempty"`   // Athena switch time (nil = no fork, 0 = already on athena)
 	TheseusTime  *uint64 `json:"theseusTime,omitempty" ` // Theseus switch time (nil = no fork, 0 = already on theseus)
 	CancunTime   *uint64 `json:"cancunTime,omitempty"`   // Cancun switch time (nil = no fork, 0 = already on cancun)
-	LubanTime    *uint64 `json:"lubanTime,omitempty"`    // Luban switch time (nil = no fork, 0 = already on luban)
-	PlatoTime    *uint64 `json:"platoTime,omitempty"`    // Plato switch time (nil = no fork, 0 = already on plato)
-	HaberTime    *uint64 `json:"haberTime,omitempty"`    // Haber switch time (nil = no fork, 0 = already on haber)
-	HaberFixTime *uint64 `json:"haberFixTime,omitempty"` // HaberFix switch time (nil = no fork, 0 = already on haberFix)
-	BohrTime     *uint64 `json:"bohrTime,omitempty"`     // Bohr switch time (nil = no fork, 0 = already on bohr)
-	PascalTime   *uint64 `json:"pascalTime,omitempty"`   // Pascal switch time (nil = no fork, 0 = already on pascal)
-	PragueTime   *uint64 `json:"pragueTime,omitempty"`   // Prague switch time (nil = no fork, 0 = already on prague)
-	OsakaTime    *uint64 `json:"osakaTime,omitempty"`    // Osaka switch time (nil = no fork, 0 = already on osaka)
-	LorentzTime  *uint64 `json:"lorentzTime,omitempty"`  // Lorentz switch time (nil = no fork, 0 = already on lorentz)
-	MaxwellTime  *uint64 `json:"maxwellTime,omitempty"`  // Maxwell switch time (nil = no fork, 0 = already on maxwell)
-	VerkleTime   *uint64 `json:"verkleTime,omitempty"`   // Verkle switch time (nil = no fork, 0 = already on verkle)
-	HermesTime   *uint64 `json:"hermesTime,omitempty" `  // Hermes switch time (nil = no fork, 0 = already on hermes)
+	// Hermes has some logic of Feynman and Cancun, which has been enabled already in our chain and as such had to be enabled at a later fork.
+	// Hermes doesn't implement anything new by its own.
+	HermesTime  *uint64 `json:"hermesTime,omitempty" ` // Hermes switch time (nil = no fork, 0 = already on hermes)
+	LubanTime   *uint64 `json:"lubanTime,omitempty"`   // Luban switch time (nil = no fork, 0 = already on luban)
+	PlatoTime   *uint64 `json:"platoTime,omitempty"`   // Plato switch time (nil = no fork, 0 = already on plato)
+	BohrTime    *uint64 `json:"bohrTime,omitempty"`    // Bohr switch time (nil = no fork, 0 = already on bohr)
+	PascalTime  *uint64 `json:"pascalTime,omitempty"`  // Pascal switch time (nil = no fork, 0 = already on pascal)
+	PragueTime  *uint64 `json:"pragueTime,omitempty"`  // Prague switch time (nil = no fork, 0 = already on prague)
+	OsakaTime   *uint64 `json:"osakaTime,omitempty"`   // Osaka switch time (nil = no fork, 0 = already on osaka)
+	LorentzTime *uint64 `json:"lorentzTime,omitempty"` // Lorentz switch time (nil = no fork, 0 = already on lorentz)
+	MaxwellTime *uint64 `json:"maxwellTime,omitempty"` // Maxwell switch time (nil = no fork, 0 = already on maxwell)
+	VerkleTime  *uint64 `json:"verkleTime,omitempty"`  // Verkle switch time (nil = no fork, 0 = already on verkle)
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
@@ -660,10 +660,9 @@ func (c *ChainConfig) String() string {
 		{"AthenaTime", c.AthenaTime},
 		{"TheseusTime", c.TheseusTime},
 		{"CancunTime", c.CancunTime},
+		{"HermesTime", c.HermesTime},
 		{"LubanTime", c.LubanTime},
 		{"PlatoTime", c.PlatoTime},
-		{"HaberTime", c.HaberTime},
-		{"HaberFixTime", c.HaberFixTime},
 		{"BohrTime", c.BohrTime},
 		{"PascalTime", c.PascalTime},
 		{"PragueTime", c.PragueTime},
@@ -671,7 +670,6 @@ func (c *ChainConfig) String() string {
 		{"LorentzTime", c.LorentzTime},
 		{"MaxwellTime", c.MaxwellTime},
 		{"VerkleTime", c.VerkleTime},
-		{"HermesTime", c.HermesTime},
 		{"BlobScheduleConfig", c.BlobScheduleConfig},
 		{"TerminalTotalDifficulty", c.TerminalTotalDifficulty},
 		{"TerminalTotalDifficultyPassed", c.TerminalTotalDifficultyPassed},
@@ -908,6 +906,20 @@ func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
 }
 
+// IsHermes returns whether time is either equal to the Hermes fork time or greater.
+func (c *ChainConfig) IsHermes(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.HermesTime, time)
+}
+
+// IsOnHermes returns whether currentBlockTime is either equal to the Hermes fork time or greater firstly.
+func (c *ChainConfig) IsOnHermes(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsHermes(lastBlockNumber, lastBlockTime) && c.IsHermes(currentBlockNumber, currentBlockTime)
+}
+
 // IsOnCancun returns whether currentBlockTime is either equal to the cancun fork time or greater firstly.
 func (c *ChainConfig) IsLuban(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.LubanTime, time)
@@ -934,20 +946,6 @@ func (c *ChainConfig) IsOnPlato(currentBlockNumber *big.Int, lastBlockTime uint6
 		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
 	}
 	return !c.IsPlato(lastBlockNumber, lastBlockTime) && c.IsPlato(currentBlockNumber, currentBlockTime)
-}
-
-// IsHaberFix returns whether time is either equal to the HaberFix fork time or greater.
-func (c *ChainConfig) IsHaberFix(num *big.Int, time uint64) bool {
-	return c.IsLondon(num) && isTimestampForked(c.HaberFixTime, time)
-}
-
-// IsOnHaberFix returns whether currentBlockTime is either equal to the HaberFix fork time or greater firstly.
-func (c *ChainConfig) IsOnHaberFix(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
-	lastBlockNumber := new(big.Int)
-	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
-		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
-	}
-	return !c.IsHaberFix(lastBlockNumber, lastBlockTime) && c.IsHaberFix(currentBlockNumber, currentBlockTime)
 }
 
 // IsBohr returns whether time is either equal to the Bohr fork time or greater.
@@ -1030,20 +1028,6 @@ func (c *ChainConfig) IsVerkle(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.VerkleTime, time)
 }
 
-// IsHermes returns whether time is either equal to the Hermes fork time or greater.
-func (c *ChainConfig) IsHermes(num *big.Int, time uint64) bool {
-	return c.IsLondon(num) && isTimestampForked(c.HermesTime, time)
-}
-
-// IsOnHermes returns whether currentBlockTime is either equal to the Hermes fork time or greater firstly.
-func (c *ChainConfig) IsOnHermes(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
-	lastBlockNumber := new(big.Int)
-	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
-		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
-	}
-	return !c.IsHermes(lastBlockNumber, lastBlockTime) && c.IsHermes(currentBlockNumber, currentBlockTime)
-}
-
 // IsVerkleGenesis checks whether the verkle fork is activated at the genesis block.
 //
 // Verkle mode is considered enabled if the verkle fork time is configured,
@@ -1113,8 +1097,6 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "athenaTime", timestamp: c.AthenaTime},
 		{name: "theseusTime", timestamp: c.TheseusTime},
 		{name: "cancunTime", timestamp: c.CancunTime},
-		{name: "haberTime", timestamp: c.HaberTime},
-		{name: "haberFixTime", timestamp: c.HaberFixTime},
 		{name: "bohrTime", timestamp: c.BohrTime},
 		{name: "pascalTime", timestamp: c.PascalTime},
 		{name: "pragueTime", timestamp: c.PragueTime, optional: true},
@@ -1290,12 +1272,6 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.PlatoTime, newcfg.PlatoTime, headTimestamp) {
 		return newTimestampCompatError("Plato fork timestamp", c.PlatoTime, newcfg.PlatoTime)
-	}
-	if isForkTimestampIncompatible(c.HaberTime, newcfg.HaberTime, headTimestamp) {
-		return newTimestampCompatError("Haber fork timestamp", c.HaberTime, newcfg.HaberTime)
-	}
-	if isForkTimestampIncompatible(c.HaberFixTime, newcfg.HaberFixTime, headTimestamp) {
-		return newTimestampCompatError("HaberFix fork timestamp", c.HaberFixTime, newcfg.HaberFixTime)
 	}
 	if isForkTimestampIncompatible(c.BohrTime, newcfg.BohrTime, headTimestamp) {
 		return newTimestampCompatError("Bohr fork timestamp", c.BohrTime, newcfg.BohrTime)
