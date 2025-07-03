@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/systemcontracts/athena"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/demeter"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/hera"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/luban"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/poseidon"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/theseus"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/zeus"
@@ -362,26 +361,6 @@ func init() {
 				ContractAddr: common.HexToAddress(BTCLSTStakeContract),
 				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/48ab9c0505af2478b0f958d8c4f42a09ba2d072b",
 				Code:         athena.MainnetBTCLSTStakeContract,
-			},
-		},
-	}
-	lubanUpgrade[defaultNet] = &Upgrade{
-		UpgradeName: "luban",
-		Configs: []*UpgradeConfig{
-			{
-				ContractAddr: common.HexToAddress(ValidatorContract),
-				CommitUrl:    "https://github.com/bnb-chain/bsc-genesis-contract/commit/b57652fbdd87e6436dd1685663b87b6036bdd762",
-				Code:         luban.DefaultValidatorContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(SlashContract),
-				CommitUrl:    "https://github.com/bnb-chain/bsc-genesis-contract/commit/b57652fbdd87e6436dd1685663b87b6036bdd762",
-				Code:         luban.DefaultSlashContract,
-			},
-			{
-				ContractAddr: common.HexToAddress(CandidateHubContract),
-				CommitUrl:    "https://github.com/bnb-chain/bsc-genesis-contract/commit/b57652fbdd87e6436dd1685663b87b6036bdd762",
-				Code:         luban.DefaultCandidateHubContract,
 			},
 		},
 	}
