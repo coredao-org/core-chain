@@ -111,6 +111,7 @@ func testChainSyncWithBlobs(t *testing.T, mode downloader.SyncMode, preCancunBlk
 	config := *params.SatoshiTestChainConfig
 	cancunTime := (preCancunBlks + 1) * 10
 	config.CancunTime = &cancunTime
+	config.TheseusFixTime = &cancunTime
 
 	// Create a full handler and ensure snap sync ends up disabled
 	full := newTestSatoshiHandlerAfterCancun(t, &config, mode, preCancunBlks, postCancunBlks)
