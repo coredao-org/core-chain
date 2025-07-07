@@ -349,7 +349,7 @@ func TestFeeMarketAddUpdateRemoveConfiguration(t *testing.T) {
 			}
 		}
 	}
-	testFeeMarketBlock(t, blockGasLimit, 5, createGenFn, chainTesterFn)
+	testFeeMarketBlock(t, true, blockGasLimit, 5, createGenFn, chainTesterFn)
 }
 
 // TestFeeMarketGasPoolExpansion tests that the fee market expands the block beyond its limits for the amount of distributed gas
@@ -457,11 +457,11 @@ func TestFeeMarketGasPoolExpansion(t *testing.T) {
 	}
 
 	t.Run("WithConfiguration", func(t *testing.T) {
-		testFeeMarketBlock(t, blockGasLimit, 1, createGenRandomFn(true), chainTesterFn(true))
+		testFeeMarketBlock(t, true, blockGasLimit, 1, createGenRandomFn(true), chainTesterFn(true))
 	})
 
 	t.Run("WithoutConfiguration", func(t *testing.T) {
-		testFeeMarketBlock(t, blockGasLimit, 1, createGenRandomFn(false), chainTesterFn(false))
+		testFeeMarketBlock(t, true, blockGasLimit, 1, createGenRandomFn(false), chainTesterFn(false))
 	})
 }
 
@@ -556,11 +556,11 @@ func TestFeeMarketMultiContractsBlock(t *testing.T) {
 	}
 
 	t.Run("WithConfiguration", func(t *testing.T) {
-		testFeeMarketBlock(t, blockGasLimit, 1, createGenRandomFn(true), chainTesterFn(true))
+		testFeeMarketBlock(t, true, blockGasLimit, 1, createGenRandomFn(true), chainTesterFn(true))
 	})
 
 	t.Run("WithoutConfiguration", func(t *testing.T) {
-		testFeeMarketBlock(t, blockGasLimit, 1, createGenRandomFn(false), chainTesterFn(false))
+		testFeeMarketBlock(t, true, blockGasLimit, 1, createGenRandomFn(false), chainTesterFn(false))
 	})
 }
 
@@ -644,11 +644,11 @@ func TestFeeMarketValidatorAndRecipientRewards(t *testing.T) {
 	}
 
 	t.Run("WithConfiguration", func(t *testing.T) {
-		testFeeMarketBlock(t, blockGasLimit, 1, createGenFn(true), chainTesterFn(true))
+		testFeeMarketBlock(t, true, blockGasLimit, 1, createGenFn(true), chainTesterFn(true))
 	})
 
 	t.Run("WithoutConfiguration", func(t *testing.T) {
-		testFeeMarketBlock(t, blockGasLimit, 1, createGenFn(false), chainTesterFn(false))
+		testFeeMarketBlock(t, true, blockGasLimit, 1, createGenFn(false), chainTesterFn(false))
 	})
 }
 
@@ -722,9 +722,31 @@ func TestFeeMarketOutOfGas(t *testing.T) {
 		if recipientBalance.Sign() != 0 {
 			t.Errorf("recipient balance %d should be zero", recipientBalance.Uint64())
 		}
+
+		// Load contract storage and check if it has been reverted to the state before the transaction
+		counterNumberSlot := common.BigToHash(big.NewInt(0))
+		counterNumberData := stateDB.GetState(counterContractAddress, counterNumberSlot)
+		counterNumber := new(uint256.Int).SetBytes(counterNumberData.Bytes()).Uint64()
+		if chain.Config().IsTheseusFix(block.Number(), block.Time()) {
+			// Theseus fix is enabled, so the storage should be reverted to the state before the transaction
+			if counterNumber != 0 {
+				t.Errorf("counter number %d is different than expected 0", counterNumber)
+			}
+		} else {
+			// Theseus fix is not enabled, so the storage should not be reverted
+			if counterNumber != 1 {
+				t.Errorf("counter number %d is different than expected 1", counterNumber)
+			}
+		}
 	}
 
-	testFeeMarketBlock(t, 1_000_000, 2, createGenFn, chainTesterFn)
+	t.Run("Pre TheseusFix", func(t *testing.T) {
+		testFeeMarketBlock(t, false, 1_000_000, 2, createGenFn, chainTesterFn)
+	})
+
+	t.Run("Post TheseusFix", func(t *testing.T) {
+		testFeeMarketBlock(t, true, 1_000_000, 2, createGenFn, chainTesterFn)
+	})
 }
 
 // TestFeeMarketMultipleEventsInTx tests functionality when multiple events are emitted in a single tx
@@ -820,7 +842,7 @@ func TestFeeMarketMultipleEventsInTx(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			testFeeMarketBlock(t, 50_000_000, 2, testCase.createFn, testCase.testerFn)
+			testFeeMarketBlock(t, true, 50_000_000, 2, testCase.createFn, testCase.testerFn)
 		})
 	}
 }
@@ -834,9 +856,9 @@ func TestFeeMarketReorg(t *testing.T) {
 	recipientB := common.HexToAddress("0x456")
 	var counterContractAddress common.Address
 
-	config := params.SatoshiTestChainConfig
+	config := *params.SatoshiTestChainConfig
 	gspec := &Genesis{
-		Config:   config,
+		Config:   &config,
 		GasLimit: blockGasLimit,
 		Alloc: types.GenesisAlloc{
 			testAddr: {Balance: new(big.Int).SetUint64(15 * params.Ether)},
@@ -852,7 +874,7 @@ func TestFeeMarketReorg(t *testing.T) {
 
 	// Build canonical chain (4 blocks, all reward recipientA)
 	genDb, canonBlocks, _ := GenerateChainWithGenesis(gspec, engine, 4, func(i int, gen *BlockGen) {
-		signer := types.LatestSigner(config)
+		signer := types.LatestSigner(&config)
 		fee := big.NewInt(1)
 		gen.SetCoinbase(common.Address{1})
 
@@ -879,8 +901,8 @@ func TestFeeMarketReorg(t *testing.T) {
 
 	// Fork from block 2, build a longer side chain (4 blocks: 1 shared + 4 new, 4 of which reward recipientB)
 	parent := canonBlocks[1]
-	sideBlocks, _ := GenerateChain(config, parent, engine, genDb, 4, func(i int, gen *BlockGen) {
-		signer := types.LatestSigner(config)
+	sideBlocks, _ := GenerateChain(&config, parent, engine, genDb, 4, func(i int, gen *BlockGen) {
+		signer := types.LatestSigner(&config)
 		fee := big.NewInt(1)
 		gen.SetCoinbase(common.Address{2})
 
@@ -908,14 +930,19 @@ func TestFeeMarketReorg(t *testing.T) {
 }
 
 // testFeeMarketBlock is a helper function to test the fee market
-func testFeeMarketBlock(t *testing.T, gasLimit uint64, numberOfBlocks int, genFn func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(i int, gen *BlockGen), chainTesterFn func(chain *BlockChain, blocks []*types.Block)) {
-	config := params.SatoshiTestChainConfig
+func testFeeMarketBlock(t *testing.T, theseusFix bool, gasLimit uint64, numberOfBlocks int, genFn func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(i int, gen *BlockGen), chainTesterFn func(chain *BlockChain, blocks []*types.Block)) {
+	config := *params.SatoshiTestChainConfig
 	gspec := &Genesis{
-		Config:   config,
+		Config:   &config,
 		GasLimit: gasLimit,
 		Alloc: types.GenesisAlloc{
 			testAddr: {Balance: new(big.Int).SetUint64(15 * params.Ether)},
 		},
+	}
+
+	// Disable Theseus fix in order to test the fee market without it
+	if !theseusFix {
+		gspec.Config.TheseusFixTime = nil
 	}
 
 	feeMarketAddress, feeMarketAccount := getFeeMarketGenesisAlloc(2, 2, 1000000)
@@ -930,7 +957,7 @@ func testFeeMarketBlock(t *testing.T, gasLimit uint64, numberOfBlocks int, genFn
 	chain, _ := NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
 
 	// Generate chain blocks
-	_, bs, _ := GenerateChainWithGenesis(gspec, engine, numberOfBlocks, genFn(config, chain, feeMarketAddress))
+	_, bs, _ := GenerateChainWithGenesis(gspec, engine, numberOfBlocks, genFn(&config, chain, feeMarketAddress))
 
 	// Insert chain
 	_, err = chain.InsertChain(bs)
@@ -1026,9 +1053,9 @@ func BenchmarkFeeMarketMultipleEventsInASingleTx(b *testing.B) {
 
 // benchmarkFeeMarketBlock is a helper function to benchmark the fee market
 func benchmarkFeeMarketBlock(b *testing.B, gasLimit uint64, numberOfBlocks int, genFn func(config *params.ChainConfig, chain *BlockChain, feeMarketAddress common.Address) func(i int, gen *BlockGen)) {
-	config := params.SatoshiTestChainConfig
+	config := *params.SatoshiTestChainConfig
 	gspec := &Genesis{
-		Config:   config,
+		Config:   &config,
 		GasLimit: gasLimit,
 		Alloc: types.GenesisAlloc{
 			testAddr: {Balance: new(big.Int).SetUint64(15 * params.Ether)},
@@ -1047,7 +1074,7 @@ func benchmarkFeeMarketBlock(b *testing.B, gasLimit uint64, numberOfBlocks int, 
 	chain, _ := NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
 
 	// Generate chain blocks
-	_, bs, _ := GenerateChainWithGenesis(gspec, engine, numberOfBlocks, genFn(config, chain, feeMarketAddress))
+	_, bs, _ := GenerateChainWithGenesis(gspec, engine, numberOfBlocks, genFn(&config, chain, feeMarketAddress))
 
 	b.StopTimer()
 	b.ResetTimer()

@@ -244,6 +244,7 @@ var (
 		AthenaTime:          newUint64(0),
 		TheseusTime:         newUint64(0),
 		CancunTime:          newUint64(0),
+		TheseusFixTime:      newUint64(0),
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -507,12 +508,13 @@ type ChainConfig struct {
 
 	// Fork scheduling was switched from blocks to timestamps here
 
-	ShanghaiTime *uint64 `json:"shanghaiTime,omitempty"` // Shanghai switch time (nil = no fork, 0 = already on shanghai)
-	KeplerTime   *uint64 `json:"keplerTime,omitempty"`   // Kepler switch time (nil = no fork, 0 = already activated)
-	DemeterTime  *uint64 `json:"demeterTime,omitempty" ` // Demeter switch time (nil = no fork, 0 = already on demeter)
-	AthenaTime   *uint64 `json:"athenaTime,omitempty"`   // Athena switch time (nil = no fork, 0 = already on athena)
-	TheseusTime  *uint64 `json:"theseusTime,omitempty" ` // Theseus switch time (nil = no fork, 0 = already on theseus)
-	CancunTime   *uint64 `json:"cancunTime,omitempty"`   // Cancun switch time (nil = no fork, 0 = already on cancun)
+	ShanghaiTime   *uint64 `json:"shanghaiTime,omitempty"`    // Shanghai switch time (nil = no fork, 0 = already on shanghai)
+	KeplerTime     *uint64 `json:"keplerTime,omitempty"`      // Kepler switch time (nil = no fork, 0 = already activated)
+	DemeterTime    *uint64 `json:"demeterTime,omitempty" `    // Demeter switch time (nil = no fork, 0 = already on demeter)
+	AthenaTime     *uint64 `json:"athenaTime,omitempty"`      // Athena switch time (nil = no fork, 0 = already on athena)
+	TheseusTime    *uint64 `json:"theseusTime,omitempty" `    // Theseus switch time (nil = no fork, 0 = already on theseus)
+	CancunTime     *uint64 `json:"cancunTime,omitempty"`      // Cancun switch time (nil = no fork, 0 = already on cancun)
+	TheseusFixTime *uint64 `json:"theseusFixTime,omitempty" ` // TheseusFix switch time (nil = no fork, 0 = already on theseusFix)
 	// Hermes has some logic of Feynman and Cancun, which has been enabled already in our chain and as such had to be enabled at a later fork.
 	// Hermes doesn't implement anything new by its own.
 	HermesTime  *uint64 `json:"hermesTime,omitempty" ` // Hermes switch time (nil = no fork, 0 = already on hermes)
@@ -660,6 +662,7 @@ func (c *ChainConfig) String() string {
 		{"AthenaTime", c.AthenaTime},
 		{"TheseusTime", c.TheseusTime},
 		{"CancunTime", c.CancunTime},
+		{"TheseusFixTime", c.TheseusFixTime},
 		{"HermesTime", c.HermesTime},
 		{"LubanTime", c.LubanTime},
 		{"PlatoTime", c.PlatoTime},
@@ -901,6 +904,20 @@ func (c *ChainConfig) IsOnTheseus(currentBlockNumber *big.Int, lastBlockTime uin
 	return !c.IsTheseus(lastBlockNumber, lastBlockTime) && c.IsTheseus(currentBlockNumber, currentBlockTime)
 }
 
+// IsTheseusFix returns whether time is either equal to the theseusFix fork time or greater.
+func (c *ChainConfig) IsTheseusFix(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.TheseusFixTime, time)
+}
+
+// IsOnTheseusFix returns whether currentBlockTime is either equal to the theseusFix fork time or greater firstly.
+func (c *ChainConfig) IsOnTheseusFix(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsTheseusFix(lastBlockNumber, lastBlockTime) && c.IsTheseusFix(currentBlockNumber, currentBlockTime)
+}
+
 // IsCancun returns whether num is either equal to the Cancun fork time or greater.
 func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CancunTime, time)
@@ -1097,6 +1114,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "athenaTime", timestamp: c.AthenaTime},
 		{name: "theseusTime", timestamp: c.TheseusTime},
 		{name: "cancunTime", timestamp: c.CancunTime},
+		{name: "theseusFixTime", timestamp: c.TheseusFixTime},
 		{name: "lubanTime", timestamp: c.LubanTime},
 		{name: "platoTime", timestamp: c.PlatoTime},
 		{name: "bohrTime", timestamp: c.BohrTime},
@@ -1268,6 +1286,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.CancunTime, newcfg.CancunTime, headTimestamp) {
 		return newTimestampCompatError("Cancun fork timestamp", c.CancunTime, newcfg.CancunTime)
+	}
+	if isForkTimestampIncompatible(c.TheseusFixTime, newcfg.TheseusFixTime, headTimestamp) {
+		return newTimestampCompatError("TheseusFix fork timestamp", c.TheseusFixTime, newcfg.TheseusFixTime)
 	}
 	if isForkTimestampIncompatible(c.LubanTime, newcfg.LubanTime, headTimestamp) {
 		return newTimestampCompatError("Luban fork timestamp", c.LubanTime, newcfg.LubanTime)

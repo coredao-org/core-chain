@@ -113,6 +113,7 @@ func testChainSyncWithBlobs(t *testing.T, mode downloader.SyncMode, preCancunBlk
 	config := *params.SatoshiTestChainConfig
 	cancunTime := (preCancunBlks + 1) * 10
 	config.CancunTime = &cancunTime
+	config.TheseusFixTime = &cancunTime
 
 	// Create an empty handler
 	empty := newTestSatoshiHandlerAfterCancun(t, &config, mode, 0, 0)

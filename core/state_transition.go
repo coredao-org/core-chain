@@ -535,8 +535,13 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 		// Check if is a contract call
 		isContractCall := contractCreation || (msg.To != nil && st.state.GetCodeSize(*st.msg.To) > 0)
 		if vmerr == nil && isContractCall {
-			// Get a snapshot of the state before the distribution
-			snapshot := st.state.Snapshot()
+			// Post-TheseusFix: Get the pre EVM snapshot, which maintains the nonce increment.
+			snapshot := st.evm.InitialSnapshot()
+
+			// Pre-TheseusFix: Get a snapshot to the pre-distribution state.
+			if !st.evm.ChainConfig().IsTheseusFix(st.evm.Context.BlockNumber, st.evm.Context.Time) {
+				snapshot = st.state.Snapshot()
+			}
 
 			// Get tx logs. Only tx hash is used to get logs, the blockNumber and blockHash
 			// are only being filled in the logs, we can ignore them in this specific use case.
@@ -589,6 +594,10 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 						continue
 					}
 
+					if len(eventLog.Topics) == 0 {
+						continue
+					}
+
 					var feeMarketEvent types.FeeMarketEvent
 					for _, event := range config.Events {
 						if event.EventSignature == eventLog.Topics[0] {
@@ -637,8 +646,9 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 					// This way the user will be refunded the fee market rewards
 					st.gasRemaining += distributedGas
 
-					// Revert the state to the pre-distribution state
-					st.state.RevertToSnapshot(snapshot)
+					if snapshot >= 0 {
+						st.state.RevertToSnapshot(snapshot)
+					}
 
 					// Reset the distributed amounts
 					distributedAmount.SetUint64(0)
