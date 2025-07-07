@@ -17,6 +17,7 @@ func postHertzPreShanghaiConfig() *params.ChainConfig {
 	config.AthenaTime = nil
 	config.TheseusTime = nil
 	config.CancunTime = nil
+	config.TheseusFixTime = nil
 	return &config
 }
 
@@ -31,6 +32,7 @@ func preHertzConfig() *params.ChainConfig {
 	config.AthenaTime = nil
 	config.TheseusTime = nil
 	config.CancunTime = nil
+	config.TheseusFixTime = nil
 	return &config
 }
 
