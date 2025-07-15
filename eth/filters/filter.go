@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/bloombits"
@@ -352,12 +353,7 @@ func (f *Filter) pendingLogs() []*types.Log {
 
 // includes returns true if the element is present in the list.
 func includes[T comparable](things []T, element T) bool {
-	for _, thing := range things {
-		if thing == element {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(things, element)
 }
 
 // filterLogs creates a slice of logs matching the given criteria.
