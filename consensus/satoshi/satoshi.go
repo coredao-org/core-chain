@@ -73,10 +73,10 @@ const (
 	validatorBytesLength            = common.AddressLength + types.BLSPublicKeyLength
 	validatorNumberSize             = 1 // Fixed number of extra prefix bytes reserved for validator number after Luban
 
-	wiggleTime                       = uint64(1) // second, Random delay (per signer) to allow concurrent signers
-	defaultInitialBackOffTime        = uint64(1) // second, Default backoff time for the second validator permitted to produce blocks
-	lorentzInitialBackOffTime uint64 = 2000      // milliseconds, Backoff time for the second validator permitted to produce blocks from the Lorentz hard fork
-	processBackOffTime               = uint64(1) // second
+	wiggleTime                uint64 = 1000 // milliseconds, Random delay (per signer) to allow concurrent signers
+	defaultInitialBackOffTime uint64 = 1000 // milliseconds, Default backoff time for the second validator permitted to produce blocks
+	lorentzInitialBackOffTime uint64 = 2000 // milliseconds, Backoff time for the second validator permitted to produce blocks from the Lorentz hard fork
+	processBackOffTime        uint64 = 1    // second
 
 	millisecondsUnit = 500 // Set to 250 if block interval is 750ms; not enforced at the consensus level
 
