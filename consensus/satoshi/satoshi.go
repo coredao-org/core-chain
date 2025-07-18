@@ -97,7 +97,7 @@ var (
 	maxSystemBalance                  = new(uint256.Int).Mul(uint256.NewInt(100), uint256.NewInt(params.Ether))
 	verifyVoteAttestationErrorCounter = metrics.NewRegisteredCounter("satoshi/verifyVoteAttestation/error", nil)
 	updateAttestationErrorCounter     = metrics.NewRegisteredCounter("satoshi/updateAttestation/error", nil)
-	validVotesfromSelfCounter         = metrics.NewRegisteredCounter("satoshi/VerifyVote/self", nil)
+	validVotesfromSelfCounter         = metrics.NewRegisteredCounter("satoshi/verifyVote/self", nil)
 	doubleSignCounter                 = metrics.NewRegisteredCounter("satoshi/doublesign", nil)
 	intentionalDelayMiningCounter     = metrics.NewRegisteredCounter("satoshi/intentionalDelayMining", nil)
 
