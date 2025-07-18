@@ -754,6 +754,32 @@ const validatorSetABI = `
 				"internalType": "address",
 				"name": "validator",
 				"type": "address"
+			}
+		],
+		"name": "validatorEnterMaintenance",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "validator",
+				"type": "address"
+			}
+		],
+		"name": "validatorExitMaintenance",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "validator",
+				"type": "address"
 			},
 			{
 				"indexed": false,
@@ -1024,19 +1050,6 @@ const validatorSetABI = `
 	},
 	{
 		"inputs": [],
-		"name": "INIT_VOTE_REWARD_PERCENT",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "LIGHT_CLIENT_ADDR",
 		"outputs": [
 			{
@@ -1195,6 +1208,25 @@ const validatorSetABI = `
 		"inputs": [
 			{
 				"internalType": "uint256",
+				"name": "index",
+				"type": "uint256"
+			}
+		],
+		"name": "canEnterMaintenance",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
 			}
@@ -1234,6 +1266,11 @@ const validatorSetABI = `
 			{
 				"internalType": "uint256",
 				"name": "voteWeight",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "enterMaintenanceHeight",
 				"type": "uint256"
 			}
 		],
@@ -1292,6 +1329,40 @@ const validatorSetABI = `
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"name": "enterMaintenance",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "val",
+				"type": "address"
+			}
+		],
+		"name": "enterMaintenance",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "exitMaintenance",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "exitMaintenanceTurnRound",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "address",
@@ -1323,6 +1394,25 @@ const validatorSetABI = `
 			}
 		],
 		"name": "getIncoming",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "ops",
+				"type": "address"
+			}
+		],
+		"name": "getValidatorIndexFromOps",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1379,6 +1469,32 @@ const validatorSetABI = `
 	},
 	{
 		"inputs": [],
+		"name": "getWorkingCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getWorkingValidators",
+		"outputs": [
+			{
+				"internalType": "address[]",
+				"name": "",
+				"type": "address[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "init",
 		"outputs": [],
 		"stateMutability": "nonpayable",
@@ -1404,6 +1520,19 @@ const validatorSetABI = `
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"name": "maintainSlashPercent",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "address",
@@ -1414,6 +1543,25 @@ const validatorSetABI = `
 		"name": "misdemeanor",
 		"outputs": [],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "rankedValidatorList",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -1473,11 +1621,29 @@ const validatorSetABI = `
 				"internalType": "bytes[]",
 				"name": "voteAddrList",
 				"type": "bytes[]"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_validatorCount",
+				"type": "uint256"
 			}
 		],
 		"name": "updateValidatorSet",
 		"outputs": [],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "validatorCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -1496,6 +1662,19 @@ const validatorSetABI = `
 		"name": "vote",
 		"outputs": [],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "voteRewardPercent",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -1588,6 +1767,25 @@ const slashABI = `
 				"internalType": "address",
 				"name": "validator",
 				"type": "address"
+			}
+		],
+		"name": "validatorSlashed",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "validator",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "blockCount",
+				"type": "uint256"
 			}
 		],
 		"name": "validatorSlashed",
@@ -1970,6 +2168,24 @@ const slashABI = `
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "validator",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "blockCount",
+				"type": "uint256"
+			}
+		],
+		"name": "exitMaintenanceSlash",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "felonyDeposit",
 		"outputs": [
@@ -2318,6 +2534,138 @@ const candidateHubABI = `
 			},
 			{
 				"indexed": false,
+				"internalType": "address",
+				"name": "newAgent",
+				"type": "address"
+			}
+		],
+		"name": "AgentUpdated",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "operateAddr",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "newRate",
+				"type": "uint256"
+			}
+		],
+		"name": "CommissionRateEdited",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "operateAddr",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "newConsensusAddr",
+				"type": "address"
+			}
+		],
+		"name": "ConsensusAddressEdited",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "operateAddr",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "moniker",
+				"type": "string"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "identity",
+				"type": "string"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "website",
+				"type": "string"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "details",
+				"type": "string"
+			}
+		],
+		"name": "DescriptionEdited",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "operateAddr",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "newFeeAddr",
+				"type": "address"
+			}
+		],
+		"name": "FeeAddressEdited",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "operateAddr",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "bytes",
+				"name": "newVoteAddr",
+				"type": "bytes"
+			}
+		],
+		"name": "VoteAddressEdited",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "operateAddr",
+				"type": "address"
+			},
+			{
+				"indexed": false,
 				"internalType": "uint256",
 				"name": "margin",
 				"type": "uint256"
@@ -2474,43 +2822,6 @@ const candidateHubABI = `
 			}
 		],
 		"name": "unregistered",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "operateAddr",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "consensusAddr",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "feeAddress",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "commissionThousandths",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "bytes",
-				"name": "voteAddr",
-				"type": "bytes"
-			}
-		],
-		"name": "updated",
 		"type": "event"
 	},
 	{
@@ -2970,6 +3281,25 @@ const candidateHubABI = `
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "agentMap",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "alreadyInit",
 		"outputs": [
@@ -3055,6 +3385,38 @@ const candidateHubABI = `
 				"internalType": "bytes",
 				"name": "voteAddr",
 				"type": "bytes"
+			},
+			{
+				"internalType": "address",
+				"name": "agent",
+				"type": "address"
+			},
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "moniker",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "identity",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "website",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "details",
+						"type": "string"
+					}
+				],
+				"internalType": "struct CandidateHub.Description",
+				"name": "description",
+				"type": "tuple"
 			}
 		],
 		"stateMutability": "view",
@@ -3071,6 +3433,86 @@ const candidateHubABI = `
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint32",
+				"name": "newRate",
+				"type": "uint32"
+			}
+		],
+		"name": "editCommissionRate",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newConsensusAddr",
+				"type": "address"
+			}
+		],
+		"name": "editConsensusAddress",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "moniker",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "identity",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "website",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "details",
+				"type": "string"
+			}
+		],
+		"name": "editDescription",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address payable",
+				"name": "newFeeAddr",
+				"type": "address"
+			}
+		],
+		"name": "editFeeAddress",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "voteAddr",
+				"type": "bytes"
+			}
+		],
+		"name": "editVoteAddress",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -3239,6 +3681,19 @@ const candidateHubABI = `
 	},
 	{
 		"inputs": [],
+		"name": "maxAlternateCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "maxCommissionChange",
 		"outputs": [
 			{
@@ -3306,6 +3761,13 @@ const candidateHubABI = `
 	},
 	{
 		"inputs": [],
+		"name": "removeAgent",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "requiredMargin",
 		"outputs": [
 			{
@@ -3361,26 +3823,11 @@ const candidateHubABI = `
 		"inputs": [
 			{
 				"internalType": "address",
-				"name": "consensusAddr",
+				"name": "newAgent",
 				"type": "address"
-			},
-			{
-				"internalType": "address payable",
-				"name": "feeAddr",
-				"type": "address"
-			},
-			{
-				"internalType": "uint32",
-				"name": "commissionThousandths",
-				"type": "uint32"
-			},
-			{
-				"internalType": "bytes",
-				"name": "voteAddr",
-				"type": "bytes"
 			}
 		],
-		"name": "update",
+		"name": "updateAgent",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
