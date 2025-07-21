@@ -140,6 +140,7 @@ var (
 		AthenaTime:          newUint64(1738544400), // 2025-02-03 1:00:00 AM UTC
 		TheseusTime:         newUint64(1750838400), // 2025-06-25 8:00:00 AM UTC
 		CancunTime:          newUint64(1750838400), // 2025-06-25 8:00:00 AM UTC
+		TheseusFixTime:      newUint64(1753948800), // 2025-07-31 08:00:00 AM UTC
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
