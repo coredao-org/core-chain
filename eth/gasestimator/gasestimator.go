@@ -129,7 +129,7 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 		return 0, nil, err
 	}
 	if failed {
-		if result != nil && !errors.Is(result.Err, vm.ErrOutOfGas) {
+		if result != nil && !(errors.Is(result.Err, vm.ErrOutOfGas) || errors.Is(result.Err, core.ErrFeeMarketOutOfGas)) {
 			return 0, result.Revert(), result.Err
 		}
 		return 0, nil, fmt.Errorf("gas required exceeds allowance (%d)", hi)
