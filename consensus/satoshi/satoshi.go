@@ -2023,9 +2023,10 @@ func (p *Satoshi) distributeIncoming(val common.Address, state vm.StateDB, heade
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool, tracer *tracing.Hooks) error {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
-	if balance.Cmp(common.U2560) <= 0 {
-		return nil
-	}
+	// TODO(cz): discuss with team if it is safe to keep this check, which will not make the deposit call when no transaction in block
+	// if balance.Cmp(common.U2560) <= 0 {
+	// 	return nil
+	// }
 	state.SetBalance(consensus.SystemAddress, common.U2560, tracing.BalanceDecreaseCoreDistributeReward)
 	state.AddBalance(coinbase, balance, tracing.BalanceIncreaseCoreDistributeReward)
 	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
