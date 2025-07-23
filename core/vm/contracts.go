@@ -162,8 +162,6 @@ var PrecompiledContractsPrague = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x10}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x11}): &bls12381MapG2{},
 
-	// TODO(cz): why do we use 0x65 instead of 0x66?
-
 	common.BytesToAddress([]byte{0x66}): &blsSignatureVerify{},
 }
 
