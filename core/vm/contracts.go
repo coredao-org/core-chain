@@ -86,8 +86,6 @@ var PrecompiledContractsIstanbul = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
-
-	common.BytesToAddress([]byte{0x64}): &btcValidate{},
 }
 
 // PrecompiledContractsHashPower contains the default set of pre-compiled Ethereum
@@ -102,8 +100,6 @@ var PrecompiledContractsHashPower = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
-
-	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
 }
 
 // PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
@@ -118,8 +114,6 @@ var PrecompiledContractsBerlin = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
-
-	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
 }
 
 // PrecompiledContractsCancun contains the default set of pre-compiled Ethereum
@@ -135,8 +129,6 @@ var PrecompiledContractsCancun = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x8}):  &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}):  &blake2F{},
 	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
-
-	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
 }
 
 // PrecompiledContractsPrague contains the set of pre-compiled Ethereum
@@ -169,14 +161,22 @@ var PrecompiledContractsBLS = PrecompiledContractsPrague
 
 var PrecompiledContractsVerkle = PrecompiledContractsPrague
 
+// Satoshi only pre-compiled contracts.
+
+// PrecompiledContractsSatoshiHashPower contains the default set of pre-compiled contracts from HashPower.
+var PrecompiledContractsSatoshiHashPower = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{0x64}): &btcValidateV2{},
+}
+
 var (
-	PrecompiledAddressesPrague    []common.Address
-	PrecompiledAddressesCancun    []common.Address
-	PrecompiledAddressesHashPower []common.Address
-	PrecompiledAddressesBerlin    []common.Address
-	PrecompiledAddressesIstanbul  []common.Address
-	PrecompiledAddressesByzantium []common.Address
-	PrecompiledAddressesHomestead []common.Address
+	PrecompiledAddressesPrague           []common.Address
+	PrecompiledAddressesCancun           []common.Address
+	PrecompiledAddressesHashPower        []common.Address
+	PrecompiledAddressesBerlin           []common.Address
+	PrecompiledAddressesIstanbul         []common.Address
+	PrecompiledAddressesByzantium        []common.Address
+	PrecompiledAddressesHomestead        []common.Address
+	PrecompiledAddressesSatoshiHashPower []common.Address
 )
 
 func init() {
@@ -201,27 +201,43 @@ func init() {
 	for k := range PrecompiledContractsPrague {
 		PrecompiledAddressesPrague = append(PrecompiledAddressesPrague, k)
 	}
+	for k := range PrecompiledContractsSatoshiHashPower {
+		PrecompiledAddressesSatoshiHashPower = append(PrecompiledAddressesSatoshiHashPower, k)
+	}
 }
 
 func activePrecompiledContracts(rules params.Rules) PrecompiledContracts {
+	var precompiles PrecompiledContracts
 	switch {
 	case rules.IsVerkle:
-		return PrecompiledContractsVerkle
+		precompiles = PrecompiledContractsVerkle
 	case rules.IsPrague:
-		return PrecompiledContractsPrague
+		precompiles = PrecompiledContractsPrague
 	case rules.IsCancun:
-		return PrecompiledContractsCancun
+		precompiles = PrecompiledContractsCancun
 	case rules.IsHashPower:
-		return PrecompiledContractsHashPower
+		precompiles = PrecompiledContractsHashPower
 	case rules.IsBerlin:
-		return PrecompiledContractsBerlin
+		precompiles = PrecompiledContractsBerlin
 	case rules.IsIstanbul:
-		return PrecompiledContractsIstanbul
+		precompiles = PrecompiledContractsIstanbul
 	case rules.IsByzantium:
-		return PrecompiledContractsByzantium
+		precompiles = PrecompiledContractsByzantium
 	default:
-		return PrecompiledContractsHomestead
+		precompiles = PrecompiledContractsHomestead
 	}
+
+	// Add Satoshi specific contracts.
+	// This design ensures that standard Ethereum tests pass.
+	if rules.IsSatoshi && rules.IsHashPower {
+		// We need to clone the precompiles to avoid modifying the global precompiles maps.
+		precompiles = maps.Clone(precompiles)
+		for _, addr := range PrecompiledAddressesSatoshiHashPower {
+			precompiles[addr] = PrecompiledContractsSatoshiHashPower[addr]
+		}
+	}
+
+	return precompiles
 }
 
 // ActivePrecompiledContracts returns a copy of precompiled contracts enabled with the current configuration.
@@ -231,22 +247,32 @@ func ActivePrecompiledContracts(rules params.Rules) PrecompiledContracts {
 
 // ActivePrecompiles returns the precompile addresses enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
+	var addresses []common.Address
 	switch {
 	case rules.IsPrague:
-		return PrecompiledAddressesPrague
+		addresses = append(addresses, PrecompiledAddressesPrague...)
 	case rules.IsCancun:
-		return PrecompiledAddressesCancun
+		addresses = append(addresses, PrecompiledAddressesCancun...)
 	case rules.IsHashPower:
-		return PrecompiledAddressesHashPower
+		addresses = append(addresses, PrecompiledAddressesHashPower...)
 	case rules.IsBerlin:
-		return PrecompiledAddressesBerlin
+		addresses = append(addresses, PrecompiledAddressesBerlin...)
 	case rules.IsIstanbul:
-		return PrecompiledAddressesIstanbul
+		addresses = append(addresses, PrecompiledAddressesIstanbul...)
 	case rules.IsByzantium:
-		return PrecompiledAddressesByzantium
+		addresses = append(addresses, PrecompiledAddressesByzantium...)
 	default:
-		return PrecompiledAddressesHomestead
+		addresses = append(addresses, PrecompiledAddressesHomestead...)
 	}
+
+	// Add Satoshi specific addresses.
+	// This design ensures that standard Ethereum tests pass.
+	if rules.IsSatoshi && rules.IsHashPower {
+		addresses = append(addresses,
+			PrecompiledAddressesSatoshiHashPower...)
+	}
+
+	return addresses
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
