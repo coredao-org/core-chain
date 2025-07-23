@@ -86,6 +86,67 @@ func validate(jt JumpTable) JumpTable {
 	return jt
 }
 
+// newInstructionSet returns the instruction set for the given rules, applying any necessary modifications.
+// This function centralizes the instruction set selection and Satoshi-specific modifications.
+func newInstructionSet(rules params.Rules) JumpTable {
+	var instructionSet *JumpTable
+
+	switch {
+	case rules.IsVerkle:
+		instructionSet = &verkleInstructionSet
+	case rules.IsPrague:
+		instructionSet = &pragueInstructionSet
+	case rules.IsCancun:
+		instructionSet = &cancunInstructionSet
+	case rules.IsShanghai:
+		instructionSet = &shanghaiInstructionSet
+	case rules.IsMerge:
+		instructionSet = &mergeInstructionSet
+	case rules.IsLondon:
+		instructionSet = &londonInstructionSet
+	case rules.IsBerlin:
+		instructionSet = &berlinInstructionSet
+	case rules.IsIstanbul:
+		instructionSet = &istanbulInstructionSet
+	case rules.IsConstantinople:
+		instructionSet = &constantinopleInstructionSet
+	case rules.IsByzantium:
+		instructionSet = &byzantiumInstructionSet
+	case rules.IsEIP158:
+		instructionSet = &spuriousDragonInstructionSet
+	case rules.IsEIP150:
+		instructionSet = &tangerineWhistleInstructionSet
+	case rules.IsHomestead:
+		instructionSet = &homesteadInstructionSet
+	default:
+		instructionSet = &frontierInstructionSet
+	}
+
+	// Apply Satoshi-specific modifications
+	// We need to copy the jump table to avoid modifying the global instruction sets
+	if rules.IsSatoshi {
+		copied := copyJumpTable(instructionSet)
+		return newSatoshiRevertDifficultyInstructionSet(*copied)
+	}
+
+	return *instructionSet
+}
+
+// Satoshi related instructions
+
+// newSatoshiRevertDifficultyInstructionSet reverts the PREVRANDAO opcode to DIFFICULTY opcode,
+// as Satoshi doesn't implement the PREVRANDAO opcode.
+func newSatoshiRevertDifficultyInstructionSet(instructionSet JumpTable) JumpTable {
+	instructionSet[DIFFICULTY] = &operation{
+		execute:     opDifficulty,
+		constantGas: GasQuickStep,
+		minStack:    minStack(0, 1),
+		maxStack:    maxStack(0, 1),
+	}
+	return validate(instructionSet)
+}
+
+// Ethereum instructions
 func newVerkleInstructionSet() JumpTable {
 	instructionSet := newCancunInstructionSet()
 	enable4762(&instructionSet)
@@ -119,7 +180,7 @@ func newCancunInstructionSet() JumpTable {
 }
 
 func newShanghaiInstructionSet() JumpTable {
-	instructionSet := newLondonInstructionSet()
+	instructionSet := newMergeInstructionSet()
 	enable3855(&instructionSet) // PUSH0 instruction
 	enable3860(&instructionSet) // Limit and meter initcode
 
