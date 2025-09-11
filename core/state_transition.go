@@ -562,15 +562,26 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 						continue
 					}
 
+					configLookupAddress := eventLog.Address
+
+					// If the event comes from a delegated EOA (EIP-7702),
+					// use the delegation target address to look up the Rev+ configuration
+					if st.evm.ChainConfig().IsHermes(st.evm.Context.BlockNumber, st.evm.Context.Time) {
+						// TODO: `*msg.To` vs `eventLog.Address`
+						// TODO: shall we check for depth=0 only and not for internal txs?
+						if addr, ok := types.ParseDelegation(st.state.GetCode(eventLog.Address)); ok {
+							configLookupAddress = addr
+						}
+					}
 					// Check if is a precompile
-					if isPrecompile := slices.Contains(vm.ActivePrecompiles(rules), eventLog.Address); isPrecompile {
+					if isPrecompile := slices.Contains(vm.ActivePrecompiles(rules), configLookupAddress); isPrecompile {
 						continue
 					}
 
 					// Get configuration from the fee market
-					config, foundInCache := configs[eventLog.Address]
+					config, foundInCache := configs[configLookupAddress]
 					if !foundInCache {
-						freshConfig, configReadGas, found := fm.GetActiveConfig(eventLog.Address, st.state)
+						freshConfig, configReadGas, found := fm.GetActiveConfig(configLookupAddress, st.state)
 						if st.gasRemaining < configReadGas {
 							vmerr = ErrFeeMarketOutOfGas
 							break LOOP
@@ -581,7 +592,7 @@ func (st *stateTransition) execute() (*ExecutionResult, error) {
 
 						// Cache the config, even if it's not found, we need to keep it in the cache
 						// to avoid reading the config from storage again.
-						configs[eventLog.Address] = freshConfig
+						configs[configLookupAddress] = freshConfig
 
 						if !found {
 							continue
