@@ -212,6 +212,12 @@ var (
 		TheseusTime:         newUint64(1748592000), // 2025-05-30 08:00:00 AM UTC
 		CancunTime:          newUint64(1748592000), // 2025-05-30 08:00:00 AM UTC
 		TheseusFixTime:      newUint64(1752652800), // 2025-07-16 08:00:00 AM UTC
+		LubanTime:           newUint64(1760515200),
+		PlatoTime:           newUint64(1760515200),
+		BohrTime:            newUint64(1760515200),
+		PascalTime:          newUint64(1760515200),
+		PragueTime:          newUint64(1760515200),
+		HermesTime:          newUint64(1760515200), // 2025-10-15 08:00:00 AM UTC
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
