@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/holiman/uint256"
 	"github.com/prysmaticlabs/prysm/v5/crypto/bls"
 	"github.com/willf/bitset"
@@ -61,6 +61,7 @@ const (
 	maxwellEpochLength   uint64 = 1000  // Epoch length starting from the Maxwell hard fork
 	defaultBlockInterval uint64 = 3000  // Default block interval in milliseconds
 	lorentzBlockInterval uint64 = 1500  // Block interval starting from the Lorentz hard fork
+	maxwellBlockInterval uint64 = 750  // Block interval starting from the Maxwell hard fork
 	defaultTurnLength    uint8  = 1     // Default consecutive number of blocks a validator receives priority for block production
 	defaultRoundInterval        = 86400 // Default number of seconds to turn round
 
@@ -202,11 +203,11 @@ func isToSystemContract(to common.Address) bool {
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
-func ecrecover(header *types.Header, sigCache *lru.ARCCache, chainId *big.Int) (common.Address, error) {
+func ecrecover(header *types.Header, sigCache *lru.Cache[common.Hash, common.Address], chainId *big.Int) (common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
 	if address, known := sigCache.Get(hash); known {
-		return address.(common.Address), nil
+		return address, nil
 	}
 	// Retrieve the signature from the header extra-data
 	if len(header.Extra) < extraSeal {
@@ -246,9 +247,9 @@ type Satoshi struct {
 	genesisHash common.Hash
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
-	recentSnaps   *lru.ARCCache // Snapshots for recent block to speed up
-	signatures    *lru.ARCCache // Signatures of recent blocks to speed up mining
-	recentHeaders *lru.ARCCache //
+	recentSnaps   *lru.Cache[common.Hash, *Snapshot]      // Snapshots for recent block to speed up
+	signatures    *lru.Cache[common.Hash, common.Address] // Signatures of recent blocks to speed up mining
+	recentHeaders *lru.Cache[string, common.Hash]
 	// Recent headers to check for double signing: key includes block number and miner. value is the block header
 	// If same key's value already exists for different block header roots then double sign is detected
 
@@ -292,19 +293,6 @@ func New(
 		}
 	}
 
-	// Allocate the snapshot caches and create the engine
-	recentSnaps, err := lru.NewARC(inMemorySnapshots)
-	if err != nil {
-		panic(err)
-	}
-	signatures, err := lru.NewARC(inMemorySignatures)
-	if err != nil {
-		panic(err)
-	}
-	recentHeaders, err := lru.NewARC(inMemoryHeaders)
-	if err != nil {
-		panic(err)
-	}
 	vABIBeforeLuban, err := abi.JSON(strings.NewReader(validatorSetABIBeforeLuban))
 	if err != nil {
 		panic(err)
@@ -327,9 +315,9 @@ func New(
 		genesisHash:                genesisHash,
 		db:                         db,
 		ethAPI:                     ethAPI,
-		recentSnaps:                recentSnaps,
-		recentHeaders:              recentHeaders,
-		signatures:                 signatures,
+		recentSnaps:                lru.NewCache[common.Hash, *Snapshot](inMemorySnapshots),
+		recentHeaders:              lru.NewCache[string, common.Hash](inMemoryHeaders),
+		signatures:                 lru.NewCache[common.Hash, common.Address](inMemorySignatures),
 		validatorSetABIBeforeLuban: vABIBeforeLuban,
 		validatorSetABI:            vABI,
 		slashABI:                   sABI,
@@ -364,6 +352,11 @@ func (p *Satoshi) IsSystemContract(to *common.Address) bool {
 // Author implements consensus.Engine, returning the SystemAddress
 func (p *Satoshi) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
+}
+
+// ConsensusAddress returns the consensus address of the validator
+func (p *Satoshi) ConsensusAddress() common.Address {
+	return p.val
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
@@ -771,7 +764,7 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 	for snap == nil {
 		// If an in-memory snapshot was found, use that
 		if s, ok := p.recentSnaps.Get(hash); ok {
-			snap = s.(*Snapshot)
+			snap = s
 			break
 		}
 
@@ -818,14 +811,18 @@ func (p *Satoshi) snapshot(chain consensus.ChainHeaderReader, number uint64, has
 				blockHeader := chain.GetHeaderByNumber(number)
 				if blockHeader != nil {
 					blockHash = blockHeader.Hash()
-					if p.chainConfig.IsLorentz(blockHeader.Number, blockHeader.Time) {
+					if p.chainConfig.IsMaxwell(blockHeader.Number, blockHeader.Time) {
+						blockInterval = maxwellBlockInterval
+					} else if p.chainConfig.IsLorentz(blockHeader.Number, blockHeader.Time) {
 						blockInterval = lorentzBlockInterval
 					}
 				}
 				if number > offset { // exclude `number == 200`
 					blockBeforeCheckpoint := chain.GetHeaderByNumber(number - offset - 1)
 					if blockBeforeCheckpoint != nil {
-						if p.chainConfig.IsLorentz(blockBeforeCheckpoint.Number, blockBeforeCheckpoint.Time) {
+						if p.chainConfig.IsMaxwell(blockBeforeCheckpoint.Number, blockBeforeCheckpoint.Time) {
+							epochLength = maxwellEpochLength
+						} else if p.chainConfig.IsLorentz(blockBeforeCheckpoint.Number, blockBeforeCheckpoint.Time) {
 							epochLength = lorentzEpochLength
 						}
 					}
@@ -963,7 +960,7 @@ func (p *Satoshi) verifySeal(chain consensus.ChainHeaderReader, header *types.He
 	if ok && preHash != header.Hash() {
 		doubleSignCounter.Inc(1)
 		log.Warn("DoubleSign detected", " block", header.Number, " miner", header.Coinbase,
-			"hash1", preHash.(common.Hash), "hash2", header.Hash())
+			"hash1", preHash, "hash2", header.Hash())
 	} else {
 		p.recentHeaders.Add(key, header.Hash())
 	}
@@ -1467,7 +1464,11 @@ func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Head
 	}
 	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, chain.GenesisHeader().Time, number, header.Time)
 	if !snap.isMajorityFork(hex.EncodeToString(nextForkHash[:])) {
-		log.Debug("there is a possible fork, and your client is not the majority. Please check...", "nextForkHash", hex.EncodeToString(nextForkHash[:]))
+		logger := log.Debug
+		if state.NoTrie() {
+			logger = log.Warn
+		}
+		logger("there is a possible fork, and your client is not the majority. Please check...", "nextForkHash", hex.EncodeToString(nextForkHash[:]))
 	}
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
@@ -1727,7 +1728,7 @@ func (p *Satoshi) Delay(chain consensus.ChainReader, header *types.Header, leftO
 	// The blocking time should be no more than half of period
 	timeForMining := time.Duration(snap.BlockInterval) * time.Millisecond / 2
 	if !snap.lastBlockInOneTurn(header.Number.Uint64()) {
-		timeForMining = time.Duration(snap.BlockInterval) * time.Millisecond * 2 / 3
+		timeForMining = time.Duration(snap.BlockInterval) * time.Millisecond * 4 / 5
 	}
 	if delay > timeForMining {
 		delay = timeForMining

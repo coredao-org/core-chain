@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/miner/minerconfig"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // MarshalTOML marshals as TOML.
@@ -20,30 +21,29 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		NetworkId               uint64
 		SyncMode                SyncMode
 		DisablePeerTxBroadcast  bool
+		EVNNodeIDsToAdd         []enode.ID
+		EVNNodeIDsToRemove      []enode.ID
 		EthDiscoveryURLs        []string
 		SnapDiscoveryURLs       []string
-		TrustDiscoveryURLs      []string
 		BscDiscoveryURLs        []string
 		NoPruning               bool
 		NoPrefetch              bool
 		DirectBroadcast         bool
 		DisableSnapProtocol     bool
-		EnableTrustProtocol     bool
 		RangeLimit              bool
 		TxLookupLimit           uint64 `toml:",omitempty"`
 		TransactionHistory      uint64 `toml:",omitempty"`
+		BlockHistory            uint64 `toml:",omitempty"`
 		StateHistory            uint64 `toml:",omitempty"`
 		StateScheme             string `toml:",omitempty"`
 		PathSyncFlush           bool   `toml:",omitempty"`
 		JournalFileEnabled      bool
+		DisableTxIndexer        bool                   `toml:",omitempty"`
 		RequiredBlocks          map[uint64]common.Hash `toml:"-"`
 		SkipBcVersionCheck      bool                   `toml:"-"`
 		DatabaseHandles         int                    `toml:"-"`
 		DatabaseCache           int
 		DatabaseFreezer         string
-		DatabaseDiff            string
-		PersistDiff             bool
-		DiffBlock               uint64
 		PruneAncientData        bool
 		TrieCleanCache          int
 		TrieDirtyCache          int
@@ -66,6 +66,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		OverridePassedForkTime  *uint64 `toml:",omitempty"`
 		OverrideLorentz         *uint64 `toml:",omitempty"`
 		OverrideMaxwell         *uint64 `toml:",omitempty"`
+		OverrideFermi           *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
 		BlobExtraReserve        uint64
 	}
@@ -74,30 +75,29 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.NetworkId = c.NetworkId
 	enc.SyncMode = c.SyncMode
 	enc.DisablePeerTxBroadcast = c.DisablePeerTxBroadcast
+	enc.EVNNodeIDsToAdd = c.EVNNodeIDsToAdd
+	enc.EVNNodeIDsToRemove = c.EVNNodeIDsToRemove
 	enc.EthDiscoveryURLs = c.EthDiscoveryURLs
 	enc.SnapDiscoveryURLs = c.SnapDiscoveryURLs
-	enc.TrustDiscoveryURLs = c.TrustDiscoveryURLs
 	enc.BscDiscoveryURLs = c.BscDiscoveryURLs
 	enc.NoPruning = c.NoPruning
 	enc.NoPrefetch = c.NoPrefetch
 	enc.DirectBroadcast = c.DirectBroadcast
 	enc.DisableSnapProtocol = c.DisableSnapProtocol
-	enc.EnableTrustProtocol = c.EnableTrustProtocol
 	enc.RangeLimit = c.RangeLimit
 	enc.TxLookupLimit = c.TxLookupLimit
 	enc.TransactionHistory = c.TransactionHistory
+	enc.BlockHistory = c.BlockHistory
 	enc.StateHistory = c.StateHistory
 	enc.StateScheme = c.StateScheme
 	enc.PathSyncFlush = c.PathSyncFlush
 	enc.JournalFileEnabled = c.JournalFileEnabled
+	enc.DisableTxIndexer = c.DisableTxIndexer
 	enc.RequiredBlocks = c.RequiredBlocks
 	enc.SkipBcVersionCheck = c.SkipBcVersionCheck
 	enc.DatabaseHandles = c.DatabaseHandles
 	enc.DatabaseCache = c.DatabaseCache
 	enc.DatabaseFreezer = c.DatabaseFreezer
-	enc.DatabaseDiff = c.DatabaseDiff
-	enc.PersistDiff = c.PersistDiff
-	enc.DiffBlock = c.DiffBlock
 	enc.PruneAncientData = c.PruneAncientData
 	enc.TrieCleanCache = c.TrieCleanCache
 	enc.TrieDirtyCache = c.TrieDirtyCache
@@ -120,6 +120,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.OverridePassedForkTime = c.OverridePassedForkTime
 	enc.OverrideLorentz = c.OverrideLorentz
 	enc.OverrideMaxwell = c.OverrideMaxwell
+	enc.OverrideFermi = c.OverrideFermi
 	enc.OverrideVerkle = c.OverrideVerkle
 	enc.BlobExtraReserve = c.BlobExtraReserve
 	return &enc, nil
@@ -132,30 +133,29 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		NetworkId               *uint64
 		SyncMode                *SyncMode
 		DisablePeerTxBroadcast  *bool
+		EVNNodeIDsToAdd         []enode.ID
+		EVNNodeIDsToRemove      []enode.ID
 		EthDiscoveryURLs        []string
 		SnapDiscoveryURLs       []string
-		TrustDiscoveryURLs      []string
 		BscDiscoveryURLs        []string
 		NoPruning               *bool
 		NoPrefetch              *bool
 		DirectBroadcast         *bool
 		DisableSnapProtocol     *bool
-		EnableTrustProtocol     *bool
 		RangeLimit              *bool
 		TxLookupLimit           *uint64 `toml:",omitempty"`
 		TransactionHistory      *uint64 `toml:",omitempty"`
+		BlockHistory            *uint64 `toml:",omitempty"`
 		StateHistory            *uint64 `toml:",omitempty"`
 		StateScheme             *string `toml:",omitempty"`
 		PathSyncFlush           *bool   `toml:",omitempty"`
 		JournalFileEnabled      *bool
+		DisableTxIndexer        *bool                  `toml:",omitempty"`
 		RequiredBlocks          map[uint64]common.Hash `toml:"-"`
 		SkipBcVersionCheck      *bool                  `toml:"-"`
 		DatabaseHandles         *int                   `toml:"-"`
 		DatabaseCache           *int
 		DatabaseFreezer         *string
-		DatabaseDiff            *string
-		PersistDiff             *bool
-		DiffBlock               *uint64
 		PruneAncientData        *bool
 		TrieCleanCache          *int
 		TrieDirtyCache          *int
@@ -178,6 +178,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		OverridePassedForkTime  *uint64 `toml:",omitempty"`
 		OverrideLorentz         *uint64 `toml:",omitempty"`
 		OverrideMaxwell         *uint64 `toml:",omitempty"`
+		OverrideFermi           *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
 		BlobExtraReserve        *uint64
 	}
@@ -197,14 +198,17 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.DisablePeerTxBroadcast != nil {
 		c.DisablePeerTxBroadcast = *dec.DisablePeerTxBroadcast
 	}
+	if dec.EVNNodeIDsToAdd != nil {
+		c.EVNNodeIDsToAdd = dec.EVNNodeIDsToAdd
+	}
+	if dec.EVNNodeIDsToRemove != nil {
+		c.EVNNodeIDsToRemove = dec.EVNNodeIDsToRemove
+	}
 	if dec.EthDiscoveryURLs != nil {
 		c.EthDiscoveryURLs = dec.EthDiscoveryURLs
 	}
 	if dec.SnapDiscoveryURLs != nil {
 		c.SnapDiscoveryURLs = dec.SnapDiscoveryURLs
-	}
-	if dec.TrustDiscoveryURLs != nil {
-		c.TrustDiscoveryURLs = dec.TrustDiscoveryURLs
 	}
 	if dec.BscDiscoveryURLs != nil {
 		c.BscDiscoveryURLs = dec.BscDiscoveryURLs
@@ -221,9 +225,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	if dec.DisableSnapProtocol != nil {
 		c.DisableSnapProtocol = *dec.DisableSnapProtocol
 	}
-	if dec.EnableTrustProtocol != nil {
-		c.EnableTrustProtocol = *dec.EnableTrustProtocol
-	}
 	if dec.RangeLimit != nil {
 		c.RangeLimit = *dec.RangeLimit
 	}
@@ -232,6 +233,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.TransactionHistory != nil {
 		c.TransactionHistory = *dec.TransactionHistory
+	}
+	if dec.BlockHistory != nil {
+		c.BlockHistory = *dec.BlockHistory
 	}
 	if dec.StateHistory != nil {
 		c.StateHistory = *dec.StateHistory
@@ -244,6 +248,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.JournalFileEnabled != nil {
 		c.JournalFileEnabled = *dec.JournalFileEnabled
+	}
+	if dec.DisableTxIndexer != nil {
+		c.DisableTxIndexer = *dec.DisableTxIndexer
 	}
 	if dec.RequiredBlocks != nil {
 		c.RequiredBlocks = dec.RequiredBlocks
@@ -259,15 +266,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.DatabaseFreezer != nil {
 		c.DatabaseFreezer = *dec.DatabaseFreezer
-	}
-	if dec.DatabaseDiff != nil {
-		c.DatabaseDiff = *dec.DatabaseDiff
-	}
-	if dec.PersistDiff != nil {
-		c.PersistDiff = *dec.PersistDiff
-	}
-	if dec.DiffBlock != nil {
-		c.DiffBlock = *dec.DiffBlock
 	}
 	if dec.PruneAncientData != nil {
 		c.PruneAncientData = *dec.PruneAncientData
@@ -334,6 +332,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.OverrideMaxwell != nil {
 		c.OverrideMaxwell = dec.OverrideMaxwell
+	}
+	if dec.OverrideFermi != nil {
+		c.OverrideFermi = dec.OverrideFermi
 	}
 	if dec.OverrideVerkle != nil {
 		c.OverrideVerkle = dec.OverrideVerkle

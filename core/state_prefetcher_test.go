@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"runtime/pprof"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -62,7 +63,7 @@ func TestPrefetchLeaking(t *testing.T) {
 
 	Track(ctx, t, func(ctx context.Context) {
 		close(inter)
-		go archive.prefetcher.Prefetch(block, statedb, &archive.vmConfig, inter)
+		go archive.prefetcher.Prefetch(block.Transactions(), block.Header(), block.GasLimit(), statedb, &archive.vmConfig, inter)
 		time.Sleep(1 * time.Second)
 	})
 }
@@ -138,11 +139,5 @@ func matchesLabel(sample *profile.Sample, key, expectedValue string) bool {
 		return false
 	}
 
-	for _, value := range values {
-		if value == expectedValue {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(values, expectedValue)
 }

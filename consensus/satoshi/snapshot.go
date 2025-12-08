@@ -25,9 +25,8 @@ import (
 	"math"
 	"sort"
 
-	lru "github.com/hashicorp/golang-lru"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -40,7 +39,7 @@ import (
 type Snapshot struct {
 	config   *params.SatoshiConfig // Consensus engine parameters to fine tune behavior
 	ethAPI   *ethapi.BlockChainAPI
-	sigCache *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
+	sigCache *lru.Cache[common.Hash, common.Address] // Cache of recent block signatures to speed up ecrecover
 
 	Number           uint64                            `json:"number"`                // Block number where the snapshot was created
 	Hash             common.Hash                       `json:"hash"`                  // Block hash where the snapshot was created
@@ -63,7 +62,7 @@ type ValidatorInfo struct {
 // the genesis block.
 func newSnapshot(
 	config *params.SatoshiConfig,
-	sigCache *lru.ARCCache,
+	sigCache *lru.Cache[common.Hash, common.Address],
 	number uint64,
 	hash common.Hash,
 	validators []common.Address,
@@ -112,7 +111,7 @@ func (s validatorsAscending) Less(i, j int) bool { return bytes.Compare(s[i][:],
 func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // loadSnapshot loads an existing snapshot from the database.
-func loadSnapshot(config *params.SatoshiConfig, sigCache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.BlockChainAPI) (*Snapshot, error) {
+func loadSnapshot(config *params.SatoshiConfig, sigCache *lru.Cache[common.Hash, common.Address], db ethdb.Database, hash common.Hash, ethAPI *ethapi.BlockChainAPI) (*Snapshot, error) {
 	blob, err := db.Get(append([]byte("satoshi-"), hash[:]...))
 	if err != nil {
 		return nil, err
@@ -196,13 +195,13 @@ func (s *Snapshot) isMajorityFork(forkHash string) bool {
 	return ally > len(s.RecentForkHashes)/2
 }
 
-func (s *Snapshot) updateAttestation(header *types.Header, chainConfig *params.ChainConfig, epochLength uint64) {
+func (s *Snapshot) updateAttestation(header *types.Header, chainConfig *params.ChainConfig) {
 	if !chainConfig.IsLuban(header.Number, header.Time) {
 		return
 	}
 
 	// The attestation should have been checked in verify header, update directly
-	attestation, _ := getVoteAttestationFromHeader(header, chainConfig, epochLength)
+	attestation, _ := getVoteAttestationFromHeader(header, chainConfig, s.EpochLength)
 	if attestation == nil {
 		return
 	}
@@ -269,6 +268,13 @@ func (s *Snapshot) SignRecently(validator common.Address) bool {
 	return s.signRecentlyByCounts(validator, s.countRecents())
 }
 
+func (s *Snapshot) getFinalizedNumber() uint64 {
+	if s.Attestation != nil {
+		return s.Attestation.SourceNumber
+	}
+	return 0
+}
+
 func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderReader, parents []*types.Header, chainConfig *params.ChainConfig) (*Snapshot, error) {
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
@@ -320,16 +326,40 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 			}
 		}
+
+		snap.updateAttestation(header, chainConfig)
+
 		snap.Recents[number] = validator
-		snap.RecentForkHashes[number] = hex.EncodeToString(header.Extra[extraVanity-nextForkHashSize : extraVanity])
-		epochLength := snap.EpochLength
-		snap.updateAttestation(header, chainConfig, epochLength)
-		if chainConfig.IsLorentz(header.Number, header.Time) {
-			// Without this condition, an incorrect block might be used to parse validators for certain blocks after the Lorentz hard fork.
-			if (header.Number.Uint64()+1)%lorentzEpochLength == 0 {
-				snap.EpochLength = lorentzEpochLength
+		if chainConfig.IsMaxwell(header.Number, header.Time) {
+			latestFinalizedBlockNumber := snap.getFinalizedNumber()
+			// BEP-524: Clear entries up to the latest finalized block
+			for blockNumber := range snap.Recents {
+				if blockNumber <= latestFinalizedBlockNumber {
+					delete(snap.Recents, blockNumber)
+				}
 			}
+		}
+
+		snap.RecentForkHashes[number] = hex.EncodeToString(header.Extra[extraVanity-nextForkHashSize : extraVanity])
+
+		if chainConfig.IsMaxwell(header.Number, header.Time) {
+			snap.BlockInterval = maxwellBlockInterval
+		} else if chainConfig.IsLorentz(header.Number, header.Time) {
 			snap.BlockInterval = lorentzBlockInterval
+		}
+
+		epochLength := snap.EpochLength
+		nextBlockNumber := header.Number.Uint64() + 1
+		if snap.EpochLength == defaultEpochLength &&
+			chainConfig.IsLorentz(header.Number, header.Time) &&
+			// Without this condition, an incorrect block might be used to parse validators for certain blocks after the Lorentz hard fork.
+			nextBlockNumber%lorentzEpochLength == 0 {
+			snap.EpochLength = lorentzEpochLength
+		}
+		if snap.EpochLength == lorentzEpochLength &&
+			chainConfig.IsMaxwell(header.Number, header.Time) &&
+			nextBlockNumber%maxwellEpochLength == 0 {
+			snap.EpochLength = maxwellEpochLength
 		}
 		// change validator set
 		if number > 0 && number%epochLength == snap.minerHistoryCheckLen() {

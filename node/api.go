@@ -52,7 +52,7 @@ func (n *Node) apis() []rpc.API {
 }
 
 // adminAPI is the collection of administrative API methods exposed over
-// both secure and unsecure RPC channels.
+// both secure and insecure RPC channels.
 type adminAPI struct {
 	node *Node // Node interfaced by this API
 }
@@ -257,6 +257,7 @@ func (api *adminAPI) StartWS(host *string, port *int, allowedOrigins *string, ap
 		Modules: api.node.config.WSModules,
 		Origins: api.node.config.WSOrigins,
 		// ExposeAll: api.node.config.WSExposeAll,
+		messageSizeLimit: api.node.config.WSMessageSizeLimit,
 		rpcEndpointConfig: rpcEndpointConfig{
 			batchItemLimit:         api.node.config.BatchRequestLimit,
 			batchResponseSizeLimit: api.node.config.BatchResponseMaxSize,

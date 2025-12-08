@@ -125,6 +125,10 @@ type Peer struct {
 	testRemoteAddr string     // for testing
 
 	latency atomic.Int64 // mill second latency, estimated by ping msg
+
+	// it indicates the peer is in the validator network, it will directly broadcast when miner/sentry broadcast mined block,
+	// and won't broadcast any txs between EVN peers.
+	EVNPeerFlag atomic.Bool
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -259,11 +263,6 @@ func (p *Peer) Inbound() bool {
 	return p.rw.is(inboundConn)
 }
 
-// VerifyNode returns true if the peer is a verification connection
-func (p *Peer) VerifyNode() bool {
-	return p.rw.is(verifyConn)
-}
-
 func newPeer(log log.Logger, conn *conn, protocols []Protocol) *Peer {
 	protomap := matchProtocols(protocols, conn.caps, conn)
 	p := &Peer{
@@ -359,7 +358,11 @@ func (p *Peer) pingLoop() {
 			latency := (time.Now().UnixMilli() - startPing.Load()) / 2
 			if latency > 0 {
 				p.latency.Store(latency)
-				peerLatencyStat.Update(time.Duration(latency))
+				if p.EVNPeerFlag.Load() {
+					evnPeerLatencyStat.Update(time.Duration(latency))
+				} else {
+					normalPeerLatencyStat.Update(time.Duration(latency))
+				}
 				if latency > slowPeerLatencyThreshold {
 					log.Warn("find a too slow peer", "id", p.ID(), "peer", p.RemoteAddr(), "latency", latency)
 				}
@@ -581,8 +584,9 @@ type PeerInfo struct {
 		Trusted       bool   `json:"trusted"`
 		Static        bool   `json:"static"`
 	} `json:"network"`
-	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
-	Latency   int64                  `json:"latency"`   // the estimate latency from ping msg
+	Protocols   map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
+	Latency     int64                  `json:"latency"`   // the estimate latency from ping msg
+	EVNPeerFlag bool                   `json:"evnPeerFlag"`
 }
 
 // Info gathers and returns a collection of metadata known about a peer.
@@ -594,12 +598,13 @@ func (p *Peer) Info() *PeerInfo {
 	}
 	// Assemble the generic peer metadata
 	info := &PeerInfo{
-		Enode:     p.Node().URLv4(),
-		ID:        p.ID().String(),
-		Name:      p.Fullname(),
-		Caps:      caps,
-		Protocols: make(map[string]interface{}, len(p.running)),
-		Latency:   p.latency.Load(),
+		Enode:       p.Node().URLv4(),
+		ID:          p.ID().String(),
+		Name:        p.Fullname(),
+		Caps:        caps,
+		Protocols:   make(map[string]interface{}, len(p.running)),
+		Latency:     p.latency.Load(),
+		EVNPeerFlag: p.EVNPeerFlag.Load(),
 	}
 	if p.Node().Seq() > 0 {
 		info.ENR = p.Node().String()
@@ -607,7 +612,8 @@ func (p *Peer) Info() *PeerInfo {
 	info.Network.LocalAddress = p.LocalAddr().String()
 	info.Network.RemoteAddress = p.RemoteAddr().String()
 	info.Network.Inbound = p.rw.is(inboundConn)
-	info.Network.Trusted = p.rw.is(trustedConn)
+	// After Maxwell, we treat all EVN peers as trusted
+	info.Network.Trusted = p.rw.is(trustedConn) || p.EVNPeerFlag.Load()
 	info.Network.Static = p.rw.is(staticDialedConn)
 
 	// Gather all the running protocol infos

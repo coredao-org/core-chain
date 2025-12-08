@@ -67,7 +67,7 @@ func (miner *Miner) SendBid(ctx context.Context, bidArgs *types.BidArgs) (common
 	timeout := time.Until(bidBetterBefore)
 
 	if timeout <= 0 {
-		return common.Hash{}, fmt.Errorf("too late, expected befor %s, appeared %s later", bidBetterBefore,
+		return common.Hash{}, fmt.Errorf("too late, expected before %s, appeared %s later", bidBetterBefore,
 			common.PrettyDuration(timeout))
 	}
 
@@ -80,19 +80,10 @@ func (miner *Miner) SendBid(ctx context.Context, bidArgs *types.BidArgs) (common
 	return bid.Hash(), nil
 }
 
-func (miner *Miner) BestPackedBlockReward(parentHash common.Hash) *big.Int {
-	bidRuntime := miner.bidSimulator.GetBestBid(parentHash)
-	if bidRuntime == nil {
-		return big.NewInt(0)
-	}
-
-	return bidRuntime.packedBlockReward
-}
-
 func (miner *Miner) MevParams() *types.MevParams {
-	builderFeeCeil, ok := big.NewInt(0).SetString(miner.worker.config.Mev.BuilderFeeCeil, 10)
+	builderFeeCeil, ok := big.NewInt(0).SetString(*miner.worker.config.Mev.BuilderFeeCeil, 10)
 	if !ok {
-		log.Error("failed to parse builder fee ceil", "BuilderFeeCeil", miner.worker.config.Mev.BuilderFeeCeil)
+		log.Error("failed to parse builder fee ceil", "BuilderFeeCeil", *miner.worker.config.Mev.BuilderFeeCeil)
 		return nil
 	}
 

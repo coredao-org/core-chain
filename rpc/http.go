@@ -23,10 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"mime"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -146,9 +148,7 @@ func newClientTransportHTTP(endpoint string, cfg *clientConfig) reconnectFunc {
 	headers := make(http.Header, 2+len(cfg.httpHeaders))
 	headers.Set("accept", contentType)
 	headers.Set("content-type", contentType)
-	for key, values := range cfg.httpHeaders {
-		headers[key] = values
-	}
+	maps.Copy(headers, cfg.httpHeaders)
 
 	client := cfg.httpClient
 	if client == nil {
@@ -364,10 +364,8 @@ func (s *Server) validateRequest(r *http.Request) (int, error) {
 	}
 	// Check content-type
 	if mt, _, err := mime.ParseMediaType(r.Header.Get("content-type")); err == nil {
-		for _, accepted := range acceptedContentTypes {
-			if accepted == mt {
-				return 0, nil
-			}
+		if slices.Contains(acceptedContentTypes, mt) {
+			return 0, nil
 		}
 	}
 	// Invalid content-type

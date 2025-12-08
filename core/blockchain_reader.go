@@ -183,7 +183,7 @@ func (bc *BlockChain) HasFastBlock(hash common.Hash, number uint64) bool {
 	return rawdb.HasReceipts(bc.db, hash, number)
 }
 
-// GetBlock retrieves a block from the database by hash and number,
+// GetBlock retrieves a block & sidecars from the database by hash and number,
 // caching it if found.
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	// Short circuit if the block's already in the cache, retrieve otherwise
@@ -194,12 +194,14 @@ func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	if block == nil {
 		return nil
 	}
+	sidecars := rawdb.ReadBlobSidecars(bc.db, hash, number)
+	block = block.WithSidecars(sidecars)
 	// Cache the found block for next time and return
 	bc.blockCache.Add(block.Hash(), block)
 	return block
 }
 
-// GetBlockByHash retrieves a block from the database by hash, caching it if found.
+// GetBlockByHash retrieves a block & sidecars from the database by hash, caching it if found.
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) *types.Block {
 	number := bc.hc.GetBlockNumber(hash)
 	if number == nil {
@@ -414,10 +416,11 @@ func (bc *BlockChain) State() (*state.StateDB, error) {
 
 // StateAt returns a new mutable state based on a particular point in time.
 func (bc *BlockChain) StateAt(root common.Hash) (*state.StateDB, error) {
-	stateDb, err := state.New(root, bc.statedb)
+	stateDb, err := state.NewWithSharedPool(root, bc.statedb)
 	if err != nil {
 		return nil, err
 	}
+	stateDb.EnableSharedStorage(bc.cacheConfig.EnableSharedStorage)
 
 	// If there's no trie and the specified snapshot is not available, getting
 	// any state will by default return nil.
@@ -532,7 +535,7 @@ func (bc *BlockChain) SubscribeFinalizedHeaderEvent(ch chan<- FinalizedHeaderEve
 
 // AncientTail retrieves the tail the ancients blocks
 func (bc *BlockChain) AncientTail() (uint64, error) {
-	tail, err := bc.db.BlockStore().Tail()
+	tail, err := bc.db.Tail()
 	if err != nil {
 		return 0, err
 	}

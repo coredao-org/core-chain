@@ -102,7 +102,7 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
 	headHeaderGauge.Update(hc.CurrentHeader().Number.Int64())
 	justifiedBlockGauge.Update(int64(hc.GetJustifiedNumber(hc.CurrentHeader())))
-	finalizedBlockGauge.Update(int64(hc.getFinalizedNumber(hc.CurrentHeader())))
+	finalizedBlockGauge.Update(int64(hc.GetFinalizedNumber(hc.CurrentHeader())))
 
 	return hc, nil
 }
@@ -120,8 +120,8 @@ func (hc *HeaderChain) GetJustifiedNumber(header *types.Header) uint64 {
 	return 0
 }
 
-// getFinalizedNumber returns the highest finalized number before the specific block.
-func (hc *HeaderChain) getFinalizedNumber(header *types.Header) uint64 {
+// GetFinalizedNumber returns the highest finalized number before the specific block.
+func (hc *HeaderChain) GetFinalizedNumber(header *types.Header) uint64 {
 	if p, ok := hc.engine.(consensus.PoSA); ok {
 		if finalizedHeader := p.GetFinalizedHeader(hc, header); finalizedHeader != nil {
 			return finalizedHeader.Number.Uint64()
@@ -171,7 +171,7 @@ func (hc *HeaderChain) Reorg(headers []*types.Header) error {
 	var (
 		first      = headers[0]
 		last       = headers[len(headers)-1]
-		blockBatch = hc.chainDb.BlockStore().NewBatch()
+		blockBatch = hc.chainDb.NewBatch()
 	)
 	if first.ParentHash != hc.currentHeaderHash {
 		// Delete any canonical number assignments above the new head
@@ -241,7 +241,7 @@ func (hc *HeaderChain) WriteHeaders(headers []*types.Header) (int, error) {
 		newTD       = new(big.Int).Set(ptd) // Total difficulty of inserted chain
 		inserted    []rawdb.NumberHash      // Ephemeral lookup of number/hash for the chain
 		parentKnown = true                  // Set to true to force hc.HasHeader check the first iteration
-		blockBatch  = hc.chainDb.BlockStore().NewBatch()
+		blockBatch  = hc.chainDb.NewBatch()
 	)
 	for i, header := range headers {
 		var hash common.Hash
@@ -590,7 +590,7 @@ func (hc *HeaderChain) SetCurrentHeader(head *types.Header) {
 	hc.currentHeaderHash = head.Hash()
 	headHeaderGauge.Update(head.Number.Int64())
 	justifiedBlockGauge.Update(int64(hc.GetJustifiedNumber(head)))
-	finalizedBlockGauge.Update(int64(hc.getFinalizedNumber(head)))
+	finalizedBlockGauge.Update(int64(hc.GetFinalizedNumber(head)))
 }
 
 type (
@@ -635,7 +635,7 @@ func (hc *HeaderChain) setHead(headBlock uint64, headTime uint64, updateFn Updat
 	}
 	var (
 		parentHash common.Hash
-		blockBatch = hc.chainDb.BlockStore().NewBatch()
+		blockBatch = hc.chainDb.NewBatch()
 		origin     = true
 	)
 	done := func(header *types.Header) bool {
@@ -661,7 +661,7 @@ func (hc *HeaderChain) setHead(headBlock uint64, headTime uint64, updateFn Updat
 		// first then remove the relative data from the database.
 		//
 		// Update head first(head fast block, head full block) before deleting the data.
-		markerBatch := hc.chainDb.BlockStore().NewBatch()
+		markerBatch := hc.chainDb.NewBatch()
 		if updateFn != nil {
 			newHead, force := updateFn(markerBatch, parent)
 			if force && ((headTime > 0 && newHead.Time < headTime) || (headTime == 0 && newHead.Number.Uint64() < headBlock)) {
@@ -678,13 +678,13 @@ func (hc *HeaderChain) setHead(headBlock uint64, headTime uint64, updateFn Updat
 		hc.currentHeaderHash = parentHash
 		headHeaderGauge.Update(parent.Number.Int64())
 		justifiedBlockGauge.Update(int64(hc.GetJustifiedNumber(parent)))
-		finalizedBlockGauge.Update(int64(hc.getFinalizedNumber(parent)))
+		finalizedBlockGauge.Update(int64(hc.GetFinalizedNumber(parent)))
 
 		// If this is the first iteration, wipe any leftover data upwards too so
 		// we don't end up with dangling daps in the database
 		var nums []uint64
 		if origin {
-			for n := num + 1; len(rawdb.ReadAllHashes(hc.chainDb.BlockStore(), n)) > 0; n++ {
+			for n := num + 1; len(rawdb.ReadAllHashes(hc.chainDb, n)) > 0; n++ {
 				nums = append([]uint64{n}, nums...) // suboptimal, but we don't really expect this path
 			}
 			origin = false
@@ -694,7 +694,7 @@ func (hc *HeaderChain) setHead(headBlock uint64, headTime uint64, updateFn Updat
 		// Remove the related data from the database on all sidechains
 		for _, num := range nums {
 			// Gather all the side fork hashes
-			hashes := rawdb.ReadAllHashes(hc.chainDb.BlockStore(), num)
+			hashes := rawdb.ReadAllHashes(hc.chainDb, num)
 			if len(hashes) == 0 {
 				// No hashes in the database whatsoever, probably frozen already
 				hashes = append(hashes, hdr.Hash())
@@ -740,7 +740,7 @@ func (hc *HeaderChain) setHead(headBlock uint64, headTime uint64, updateFn Updat
 		// Truncate the excessive chain segment above the current chain head
 		// in the ancient store.
 		if header.Number.Uint64()+1 < frozen {
-			_, err := hc.chainDb.BlockStore().TruncateHead(header.Number.Uint64() + 1)
+			_, err := hc.chainDb.TruncateHead(header.Number.Uint64() + 1)
 			if err != nil {
 				log.Crit("Failed to truncate head block", "err", err)
 			}

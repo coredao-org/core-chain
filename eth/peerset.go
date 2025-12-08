@@ -24,12 +24,13 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/protocols/bsc"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
-	"github.com/ethereum/go-ethereum/eth/protocols/trust"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 var (
@@ -52,10 +53,6 @@ var (
 	// snap protocol without advertising the eth main protocol.
 	errSnapWithoutEth = errors.New("peer connected on snap without compatible eth support")
 
-	// errTrustWithoutEth is returned if a peer attempts to connect only on the
-	// trust protocol without advertising the eth main protocol.
-	errTrustWithoutEth = errors.New("peer connected on trust without compatible eth support")
-
 	// errBscWithoutEth is returned if a peer attempts to connect only on the
 	// bsc protocol without advertising the eth main protocol.
 	errBscWithoutEth = errors.New("peer connected on bsc without compatible eth support")
@@ -68,17 +65,21 @@ const (
 	tryWaitTimeout       = 100 * time.Millisecond
 )
 
+var (
+	evnWhiteListPeerGuage        = metrics.NewRegisteredGauge("evn/peer/whiteList", nil)
+	evnOnchainValidatorPeerGuage = metrics.NewRegisteredGauge("evn/peer/onchainValidator", nil)
+)
+
 // peerSet represents the collection of active peers currently participating in
 // the `eth` protocol, with or without the `snap` extension.
 type peerSet struct {
 	peers     map[string]*ethPeer // Peers connected on the `eth` protocol
 	snapPeers int                 // Number of `snap` compatible peers for connection prioritization
 
+	validatorNodeIDsMap map[common.Address][]enode.ID
+
 	snapWait map[string]chan *snap.Peer // Peers connected on `eth` waiting for their snap extension
 	snapPend map[string]*snap.Peer      // Peers connected on the `snap` protocol, but not yet on `eth`
-
-	trustWait map[string]chan *trust.Peer // Peers connected on `eth` waiting for their trust extension
-	trustPend map[string]*trust.Peer      // Peers connected on the `trust` protocol, but not yet on `eth`
 
 	bscWait map[string]chan *bsc.Peer // Peers connected on `eth` waiting for their bsc extension
 	bscPend map[string]*bsc.Peer      // Peers connected on the `bsc` protocol, but not yet on `eth`
@@ -91,14 +92,12 @@ type peerSet struct {
 // newPeerSet creates a new peer set to track the active participants.
 func newPeerSet() *peerSet {
 	return &peerSet{
-		peers:     make(map[string]*ethPeer),
-		snapWait:  make(map[string]chan *snap.Peer),
-		snapPend:  make(map[string]*snap.Peer),
-		trustWait: make(map[string]chan *trust.Peer),
-		trustPend: make(map[string]*trust.Peer),
-		bscWait:   make(map[string]chan *bsc.Peer),
-		bscPend:   make(map[string]*bsc.Peer),
-		quitCh:    make(chan struct{}),
+		peers:    make(map[string]*ethPeer),
+		snapWait: make(map[string]chan *snap.Peer),
+		snapPend: make(map[string]*snap.Peer),
+		bscWait:  make(map[string]chan *bsc.Peer),
+		bscPend:  make(map[string]*bsc.Peer),
+		quitCh:   make(chan struct{}),
 	}
 }
 
@@ -129,40 +128,6 @@ func (ps *peerSet) registerSnapExtension(peer *snap.Peer) error {
 		return nil
 	}
 	ps.snapPend[id] = peer
-	return nil
-}
-
-// registerTrustExtension unblocks an already connected `eth` peer waiting for its
-// `trust` extension, or if no such peer exists, tracks the extension for the time
-// being until the `eth` main protocol starts looking for it.
-func (ps *peerSet) registerTrustExtension(peer *trust.Peer) error {
-	// Reject the peer if it advertises `trust` without `eth` as `trust` is only a
-	// satellite protocol meaningful with the chain selection of `eth`
-	if !peer.RunningCap(eth.ProtocolName, eth.ProtocolVersions) {
-		return errTrustWithoutEth
-	}
-	// If the peer isn't verify node, don't register trust extension into eth protocol.
-	if !peer.VerifyNode() {
-		return nil
-	}
-	// Ensure nobody can double connect
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	id := peer.ID()
-	if _, ok := ps.peers[id]; ok {
-		return errPeerAlreadyRegistered // avoid connections with the same id as existing ones
-	}
-	if _, ok := ps.trustPend[id]; ok {
-		return errPeerAlreadyRegistered // avoid connections with the same id as pending ones
-	}
-	// Inject the peer into an `eth` counterpart is available, otherwise save for later
-	if wait, ok := ps.trustWait[id]; ok {
-		delete(ps.trustWait, id)
-		wait <- peer
-		return nil
-	}
-	ps.trustPend[id] = peer
 	return nil
 }
 
@@ -245,59 +210,6 @@ func (ps *peerSet) waitSnapExtension(peer *eth.Peer) (*snap.Peer, error) {
 	}
 }
 
-// waitTrustExtension blocks until all satellite protocols are connected and tracked
-// by the peerset.
-func (ps *peerSet) waitTrustExtension(peer *eth.Peer) (*trust.Peer, error) {
-	// If the peer does not support a compatible `trust`, don't wait
-	if !peer.RunningCap(trust.ProtocolName, trust.ProtocolVersions) {
-		return nil, nil
-	}
-	// If the peer isn't verify node, don't register trust extension into eth protocol.
-	if !peer.VerifyNode() {
-		return nil, nil
-	}
-	// Ensure nobody can double connect
-	ps.lock.Lock()
-
-	id := peer.ID()
-	if _, ok := ps.peers[id]; ok {
-		ps.lock.Unlock()
-		return nil, errPeerAlreadyRegistered // avoid connections with the same id as existing ones
-	}
-	if _, ok := ps.trustWait[id]; ok {
-		ps.lock.Unlock()
-		return nil, errPeerAlreadyRegistered // avoid connections with the same id as pending ones
-	}
-	// If `trust` already connected, retrieve the peer from the pending set
-	if trust, ok := ps.trustPend[id]; ok {
-		delete(ps.trustPend, id)
-
-		ps.lock.Unlock()
-		return trust, nil
-	}
-	// Otherwise wait for `trust` to connect concurrently
-	wait := make(chan *trust.Peer)
-	ps.trustWait[id] = wait
-	ps.lock.Unlock()
-
-	select {
-	case peer := <-wait:
-		return peer, nil
-
-	case <-time.After(extensionWaitTimeout):
-		ps.lock.Lock()
-		delete(ps.trustWait, id)
-		ps.lock.Unlock()
-		return nil, errPeerWaitTimeout
-
-	case <-ps.quitCh:
-		ps.lock.Lock()
-		delete(ps.trustWait, id)
-		ps.lock.Unlock()
-		return nil, errPeerSetClosed
-	}
-}
-
 // waitBscExtension blocks until all satellite protocols are connected and tracked
 // by the peerset.
 func (ps *peerSet) waitBscExtension(peer *eth.Peer) (*bsc.Peer, error) {
@@ -363,23 +275,9 @@ func (ps *peerSet) waitBscExtension(peer *eth.Peer) (*bsc.Peer, error) {
 	}
 }
 
-// GetVerifyPeers returns an array of verify nodes.
-func (ps *peerSet) GetVerifyPeers() []core.VerifyPeer {
-	ps.lock.RLock()
-	defer ps.lock.RUnlock()
-
-	res := make([]core.VerifyPeer, 0)
-	for _, p := range ps.peers {
-		if p.trustExt != nil && p.trustExt.Peer != nil {
-			res = append(res, p.trustExt.Peer)
-		}
-	}
-	return res
-}
-
 // registerPeer injects a new `eth` peer into the working set, or returns an error
 // if the peer is already known.
-func (ps *peerSet) registerPeer(peer *eth.Peer, ext *snap.Peer, trustExt *trust.Peer, bscExt *bsc.Peer) error {
+func (ps *peerSet) registerPeer(peer *eth.Peer, ext *snap.Peer, bscExt *bsc.Peer) error {
 	// Start tracking the new peer
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
@@ -397,9 +295,6 @@ func (ps *peerSet) registerPeer(peer *eth.Peer, ext *snap.Peer, trustExt *trust.
 	if ext != nil {
 		eth.snapExt = &snapPeer{ext}
 		ps.snapPeers++
-	}
-	if trustExt != nil {
-		eth.trustExt = &trustPeer{trustExt}
 	}
 	if bscExt != nil {
 		eth.bscExt = &bscPeer{bscExt}
@@ -433,6 +328,70 @@ func (ps *peerSet) peer(id string) *ethPeer {
 	return ps.peers[id]
 }
 
+// enableEVNFeatures enables the given features for the given peers.
+func (ps *peerSet) enableEVNFeatures(validatorNodeIDsMap map[common.Address][]enode.ID, evnWhitelistMap map[enode.ID]struct{}) {
+	// clone current all peers, and update the validatorNodeIDsMap
+	ps.lock.Lock()
+	peers := make([]*ethPeer, 0, len(ps.peers))
+	for _, peer := range ps.peers {
+		peers = append(peers, peer)
+	}
+	ps.validatorNodeIDsMap = validatorNodeIDsMap
+	ps.lock.Unlock()
+
+	// convert to nodeID filter map, avoid too slow operation for slices.Contains
+	valNodeIDMap := make(map[enode.ID]struct{})
+	for _, nodeIDs := range validatorNodeIDsMap {
+		for _, nodeID := range nodeIDs {
+			valNodeIDMap[nodeID] = struct{}{}
+		}
+	}
+
+	var (
+		whiteListPeerCnt        int64 = 0
+		onchainValidatorPeerCnt int64 = 0
+	)
+	for _, peer := range peers {
+		nodeID := peer.NodeID()
+		_, isValidatorPeer := valNodeIDMap[nodeID]
+		_, isWhitelistPeer := evnWhitelistMap[nodeID]
+
+		if isValidatorPeer || isWhitelistPeer {
+			log.Debug("enable EVNPeerFlag & NoTxBroadcastFlag for", "peer", nodeID)
+			peer.EVNPeerFlag.Store(true)
+		} else {
+			peer.EVNPeerFlag.Store(false)
+		}
+
+		if isValidatorPeer {
+			onchainValidatorPeerCnt++
+		}
+		if isWhitelistPeer {
+			whiteListPeerCnt++
+		}
+	}
+	evnWhiteListPeerGuage.Update(whiteListPeerCnt)
+	evnOnchainValidatorPeerGuage.Update(onchainValidatorPeerCnt)
+	log.Info("enable EVN features", "total", len(peers), "whiteListPeerCnt", whiteListPeerCnt, "onchainValidatorPeerCnt", onchainValidatorPeerCnt)
+}
+
+// isProxyedValidator checks if the received block from the proxyed validator.
+func (ps *peerSet) isProxyedValidator(validator common.Address, proxyedAddressMap map[common.Address]struct{}) bool {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	if len(proxyedAddressMap) == 0 {
+		return false
+	}
+	log.Debug("check whether received block from proxyed peer", "validator", validator, "proxyedAddressMap", proxyedAddressMap)
+
+	// check whether the validator is proxyed validator
+	if _, ok := proxyedAddressMap[validator]; !ok {
+		return false
+	}
+	return true
+}
+
 // headPeers retrieves a specified number list of peers.
 func (ps *peerSet) headPeers(num uint) []*ethPeer {
 	ps.lock.RLock()
@@ -464,6 +423,7 @@ func (ps *peerSet) peersWithoutBlock(hash common.Hash) []*ethPeer {
 			list = append(list, p)
 		}
 	}
+	log.Debug("get peers without block", "hash", hash, "total", len(ps.peers), "unknown", len(list))
 	return list
 }
 
@@ -475,6 +435,11 @@ func (ps *peerSet) peersWithoutTransaction(hash common.Hash) []*ethPeer {
 
 	list := make([]*ethPeer, 0, len(ps.peers))
 	for _, p := range ps.peers {
+		// it can be optimized in the future, to make it more clear that only when both peers of a connection are EVN nodes, will enable no tx broadcast.
+		if p.EVNPeerFlag.Load() {
+			log.Debug("skip EVN peer with no tx forwarding feature", "peer", p.ID())
+			continue
+		}
 		if !p.KnownTransaction(hash) {
 			list = append(list, p)
 		}

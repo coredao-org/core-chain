@@ -542,6 +542,7 @@ type ChainConfig struct {
 	OsakaTime   *uint64 `json:"osakaTime,omitempty"`   // Osaka switch time (nil = no fork, 0 = already on osaka)
 	LorentzTime *uint64 `json:"lorentzTime,omitempty"` // Lorentz switch time (nil = no fork, 0 = already on lorentz)
 	MaxwellTime *uint64 `json:"maxwellTime,omitempty"` // Maxwell switch time (nil = no fork, 0 = already on maxwell)
+	FermiTime      *uint64 `json:"fermiTime,omitempty"`      // Fermi switch time (nil = no fork, 0 = already on fermi)
 	VerkleTime  *uint64 `json:"verkleTime,omitempty"`  // Verkle switch time (nil = no fork, 0 = already on verkle)
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
@@ -688,6 +689,7 @@ func (c *ChainConfig) String() string {
 		{"OsakaTime", c.OsakaTime},
 		{"LorentzTime", c.LorentzTime},
 		{"MaxwellTime", c.MaxwellTime},
+		{"FermiTime", c.FermiTime},
 		{"VerkleTime", c.VerkleTime},
 		{"BlobScheduleConfig", c.BlobScheduleConfig},
 		{"TerminalTotalDifficulty", c.TerminalTotalDifficulty},
@@ -771,6 +773,22 @@ func (c *ChainConfig) IsHertz(num *big.Int) bool {
 // IsOnHertz returns whether num is equal to the fork block of enabling Berlin EIPs.
 func (c *ChainConfig) IsOnHertz(num *big.Int) bool {
 	return configBlockEqual(c.HertzBlock, num)
+}
+
+func (c *ChainConfig) NeedBadSharedStorage(num *big.Int) bool {
+	if c.IsHertz(num) || c.ChainID == nil {
+		return false
+	}
+
+	if c.ChainID.Cmp(big.NewInt(56)) == 0 && num.Cmp(big.NewInt(33851236)) == 0 {
+		return true
+	}
+
+	if c.ChainID.Cmp(big.NewInt(97)) == 0 && (num.Cmp(big.NewInt(35547779)) == 0 || num.Cmp(big.NewInt(35548081)) == 0) {
+		return true
+	}
+
+	return false
 }
 
 // IsMuirGlacier returns whether num is either equal to the Muir Glacier (EIP-2384) fork block or greater.
@@ -1051,6 +1069,20 @@ func (c *ChainConfig) IsOnMaxwell(currentBlockNumber *big.Int, lastBlockTime uin
 	return !c.IsMaxwell(lastBlockNumber, lastBlockTime) && c.IsMaxwell(currentBlockNumber, currentBlockTime)
 }
 
+// IsFermi returns whether time is either equal to the Fermi fork time or greater.
+func (c *ChainConfig) IsFermi(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.FermiTime, time)
+}
+
+// IsOnFermi returns whether currentBlockTime is either equal to the Fermi fork time or greater firstly.
+func (c *ChainConfig) IsOnFermi(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsFermi(lastBlockNumber, lastBlockTime) && c.IsFermi(currentBlockNumber, currentBlockTime)
+}
+
 // IsOsaka returns whether time is either equal to the Osaka fork time or greater.
 func (c *ChainConfig) IsOsaka(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.OsakaTime, time)
@@ -1137,8 +1169,9 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "pascalTime", timestamp: c.PascalTime},
 		{name: "pragueTime", timestamp: c.PragueTime, optional: true},
 		{name: "osakaTime", timestamp: c.OsakaTime, optional: true},
-		{name: "lorentzTime", timestamp: c.LorentzTime, optional: true},
-		{name: "maxwellTime", timestamp: c.MaxwellTime, optional: true},
+		{name: "lorentzTime", timestamp: c.LorentzTime},
+		{name: "maxwellTime", timestamp: c.MaxwellTime},
+		{name: "fermiTime", timestamp: c.FermiTime},
 		{name: "verkleTime", timestamp: c.VerkleTime, optional: true},
 	} {
 		if lastFork.name != "" {
@@ -1328,7 +1361,10 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 		return newTimestampCompatError("Lorentz fork timestamp", c.LorentzTime, newcfg.LorentzTime)
 	}
 	if isForkTimestampIncompatible(c.MaxwellTime, newcfg.MaxwellTime, headTimestamp) {
-		return newTimestampCompatError("Lorentz fork timestamp", c.MaxwellTime, newcfg.MaxwellTime)
+		return newTimestampCompatError("Maxwell fork timestamp", c.MaxwellTime, newcfg.MaxwellTime)
+	}
+	if isForkTimestampIncompatible(c.FermiTime, newcfg.FermiTime, headTimestamp) {
+		return newTimestampCompatError("FermiTime fork timestamp", c.FermiTime, newcfg.FermiTime)
 	}
 	if isForkTimestampIncompatible(c.VerkleTime, newcfg.VerkleTime, headTimestamp) {
 		return newTimestampCompatError("Verkle fork timestamp", c.VerkleTime, newcfg.VerkleTime)
@@ -1355,6 +1391,8 @@ func (c *ChainConfig) LatestFork(time uint64) forks.Fork {
 	switch {
 	case c.IsOsaka(london, time):
 		return forks.Osaka
+	case c.IsFermi(london, time):
+		return forks.Fermi
 	case c.IsMaxwell(london, time):
 		return forks.Maxwell
 	case c.IsLorentz(london, time):
@@ -1521,7 +1559,7 @@ type Rules struct {
 	IsHertz                                                 bool
 	IsShanghai, IsKepler, IsCancun                          bool
 	IsBohr, IsPascal, IsPrague, IsLorentz, IsMaxwell        bool
-	IsOsaka, IsVerkle                                       bool
+	IsFermi, IsOsaka, IsVerkle                              bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1555,9 +1593,10 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsBohr:           c.IsBohr(num, timestamp),
 		IsPascal:         c.IsPascal(num, timestamp),
 		IsPrague:         c.IsPrague(num, timestamp),
-		IsOsaka:          c.IsOsaka(num, timestamp),
 		IsLorentz:        c.IsLorentz(num, timestamp),
 		IsMaxwell:        c.IsMaxwell(num, timestamp),
+		IsFermi:          c.IsFermi(num, timestamp),
+		IsOsaka:          c.IsOsaka(num, timestamp),
 		IsVerkle:         c.IsVerkle(num, timestamp),
 		IsEIP4762:        isVerkle,
 	}
