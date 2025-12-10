@@ -120,6 +120,18 @@ func (oracle *Oracle) processBlock(bf *blockFees, percentiles []float64) {
 		return
 	}
 
+	minReward := oracle.defaultPrice
+	applyMinReward := func() {
+		if minReward == nil {
+			return
+		}
+		for i, r := range bf.results.reward {
+			if r != nil && r.Cmp(minReward) < 0 {
+				bf.results.reward[i] = new(big.Int).Set(minReward)
+			}
+		}
+	}
+
 	bf.results.reward = make([]*big.Int, len(percentiles))
 	if len(bf.block.Transactions()) == 0 {
 		// return an all zero row if there are no transactions to gather data from
@@ -149,6 +161,7 @@ func (oracle *Oracle) processBlock(bf *blockFees, percentiles []float64) {
 		}
 		bf.results.reward[i] = sorter[txIndex].reward
 	}
+	applyMinReward()
 }
 
 // resolveBlockRange resolves the specified block range to absolute block numbers while also
