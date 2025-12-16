@@ -37,6 +37,12 @@ import (
 	"github.com/holiman/uint256"
 )
 
+// Reuse the canonical dev key/address used across tests.
+var (
+	testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	testAddr   = crypto.PubkeyToAddress(testKey.PublicKey)
+)
+
 func getFeeMarketGenesisAlloc(maxRewards, maxEvents uint8, maxGas uint32) (accountAddress common.Address, account types.Account) {
 	constantsBytes := make([]byte, 32)
 	binary.BigEndian.PutUint32(constantsBytes[24:28], maxGas)
@@ -868,7 +874,7 @@ func TestFeeMarketReorg(t *testing.T) {
 	gspec.Alloc[feeMarketAddress] = feeMarketAccount
 
 	engine := &mockSatoshi{}
-	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), t.TempDir(), "", false, false, false, false, false)
+	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), t.TempDir(), "", false, false, false)
 	require.NoError(t, err)
 	chain, _ := NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
 
@@ -950,7 +956,7 @@ func testFeeMarketBlock(t *testing.T, theseusFix bool, gasLimit uint64, numberOf
 
 	// Initialize blockchain
 	frdir := t.TempDir()
-	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false, false, false)
+	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false)
 	require.NoError(t, err)
 
 	engine := &mockSatoshi{}
@@ -1067,7 +1073,7 @@ func benchmarkFeeMarketBlock(b *testing.B, gasLimit uint64, numberOfBlocks int, 
 
 	// Initialize blockchain
 	frdir := b.TempDir()
-	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false, false, false)
+	db, err := rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), frdir, "", false, false, false)
 	require.NoError(b, err)
 
 	engine := &mockSatoshi{}

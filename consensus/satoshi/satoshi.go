@@ -61,7 +61,7 @@ const (
 	maxwellEpochLength   uint64 = 1000  // Epoch length starting from the Maxwell hard fork
 	defaultBlockInterval uint64 = 3000  // Default block interval in milliseconds
 	lorentzBlockInterval uint64 = 1500  // Block interval starting from the Lorentz hard fork
-	maxwellBlockInterval uint64 = 750  // Block interval starting from the Maxwell hard fork
+	maxwellBlockInterval uint64 = 750   // Block interval starting from the Maxwell hard fork
 	defaultTurnLength    uint8  = 1     // Default consecutive number of blocks a validator receives priority for block production
 	defaultRoundInterval        = 86400 // Default number of seconds to turn round
 
@@ -79,7 +79,7 @@ const (
 	lorentzInitialBackOffTime uint64 = 2000 // milliseconds, Backoff time for the second validator permitted to produce blocks from the Lorentz hard fork
 	processBackOffTime        uint64 = 1    // second
 
-	millisecondsUnit = 500 // Set to 250 if block interval is 750ms; not enforced at the consensus level
+	millisecondsUnit = 250 // Set to 250 if block interval is 750ms; not enforced at the consensus level
 
 	collectAdditionalVotesRewardRatio = 100 // ratio of additional reward for collecting more votes than needed, the denominator is 100
 
