@@ -542,7 +542,8 @@ type ChainConfig struct {
 	OsakaTime   *uint64 `json:"osakaTime,omitempty"`   // Osaka switch time (nil = no fork, 0 = already on osaka)
 	LorentzTime *uint64 `json:"lorentzTime,omitempty"` // Lorentz switch time (nil = no fork, 0 = already on lorentz)
 	MaxwellTime *uint64 `json:"maxwellTime,omitempty"` // Maxwell switch time (nil = no fork, 0 = already on maxwell)
-	FermiTime      *uint64 `json:"fermiTime,omitempty"`      // Fermi switch time (nil = no fork, 0 = already on fermi)
+	ApolloTime  *uint64 `json:"apolloTime,omitempty"`  // Apollo switch time (nil = no fork, 0 = already on apollo)
+	FermiTime   *uint64 `json:"fermiTime,omitempty"`   // Fermi switch time (nil = no fork, 0 = already on fermi)
 	VerkleTime  *uint64 `json:"verkleTime,omitempty"`  // Verkle switch time (nil = no fork, 0 = already on verkle)
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
@@ -689,6 +690,7 @@ func (c *ChainConfig) String() string {
 		{"OsakaTime", c.OsakaTime},
 		{"LorentzTime", c.LorentzTime},
 		{"MaxwellTime", c.MaxwellTime},
+		{"ApolloTime", c.ApolloTime},
 		{"FermiTime", c.FermiTime},
 		{"VerkleTime", c.VerkleTime},
 		{"BlobScheduleConfig", c.BlobScheduleConfig},
@@ -1069,6 +1071,20 @@ func (c *ChainConfig) IsOnMaxwell(currentBlockNumber *big.Int, lastBlockTime uin
 	return !c.IsMaxwell(lastBlockNumber, lastBlockTime) && c.IsMaxwell(currentBlockNumber, currentBlockTime)
 }
 
+// IsApollo returns whether time is either equal to the Apollo fork time or greater.
+func (c *ChainConfig) IsApollo(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.ApolloTime, time)
+}
+
+// IsOnApollo returns whether currentBlockTime is either equal to the Apollo fork time or greater firstly.
+func (c *ChainConfig) IsOnApollo(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsApollo(lastBlockNumber, lastBlockTime) && c.IsApollo(currentBlockNumber, currentBlockTime)
+}
+
 // IsFermi returns whether time is either equal to the Fermi fork time or greater.
 func (c *ChainConfig) IsFermi(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.FermiTime, time)
@@ -1171,6 +1187,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "osakaTime", timestamp: c.OsakaTime, optional: true},
 		{name: "lorentzTime", timestamp: c.LorentzTime},
 		{name: "maxwellTime", timestamp: c.MaxwellTime},
+		{name: "apolloTime", timestamp: c.ApolloTime},
 		{name: "fermiTime", timestamp: c.FermiTime},
 		{name: "verkleTime", timestamp: c.VerkleTime, optional: true},
 	} {
@@ -1362,6 +1379,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkTimestampIncompatible(c.MaxwellTime, newcfg.MaxwellTime, headTimestamp) {
 		return newTimestampCompatError("Maxwell fork timestamp", c.MaxwellTime, newcfg.MaxwellTime)
+	}
+	if isForkTimestampIncompatible(c.ApolloTime, newcfg.ApolloTime, headTimestamp) {
+		return newTimestampCompatError("Apollo fork timestamp", c.ApolloTime, newcfg.ApolloTime)
 	}
 	if isForkTimestampIncompatible(c.FermiTime, newcfg.FermiTime, headTimestamp) {
 		return newTimestampCompatError("FermiTime fork timestamp", c.FermiTime, newcfg.FermiTime)
@@ -1559,7 +1579,7 @@ type Rules struct {
 	IsHertz                                                 bool
 	IsShanghai, IsKepler, IsCancun                          bool
 	IsBohr, IsPascal, IsPrague, IsLorentz, IsMaxwell        bool
-	IsFermi, IsOsaka, IsVerkle                              bool
+	IsApollo, IsFermi, IsOsaka, IsVerkle                    bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1595,6 +1615,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsPrague:         c.IsPrague(num, timestamp),
 		IsLorentz:        c.IsLorentz(num, timestamp),
 		IsMaxwell:        c.IsMaxwell(num, timestamp),
+		IsApollo:         c.IsApollo(num, timestamp),
 		IsFermi:          c.IsFermi(num, timestamp),
 		IsOsaka:          c.IsOsaka(num, timestamp),
 		IsVerkle:         c.IsVerkle(num, timestamp),
