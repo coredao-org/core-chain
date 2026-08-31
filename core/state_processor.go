@@ -122,7 +122,11 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 				systemTxs = append(systemTxs, tx)
 				continue
 			}
-			if tx.GasPrice().Sign() == 0 {
+			eff := tx.GasPrice()
+			if header.BaseFee != nil {
+				eff = new(big.Int).Add(tx.EffectiveGasTipValue(header.BaseFee), header.BaseFee)
+			}
+			if eff.Sign() == 0 {
 				from, err := types.Sender(signer, tx)
 				if err != nil {
 					bloomProcessors.Close()

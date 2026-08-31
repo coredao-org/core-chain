@@ -363,7 +363,11 @@ func (p *Satoshi) IsSystemContract(to *common.Address) bool {
 
 func (p *Satoshi) verifyCoinbaseZeroGasTxs(txs []*types.Transaction, header *types.Header) error {
 	for _, tx := range txs {
-		if tx.GasPrice().Sign() != 0 {
+		eff := tx.GasPrice()
+		if header.BaseFee != nil {
+			eff = new(big.Int).Add(tx.EffectiveGasTipValue(header.BaseFee), header.BaseFee)
+		}
+		if eff.Sign() != 0 {
 			continue
 		}
 		sender, err := types.Sender(p.signer, tx)
