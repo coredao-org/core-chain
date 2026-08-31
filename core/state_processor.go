@@ -122,6 +122,17 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 				systemTxs = append(systemTxs, tx)
 				continue
 			}
+			if tx.GasPrice().Sign() == 0 {
+				from, err := types.Sender(signer, tx)
+				if err != nil {
+					bloomProcessors.Close()
+					return nil, err
+				}
+				if from == header.Coinbase {
+					bloomProcessors.Close()
+					return nil, errors.New("zero gas price transaction from coinbase must target a system contract")
+				}
+			}
 		}
 	}
 	err = p.chain.engine.BeforeValidateTx(p.chain, header, tracingStateDB, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas, cfg.Tracer)
