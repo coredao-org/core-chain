@@ -127,15 +127,8 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 				eff = new(big.Int).Add(tx.EffectiveGasTipValue(header.BaseFee), header.BaseFee)
 			}
 			if eff.Sign() == 0 {
-				from, err := types.Sender(signer, tx)
-				if err != nil {
-					bloomProcessors.Close()
-					return nil, err
-				}
-				if from == header.Coinbase {
-					bloomProcessors.Close()
-					return nil, errors.New("zero gas price transaction from coinbase must target a system contract")
-				}
+				bloomProcessors.Close()
+				return nil, errors.New("zero gas price transaction is not an expected system transaction")
 			}
 		}
 	}
