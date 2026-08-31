@@ -361,6 +361,25 @@ func (p *Satoshi) IsSystemContract(to *common.Address) bool {
 	return isToSystemContract(*to)
 }
 
+func (p *Satoshi) verifyCoinbaseZeroGasTxs(txs []*types.Transaction, header *types.Header) error {
+	for _, tx := range txs {
+		if tx.GasPrice().Sign() != 0 {
+			continue
+		}
+		sender, err := types.Sender(p.signer, tx)
+		if err != nil {
+			return errors.New("UnAuthorized transaction")
+		}
+		if sender != header.Coinbase {
+			continue
+		}
+		if tx.To() == nil || !isToSystemContract(*tx.To()) {
+			return errors.New("zero gas price transaction from coinbase must target a system contract")
+		}
+	}
+	return nil
+}
+
 // Author implements consensus.Engine, returning the SystemAddress
 func (p *Satoshi) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
@@ -1459,6 +1478,11 @@ func (p *Satoshi) EstimateGasReservedForSystemTxs(chain consensus.ChainHeaderRea
 // rewards given.
 func (p *Satoshi) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state vm.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, _ []*types.Withdrawal, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64, tracer *tracing.Hooks) error {
+	if txs != nil {
+		if err := p.verifyCoinbaseZeroGasTxs(*txs, header); err != nil {
+			return err
+		}
+	}
 	// warn if not in majority fork
 	number := header.Number.Uint64()
 	snap, err := p.snapshot(chain, number-1, header.ParentHash, nil)
