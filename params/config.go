@@ -533,16 +533,17 @@ type ChainConfig struct {
 	TheseusFixTime *uint64 `json:"theseusFixTime,omitempty" ` // TheseusFix switch time (nil = no fork, 0 = already on theseusFix)
 	// Hermes has some logic of Feynman and Cancun, which has been enabled already in our chain and as such had to be enabled at a later fork.
 	// Hermes doesn't implement anything new by its own.
-	HermesTime  *uint64 `json:"hermesTime,omitempty" ` // Hermes switch time (nil = no fork, 0 = already on hermes)
-	LubanTime   *uint64 `json:"lubanTime,omitempty"`   // Luban switch time (nil = no fork, 0 = already on luban)
-	PlatoTime   *uint64 `json:"platoTime,omitempty"`   // Plato switch time (nil = no fork, 0 = already on plato)
-	BohrTime    *uint64 `json:"bohrTime,omitempty"`    // Bohr switch time (nil = no fork, 0 = already on bohr)
-	PascalTime  *uint64 `json:"pascalTime,omitempty"`  // Pascal switch time (nil = no fork, 0 = already on pascal)
-	PragueTime  *uint64 `json:"pragueTime,omitempty"`  // Prague switch time (nil = no fork, 0 = already on prague)
-	OsakaTime   *uint64 `json:"osakaTime,omitempty"`   // Osaka switch time (nil = no fork, 0 = already on osaka)
-	LorentzTime *uint64 `json:"lorentzTime,omitempty"` // Lorentz switch time (nil = no fork, 0 = already on lorentz)
-	MaxwellTime *uint64 `json:"maxwellTime,omitempty"` // Maxwell switch time (nil = no fork, 0 = already on maxwell)
-	VerkleTime  *uint64 `json:"verkleTime,omitempty"`  // Verkle switch time (nil = no fork, 0 = already on verkle)
+	HermesTime        *uint64 `json:"hermesTime,omitempty" `       // Hermes switch time (nil = no fork, 0 = already on hermes)
+	CoreRewardFixTime *uint64 `json:"coreRewardFixTime,omitempty"` // CoreRewardFix switch time (nil = no fork, 0 = already on coreRewardFix)
+	LubanTime         *uint64 `json:"lubanTime,omitempty"`         // Luban switch time (nil = no fork, 0 = already on luban)
+	PlatoTime         *uint64 `json:"platoTime,omitempty"`         // Plato switch time (nil = no fork, 0 = already on plato)
+	BohrTime          *uint64 `json:"bohrTime,omitempty"`          // Bohr switch time (nil = no fork, 0 = already on bohr)
+	PascalTime        *uint64 `json:"pascalTime,omitempty"`        // Pascal switch time (nil = no fork, 0 = already on pascal)
+	PragueTime        *uint64 `json:"pragueTime,omitempty"`        // Prague switch time (nil = no fork, 0 = already on prague)
+	OsakaTime         *uint64 `json:"osakaTime,omitempty"`         // Osaka switch time (nil = no fork, 0 = already on osaka)
+	LorentzTime       *uint64 `json:"lorentzTime,omitempty"`       // Lorentz switch time (nil = no fork, 0 = already on lorentz)
+	MaxwellTime       *uint64 `json:"maxwellTime,omitempty"`       // Maxwell switch time (nil = no fork, 0 = already on maxwell)
+	VerkleTime        *uint64 `json:"verkleTime,omitempty"`        // Verkle switch time (nil = no fork, 0 = already on verkle)
 
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
@@ -680,6 +681,7 @@ func (c *ChainConfig) String() string {
 		{"CancunTime", c.CancunTime},
 		{"TheseusFixTime", c.TheseusFixTime},
 		{"HermesTime", c.HermesTime},
+		{"CoreRewardFixTime", c.CoreRewardFixTime},
 		{"LubanTime", c.LubanTime},
 		{"PlatoTime", c.PlatoTime},
 		{"BohrTime", c.BohrTime},
@@ -942,6 +944,10 @@ func (c *ChainConfig) IsCancun(num *big.Int, time uint64) bool {
 // IsHermes returns whether time is either equal to the Hermes fork time or greater.
 func (c *ChainConfig) IsHermes(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.HermesTime, time)
+}
+
+func (c *ChainConfig) IsCoreRewardFix(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.CoreRewardFixTime, time)
 }
 
 // IsOnHermes returns whether currentBlockTime is either equal to the Hermes fork time or greater firstly.
