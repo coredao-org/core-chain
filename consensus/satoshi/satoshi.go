@@ -367,7 +367,7 @@ func (p *Satoshi) verifyCoinbaseZeroGasTxs(txs []*types.Transaction, header *typ
 		if header.BaseFee != nil {
 			eff = new(big.Int).Add(tx.EffectiveGasTipValue(header.BaseFee), header.BaseFee)
 		}
-		if eff.Sign() == 0 {
+		if p.chainConfig.IsCoreRewardFix(header.Number, header.Time) && eff.Sign() == 0 {
 			return errors.New("zero gas price transaction is not an expected system transaction")
 		}
 	}
