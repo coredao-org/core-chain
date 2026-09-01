@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/athena"
+	"github.com/ethereum/go-ethereum/core/systemcontracts/corerewardfix"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/demeter"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/hera"
 	"github.com/ethereum/go-ethereum/core/systemcontracts/hermes"
@@ -62,6 +63,8 @@ var (
 	theseusUpgrade = make(map[string]*Upgrade)
 
 	hermesUpgrade = make(map[string]*Upgrade)
+
+	coreRewardFixUpgrade = make(map[string]*Upgrade)
 )
 
 func init() {
@@ -735,6 +738,28 @@ func init() {
 			},
 		},
 	}
+
+	coreRewardFixUpgrade[mainNet] = &Upgrade{
+		UpgradeName: "coreRewardFix",
+		Configs: []*UpgradeConfig{
+			{
+				ContractAddr: common.HexToAddress(ValidatorContract),
+				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/fb35c941b321a2f6d221cbb551e15ca5597421e5",
+				Code:         corerewardfix.MainnetValidatorContract,
+			},
+		},
+	}
+
+	coreRewardFixUpgrade[pigeonNet] = &Upgrade{
+		UpgradeName: "coreRewardFix",
+		Configs: []*UpgradeConfig{
+			{
+				ContractAddr: common.HexToAddress(ValidatorContract),
+				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/fb35c941b321a2f6d221cbb551e15ca5597421e5",
+				Code:         corerewardfix.PigeonValidatorContract,
+			},
+		},
+	}
 }
 
 func TryUpdateBuildInSystemContract(config *params.ChainConfig, blockNumber *big.Int, lastBlockTime uint64, blockTime uint64, statedb vm.StateDB, atBlockBegin bool) {
@@ -795,6 +820,9 @@ func upgradeBuildInSystemContract(config *params.ChainConfig, blockNumber *big.I
 	}
 	if config.IsOnHermes(blockNumber, lastBlockTime, blockTime) {
 		applySystemContractUpgrade(hermesUpgrade[network], blockNumber, statedb, logger)
+	}
+	if config.IsOnCoreRewardFix(blockNumber, lastBlockTime, blockTime) {
+		applySystemContractUpgrade(coreRewardFixUpgrade[network], blockNumber, statedb, logger)
 	}
 	/*
 		apply other upgrades
