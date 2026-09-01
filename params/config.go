@@ -183,7 +183,7 @@ var (
 		PascalTime:          newUint64(1764057600),
 		PragueTime:          newUint64(1764057600),
 		HermesTime:          newUint64(1764057600), // 2025-11-25 08:00:00 AM UTC
-		CoreRewardFixTime:   newUint64(1788336000), // 2026-09-02 08:00:00 AM UTC
+		CoreRewardFixTime:   newUint64(1788397200), // 2026-09-03 01:00:00 AM UTC
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -226,7 +226,7 @@ var (
 		PascalTime:          newUint64(1760515200),
 		PragueTime:          newUint64(1760515200),
 		HermesTime:          newUint64(1760515200), // 2025-10-15 08:00:00 AM UTC
-		CoreRewardFixTime:   newUint64(1788307200), // 2026-09-02 00:00:00 AM UTC
+		CoreRewardFixTime:   newUint64(1788354000), // 2026-09-02 01:00:00 PM UTC
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
