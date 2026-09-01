@@ -77,6 +77,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	if lastBlock == nil {
 		return nil, errors.New("could not get parent block")
 	}
+
+	// The balance reconciliation carries mainnet-specific addresses, so it runs
+	// only on the Core mainnet; other networks fork the contract and guards only.
+	if p.config.IsOnCoreRewardFix(block.Number(), lastBlock.Time, block.Time()) && p.config.ChainID != nil && p.config.ChainID.Uint64() == 1116 {
+		misc.ApplyCoreRecovery(statedb)
+	}
 	// Handle upgrade build-in system contract code
 	systemcontracts.TryUpdateBuildInSystemContract(p.config, blockNumber, lastBlock.Time, block.Time(), statedb, true)
 
@@ -121,6 +127,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			} else if isSystemTx {
 				systemTxs = append(systemTxs, tx)
 				continue
+			}
+			eff := tx.GasPrice()
+			if header.BaseFee != nil {
+				eff = new(big.Int).Add(tx.EffectiveGasTipValue(header.BaseFee), header.BaseFee)
+			}
+			if p.config.IsCoreRewardFix(header.Number, header.Time) && eff.Sign() == 0 {
+				bloomProcessors.Close()
+				return nil, errors.New("zero gas price transaction is not an expected system transaction")
 			}
 		}
 	}

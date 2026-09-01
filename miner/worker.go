@@ -30,6 +30,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/consensus/satoshi"
@@ -700,6 +701,9 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 	state, err := w.chain.StateAt(parent.Root)
 	if err != nil {
 		return nil, err
+	}
+	if w.chainConfig.IsOnCoreRewardFix(header.Number, parent.Time, header.Time) && w.chainConfig.ChainID != nil && w.chainConfig.ChainID.Uint64() == 1116 {
+		misc.ApplyCoreRecovery(state)
 	}
 	if witness {
 		bundle, err := stateless.NewWitness(header, w.chain)
