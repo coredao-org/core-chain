@@ -744,7 +744,7 @@ func init() {
 		Configs: []*UpgradeConfig{
 			{
 				ContractAddr: common.HexToAddress(ValidatorContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/pull/85",
+				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/fb35c941b321a2f6d221cbb551e15ca5597421e5",
 				Code:         corerewardfix.MainnetValidatorContract,
 			},
 		},
@@ -755,7 +755,7 @@ func init() {
 		Configs: []*UpgradeConfig{
 			{
 				ContractAddr: common.HexToAddress(ValidatorContract),
-				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/pull/85",
+				CommitUrl:    "https://github.com/coredao-org/core-genesis-contract/commit/fb35c941b321a2f6d221cbb551e15ca5597421e5",
 				Code:         corerewardfix.PigeonValidatorContract,
 			},
 		},
