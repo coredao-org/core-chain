@@ -166,6 +166,12 @@ func TestUpgrade(t *testing.T) {
 			commitHash: "7f973185d67cea94518ff6a176d9ffa8e6eaad80",
 			network:    mainNet,
 		},
+		{
+			name:       "coreRewardFix_mainnet",
+			upgrade:    coreRewardFixUpgrade[mainNet],
+			commitHash: "fb35c941b321a2f6d221cbb551e15ca5597421e5",
+			network:    mainNet,
+		},
 	}
 
 	for _, tc := range testCases {
