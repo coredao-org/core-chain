@@ -37,9 +37,9 @@ func TestCoreRewardFixUpgradeEmbed(t *testing.T) {
 func TestIsOnCoreRewardFixTransition(t *testing.T) {
 	const forkT = uint64(1788336000) // 2026-09-02 08:00:00 UTC
 	c := &params.ChainConfig{
-		ChainID:             big.NewInt(1116),
-		LondonBlock:         big.NewInt(0),
-		CoreRewardFixTime:   &[]uint64{forkT}[0],
+		ChainID:           big.NewInt(1116),
+		LondonBlock:       big.NewInt(0),
+		CoreRewardFixTime: &[]uint64{forkT}[0],
 	}
 	num := big.NewInt(1000)
 	// parent before fork, current at/after fork -> transition true
