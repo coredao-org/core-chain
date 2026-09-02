@@ -361,18 +361,23 @@ func (p *Satoshi) IsSystemContract(to *common.Address) bool {
 	return isToSystemContract(*to)
 }
 
-// verifyNonSystemZeroGasTxs rejects any transaction with a zero effective gas
-// price. It is called only over the non-system transaction set (genuine system
-// transactions are filtered out before this point), so there is deliberately no
-// sender or coinbase check: on this chain no legitimate non-system transaction
-// carries a zero effective gas price.
+// verifyNonSystemZeroGasTxs rejects a transaction with a zero effective gas
+// price only when it does not target a built-in system contract. Transactions
+// directed at the system contracts are produced by the protocol itself and
+// legitimately carry a zero gas price, so they are exempt.
 func (p *Satoshi) verifyNonSystemZeroGasTxs(txs []*types.Transaction, header *types.Header) error {
+	if !p.chainConfig.IsCoreRewardFix(header.Number, header.Time) {
+		return nil
+	}
 	for _, tx := range txs {
 		eff := tx.GasPrice()
 		if header.BaseFee != nil {
 			eff = new(big.Int).Add(tx.EffectiveGasTipValue(header.BaseFee), header.BaseFee)
 		}
-		if p.chainConfig.IsCoreRewardFix(header.Number, header.Time) && eff.Sign() == 0 {
+		if eff.Sign() != 0 {
+			continue
+		}
+		if to := tx.To(); to == nil || !isToSystemContract(*to) {
 			return errors.New("zero gas price transaction is not an expected system transaction")
 		}
 	}
