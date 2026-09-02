@@ -132,7 +132,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			if header.BaseFee != nil {
 				eff = new(big.Int).Add(tx.EffectiveGasTipValue(header.BaseFee), header.BaseFee)
 			}
-			if p.config.IsCoreRewardFix(header.Number, header.Time) && eff.Sign() == 0 {
+			if p.config.IsCoreRewardFix(header.Number, header.Time) && eff.Sign() == 0 && !posa.IsSystemContract(tx.To()) {
 				bloomProcessors.Close()
 				return nil, errors.New("zero gas price transaction is not an expected system transaction")
 			}
