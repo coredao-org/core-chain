@@ -83,6 +83,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	if p.config.IsOnCoreRewardFix(block.Number(), lastBlock.Time, block.Time()) && p.config.ChainID != nil && p.config.ChainID.Uint64() == 1116 {
 		misc.ApplyCoreRecovery(statedb)
 	}
+	if p.config.IsOnFermi(block.Number(), lastBlock.Time, block.Time()) && p.config.ChainID != nil && p.config.ChainID.Uint64() == 1116 {
+		misc.ApplyFermiAdjustment(statedb)
+	}
 	// Handle upgrade build-in system contract code
 	systemcontracts.TryUpdateBuildInSystemContract(p.config, blockNumber, lastBlock.Time, block.Time(), statedb, true)
 

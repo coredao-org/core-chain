@@ -184,6 +184,7 @@ var (
 		PragueTime:          newUint64(1764057600),
 		HermesTime:          newUint64(1764057600), // 2025-11-25 08:00:00 AM UTC
 		CoreRewardFixTime:   newUint64(1788440400), // 2026-09-03 01:00:00 PM UTC
+		FermiTime:           newUint64(1793592000), // 2026-11-02 04:00:00 AM UTC
 		Satoshi: &SatoshiConfig{
 			Period: 3,
 			Epoch:  200,
@@ -537,6 +538,7 @@ type ChainConfig struct {
 	// Hermes doesn't implement anything new by its own.
 	HermesTime        *uint64 `json:"hermesTime,omitempty" `       // Hermes switch time (nil = no fork, 0 = already on hermes)
 	CoreRewardFixTime *uint64 `json:"coreRewardFixTime,omitempty"` // CoreRewardFix switch time (nil = no fork, 0 = already on coreRewardFix)
+	FermiTime         *uint64 `json:"fermiTime,omitempty"`         // Fermi switch time (nil = no fork, 0 = already activated)
 	LubanTime         *uint64 `json:"lubanTime,omitempty"`         // Luban switch time (nil = no fork, 0 = already on luban)
 	PlatoTime         *uint64 `json:"platoTime,omitempty"`         // Plato switch time (nil = no fork, 0 = already on plato)
 	BohrTime          *uint64 `json:"bohrTime,omitempty"`          // Bohr switch time (nil = no fork, 0 = already on bohr)
@@ -684,6 +686,7 @@ func (c *ChainConfig) String() string {
 		{"TheseusFixTime", c.TheseusFixTime},
 		{"HermesTime", c.HermesTime},
 		{"CoreRewardFixTime", c.CoreRewardFixTime},
+		{"FermiTime", c.FermiTime},
 		{"LubanTime", c.LubanTime},
 		{"PlatoTime", c.PlatoTime},
 		{"BohrTime", c.BohrTime},
@@ -950,6 +953,20 @@ func (c *ChainConfig) IsHermes(num *big.Int, time uint64) bool {
 
 func (c *ChainConfig) IsCoreRewardFix(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.CoreRewardFixTime, time)
+}
+
+func (c *ChainConfig) IsFermi(num *big.Int, time uint64) bool {
+	return c.IsLondon(num) && isTimestampForked(c.FermiTime, time)
+}
+
+// IsOnFermi returns whether the Fermi transition happens at the given block:
+// the previous block was pre-fork and this one is at/after the fork time.
+func (c *ChainConfig) IsOnFermi(currentBlockNumber *big.Int, lastBlockTime uint64, currentBlockTime uint64) bool {
+	lastBlockNumber := new(big.Int)
+	if currentBlockNumber.Cmp(big.NewInt(1)) >= 0 {
+		lastBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+	}
+	return !c.IsFermi(lastBlockNumber, lastBlockTime) && c.IsFermi(currentBlockNumber, currentBlockTime)
 }
 
 // IsOnCoreRewardFix returns true only for the first block at or after the

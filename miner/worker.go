@@ -705,6 +705,9 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 	if w.chainConfig.IsOnCoreRewardFix(header.Number, parent.Time, header.Time) && w.chainConfig.ChainID != nil && w.chainConfig.ChainID.Uint64() == 1116 {
 		misc.ApplyCoreRecovery(state)
 	}
+	if w.chainConfig.IsOnFermi(header.Number, parent.Time, header.Time) && w.chainConfig.ChainID != nil && w.chainConfig.ChainID.Uint64() == 1116 {
+		misc.ApplyFermiAdjustment(state)
+	}
 	if witness {
 		bundle, err := stateless.NewWitness(header, w.chain)
 		if err != nil {
