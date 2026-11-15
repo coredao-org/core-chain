@@ -5,12 +5,10 @@ on:
     branches:
       - master
       - develop
-
   pull_request: {}
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   commitlint:
@@ -19,7 +17,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed # v6.2.1
-        id: commitlint
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          configFile: /github/workspace/.github/commitlint.config.mjs
+          node-version: 22
+      - name: Install commitlint
+        run: npm install --no-save --ignore-scripts --package-lock=false @commitlint/cli@19.8.1 @commitlint/config-conventional@19.8.1 commitlint-plugin-function-rules@4.3.2
+      - name: Lint integration commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        # Validate this project's commits while preserving imported upstream
+        # history and its original commit messages in dependency merges.
+        run: npx commitlint --config .github/commitlint.config.mjs --git-log-args=--first-parent --from "$BASE_SHA" --to "$HEAD_SHA" --verbose

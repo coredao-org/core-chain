@@ -34,6 +34,7 @@ import (
 // ChainContext supports retrieving headers and consensus parameters from the
 // current blockchain to be used during transaction processing.
 type ChainContext interface {
+
 	// Engine retrieves the chain's consensus engine.
 	Engine() consensus.Engine
 

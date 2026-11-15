@@ -281,7 +281,7 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 		reexec = *config.Reexec
 	}
 	blocks := int(end.NumberU64() - start.NumberU64())
-	threads := runtime.NumCPU()
+	threads := runtime.GOMAXPROCS(0)
 	if threads > blocks {
 		threads = blocks
 	}
@@ -423,8 +423,8 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 			// if the relevant state is available in disk.
 			var preferDisk bool
 			if statedb != nil {
-				s1, s2, s3, s4 := statedb.Database().TrieDB().Size()
-				preferDisk = s1+s2+s3+s4 > defaultTracechainMemLimit
+				s1, s2, s3 := statedb.Database().TrieDB().Size()
+				preferDisk = s1+s2+s3 > defaultTracechainMemLimit
 			}
 			statedb, release, err = api.backend.StateAtBlock(ctx, block, reexec, statedb, false, preferDisk)
 			if err != nil {
@@ -760,7 +760,7 @@ func (api *API) traceBlockParallel(ctx context.Context, block *types.Block, stat
 		results   = make([]*txTraceResult, len(txs))
 		pend      sync.WaitGroup
 	)
-	threads := runtime.NumCPU()
+	threads := runtime.GOMAXPROCS(0)
 	if threads > len(txs) {
 		threads = len(txs)
 	}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/gorilla/mux"
-	"github.com/prysmaticlabs/prysm/v5/api/server"
+	server "github.com/prysmaticlabs/prysm/v5/api/server/middleware"
 )
 
 const (

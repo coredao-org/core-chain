@@ -1,0 +1,279 @@
+{
+  "observedAtUTC": "2026-11-14T06:01:34.471031+00:00",
+  "sourceCommit": "07db4b776905351ed7734a31b40ea4722c0ae5d0",
+  "binary": {
+    "os": "darwin",
+    "architecture": "arm64",
+    "goVersion": "1.24.4",
+    "sha256": "2fb8a8ca985e3fb2c6d7bb71594e5af81b0f695996d1728ac0db2e2ae7474b8c"
+  },
+  "reference": {
+    "sourceCommit": "86bcb14892c3ca01e4771e2fee5de62003fdd0cd",
+    "qualification": "Previously compared with official Core v1.0.27; see full-history-audit.json",
+    "officialCoreCommit": "90aca9a0640a9f3194f1f42c27f3f637da7d804c"
+  },
+  "archive": {
+    "stateScheme": "path",
+    "syncMode": "full",
+    "gcmode": "archive",
+    "historyState": 0,
+    "historyTransactions": 0,
+    "historyLogs": 0
+  },
+  "canonicalImport": {
+    "fromBlock": 1,
+    "toBlock": 512,
+    "transactions": 532,
+    "rlpSha256": "9be4c8ac045ca7b83b26175c77432a1d9907fc4cefa4c8f299e73dd115ab4abf",
+    "freshDatadir": true,
+    "validated": [
+      "state root",
+      "receipt root",
+      "gas used",
+      "logs bloom"
+    ]
+  },
+  "historicalLogs": {
+    "fixtureBlocks": 901,
+    "historicalSampleBlocks": 900,
+    "logs": 12367,
+    "forkGroups": 11,
+    "fixtureSha256": "8e8e6eaac436e8444605c7c476add67a2195b9d5a771fae47c2b02fb2364ba37",
+    "plan": "full-history-plan.json",
+    "planSha256": "ca23f5d29dccefcb3b37076ebb11a10d0905d7dfd3dfe85e29f45c2846a1a40a",
+    "officialGoldenMatches": {
+      "blockHashLogQueries": 900,
+      "rawBlocks": 900,
+      "blockReceipts": 900
+    },
+    "passed": 14104,
+    "modes": [
+      {
+        "mode": "indexed",
+        "configuredHistory": 0,
+        "disabled": false,
+        "passed": 3526,
+        "indexRowReads": 8446
+      },
+      {
+        "mode": "reopened",
+        "configuredHistory": 0,
+        "disabled": false,
+        "passed": 3526,
+        "indexRowReads": 8446
+      },
+      {
+        "mode": "limited",
+        "configuredHistory": 100,
+        "disabled": false,
+        "passed": 3526,
+        "indexRowReads": 8446
+      },
+      {
+        "mode": "disabled",
+        "configuredHistory": 0,
+        "disabled": true,
+        "passed": 3526,
+        "indexRowReads": 0
+      }
+    ],
+    "notes": [
+      "Historical samples occupy consecutive fixture positions while preserving original headers, receipts and log metadata.",
+      "Reopened mode recreates the index over the same in-memory KV store; native disk restart is verified separately.",
+      "The limited-history fixture can retain all data because retention is epoch-granular. Native range and randomized index tests separately cover actual pruning."
+    ]
+  },
+  "nativeLifecycle": {
+    "disk-restart": {
+      "height": 512,
+      "rangeComparisons": 5,
+      "rpcComparisons": 102,
+      "indexedSearchObserved": true,
+      "persistedIndexPrimedAndCleanlyStopped": true
+    },
+    "rewound": {
+      "height": 256,
+      "rangeComparisons": 5,
+      "rpcComparisons": 83,
+      "indexedSearchObserved": true
+    },
+    "restored": {
+      "height": 512,
+      "rangeComparisons": 5,
+      "rpcComparisons": 102,
+      "indexedSearchObserved": true
+    },
+    "disabled": {
+      "height": 512,
+      "rangeComparisons": 5,
+      "rpcComparisons": 102,
+      "indexedSearchObserved": false
+    }
+  },
+  "nativeRpcPassed": 389,
+  "nativeRangePassed": 20,
+  "tracing": {
+    "transactions": 16,
+    "comparisons": 32,
+    "forkGroups": 11,
+    "tracers": [
+      "callTracer",
+      "prestateTracer"
+    ],
+    "allMatchOriginalTransaction": true,
+    "selectedTransactions": [
+      {
+        "fork": "Zeus",
+        "number": 8020000,
+        "hash": "0x871b610093f0aa8a98ed1fc7b62fb0c292878707c9030e1476d080990cefe860",
+        "selector": "0x7ff36ab5"
+      },
+      {
+        "fork": "Hera",
+        "number": 12195500,
+        "hash": "0xf07e3087240339080112da93892103c55ebff8e5798749d36e07725ea3e423ed",
+        "selector": "0x36fbafad"
+      },
+      {
+        "fork": "Poseidon",
+        "number": 13232049,
+        "hash": "0xf644f3692d1bc230899cd18e5ec2f4a67d9644f118f46e6c4c07ab07f81c1bb6",
+        "selector": "0x252f7b01"
+      },
+      {
+        "fork": "Berlin/London/Hertz",
+        "number": 19537200,
+        "hash": "0x6bc6f9dc08b4156a77851379e99d5327b613f4d9b78d5f63ba79528f41c5b3f5",
+        "selector": "0x7299095e"
+      },
+      {
+        "fork": "Shanghai/Kepler/Demeter",
+        "number": 19565839,
+        "hash": "0x67b089d758861b1910e0eff34ee14796c384af911456749b3aa08676bd377203",
+        "selector": "0xcbb7dddf"
+      },
+      {
+        "fork": "Athena",
+        "number": 21747032,
+        "hash": "0x4f37b93bf69664c754e50506df2c31d04c9f45aa98bc4625fea43f5f2d465638",
+        "selector": "0x02136765"
+      },
+      {
+        "fork": "Theseus/Cancun",
+        "number": 25844375,
+        "hash": "0x062fa235d09fa77625fc056042dbb7123e3548853c9673d0f9032849f89f2c7c",
+        "selector": "0xd009d2a3"
+      },
+      {
+        "fork": "TheseusFix",
+        "number": 26880878,
+        "hash": "0x898601ec86366dc9690d3433b410509df46711696c986888a68e9072d5fd1a2d",
+        "selector": "0x183ff085"
+      },
+      {
+        "fork": "Hermes/Prague",
+        "number": 30250135,
+        "hash": "0xb0d8fad438453a8aafae07db8988525c8a2487e1f442f5c20400ad7b5377041c",
+        "selector": "0x2e1a7d4d"
+      },
+      {
+        "fork": "CoreRewardFix",
+        "number": 38376795,
+        "hash": "0x1a34c69b4bdd39e6c85446b5c959e46743cce80388d30aac95a5c8661511201c",
+        "selector": "0x"
+      },
+      {
+        "fork": "Fermi",
+        "number": 40093117,
+        "hash": "0xd47ce062e93b28fa6abb15ed4f97c2fa80a0566c50abb545faa808c2d69aed70",
+        "selector": "0x02136765"
+      }
+    ],
+    "additionalTransactionsFrom": "modern-replay.json"
+  },
+  "evidence": "filtermaps-rpc.json",
+  "evidenceSha256": "93f84ead04ae874a1b6dd78f11dd79b459fc821406f5462f84cfa33c36512079",
+  "limitations": [
+    "No new full-mainnet sync of this filtermaps build and no controlled mainnet indexing or disk benchmark.",
+    "Historical sample positions are not a full mainnet block-range layout.",
+    "Later transaction replays use touched prestate and block overrides against block 512; they do not validate complete later block state roots.",
+    "The directly queried reference is a previously qualified archive build; historical inputs additionally match recorded official-client golden hashes.",
+    "Historical eth_getProof and validator operation remain outside this qualification."
+  ],
+  "localChecks": {
+    "build": "passed",
+    "historicalFixture": {
+      "command": "CORE_FILTERMAPS_FIXTURE=<captured-fixture> GOMAXPROCS=2 go test -p=1 -parallel=2 -timeout=12m -run ^TestCoreHistoryFilterMaps$ -v ./eth/filters",
+      "status": "passed",
+      "logSha256": "3ef41e4b568220aa38ad1ca1be53d2ecc95031255a595093ec6057cf83699c6c"
+    },
+    "lint": {
+      "command": "GOMAXPROCS=2 go run build/ci.go lint",
+      "status": "passed",
+      "issues": 0,
+      "modules": [
+        "root",
+        "cmd/keeper"
+      ],
+      "sourceCommit": "07db4b776905351ed7734a31b40ea4722c0ae5d0",
+      "logSha256": "80d79ba5c8f1bf531eb7fe4561a8b5d7f0a811c430dbceb83dde940dd8be8a4f"
+    },
+    "configuration": {
+      "TOMLValues": {
+        "LogHistory": 123,
+        "LogNoHistory": true
+      },
+      "CLIOverrides": {
+        "history.logs": 0,
+        "history.logs.disable": false
+      },
+      "status": "passed"
+    },
+    "concurrency": {
+      "GOMAXPROCS": 2,
+      "goTestPackages": 1,
+      "goTestParallel": 2
+    },
+    "ethRepeated": {
+      "command": "GOMAXPROCS=2 go test -p=1 -parallel=2 -tags=integrationtests -timeout=3m -count=3 ./eth",
+      "status": "passed",
+      "durationSeconds": 105.412,
+      "sourceCommit": "89693caafff4f4690eea87583f5ae842465220c6"
+    },
+    "conformanceFixtures": {
+      "executionSpecTests": "v5.1.0",
+      "executionSpecCommit": "d7d6251a0702aef32fbb5b9d38a8ab1dd99304c7",
+      "ethereumTestsCommit": "81862e4848585a438d64f911a19b3825f0f4cd95",
+      "nativeGethExclusions": [
+        "prague/eip7251_consolidations/test_system_contract_deployment.json",
+        "prague/eip7002_el_triggerable_withdrawals/test_system_contract_deployment.json"
+      ]
+    },
+    "pragueRegressions": {
+      "status": "passed",
+      "logSha256": "0c696945f149161774af6f2eabb2949fa496e63e0c2f97f7295d5cf7a62dbd42",
+      "scope": "Original failing Prague system-call, deposit-event and block-hash contract deployment fixtures; all storage configurations."
+    },
+    "fullConformance": {
+      "command": "GOMAXPROCS=2 go test -p=1 -parallel=2 -tags=integrationtests -timeout=15m ./tests",
+      "status": "passed",
+      "short": false,
+      "durationSeconds": 420.654,
+      "logSha256": "a0aaed3d7a7de1ad681e13ebb28473eed29e34358c9ace3c67a4883a59255d33"
+    },
+    "core": {
+      "command": "GOMAXPROCS=2 go test -p=1 -parallel=2 -tags=integrationtests -short -timeout=12m ./...",
+      "status": "passed",
+      "packageDurationSeconds": 182.584,
+      "scope": "Core package within the repository-wide invocation"
+    },
+    "repositoryShort": {
+      "command": "GOMAXPROCS=2 go test -p=1 -parallel=2 -tags=integrationtests -short -timeout=12m ./...",
+      "status": "passed",
+      "packagesPassed": 141,
+      "packagesWithoutTests": 74,
+      "logSha256": "b56a836aa21c5f4c34d0c53d2a7b64b58d8b4de216ed467ef7e6f48e6fe5af70"
+    }
+  },
+  "testHarnessCommit": "07db4b776905351ed7734a31b40ea4722c0ae5d0"
+}

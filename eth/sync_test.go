@@ -17,6 +17,8 @@
 package eth
 
 import (
+	"bytes"
+	"io"
 	"testing"
 	"time"
 
@@ -30,6 +32,49 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
+
+// bufferedSyncPipe lets request dispatch and response handling make progress
+// independently, as they do over a network connection. MsgPipe itself waits
+// for the remote handler to consume each write and can deadlock bidirectional
+// downloader traffic when a response and the next request cross.
+type bufferedSyncPipe struct {
+	*p2p.MsgPipeRW
+	writes chan p2p.Msg
+	done   chan struct{}
+}
+
+func newBufferedSyncPipe(t *testing.T, pipe *p2p.MsgPipeRW) *bufferedSyncPipe {
+	p := &bufferedSyncPipe{pipe, make(chan p2p.Msg, 16), make(chan struct{})}
+	go func() {
+		defer close(p.done)
+		for msg := range p.writes {
+			if err := p.MsgPipeRW.WriteMsg(msg); err != nil {
+				p.Close()
+				return
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		p.Close()
+		close(p.writes)
+		<-p.done
+	})
+	return p
+}
+
+func (p *bufferedSyncPipe) WriteMsg(msg p2p.Msg) error {
+	payload, err := io.ReadAll(msg.Payload)
+	if err != nil {
+		return err
+	}
+	msg.Payload = bytes.NewReader(payload)
+	select {
+	case p.writes <- msg:
+		return nil
+	case <-p.done:
+		return p2p.ErrPipeClosed
+	}
+}
 
 // Tests that snap sync is disabled after a successful sync cycle.
 func TestSnapSyncDisabling68(t *testing.T) { testSnapSyncDisabling(t, eth.ETH68, snap.SNAP1) }
@@ -60,8 +105,8 @@ func testSnapSyncDisabling(t *testing.T, ethVer uint, snapVer uint) {
 	defer emptyPipeEth.Close()
 	defer fullPipeEth.Close()
 
-	emptyPeerEth := eth.NewPeer(ethVer, p2p.NewPeer(enode.ID{1}, "", caps), emptyPipeEth, empty.txpool)
-	fullPeerEth := eth.NewPeer(ethVer, p2p.NewPeer(enode.ID{2}, "", caps), fullPipeEth, full.txpool)
+	emptyPeerEth := eth.NewPeer(ethVer, p2p.NewPeer(enode.ID{1}, "", caps), newBufferedSyncPipe(t, emptyPipeEth), empty.txpool)
+	fullPeerEth := eth.NewPeer(ethVer, p2p.NewPeer(enode.ID{2}, "", caps), newBufferedSyncPipe(t, fullPipeEth), full.txpool)
 	defer emptyPeerEth.Close()
 	defer fullPeerEth.Close()
 
@@ -143,8 +188,8 @@ func testChainSyncWithBlobs(t *testing.T, mode downloader.SyncMode, preCancunBlk
 	defer emptyPipeEth.Close()
 	defer fullPipeEth.Close()
 
-	emptyPeerEth := eth.NewPeer(ethVer, p2p.NewPeer(enode.ID{1}, "", caps), emptyPipeEth, empty.txpool)
-	fullPeerEth := eth.NewPeer(ethVer, p2p.NewPeer(enode.ID{2}, "", caps), fullPipeEth, full.txpool)
+	emptyPeerEth := eth.NewPeer(ethVer, p2p.NewPeer(enode.ID{1}, "", caps), newBufferedSyncPipe(t, emptyPipeEth), empty.txpool)
+	fullPeerEth := eth.NewPeer(ethVer, p2p.NewPeer(enode.ID{2}, "", caps), newBufferedSyncPipe(t, fullPipeEth), full.txpool)
 	defer emptyPeerEth.Close()
 	defer fullPeerEth.Close()
 

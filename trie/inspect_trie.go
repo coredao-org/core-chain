@@ -195,7 +195,7 @@ func (s *Inspector) Run() {
 		defer ticker.Stop()
 		for range ticker.C {
 			if s.db.Scheme() == rawdb.HashScheme {
-				s.db.Cap(DEFAULT_TRIEDBCACHE_SIZE)
+				s.db.Cap(common.StorageSize(1024 * 1024 * 1024))
 			}
 			runtime.GC()
 		}
@@ -231,7 +231,11 @@ func (s *Inspector) traversal(trie *Trie, ts *trieStat, n node, height int, path
 			s.traversal(trie, ts, child, height+1, p)
 		}
 	case hashNode:
-		tn, err := trie.resloveWithoutTrack(current, path)
+		blob, err := trie.reader.Node(path, common.BytesToHash(current))
+		var tn node
+		if err == nil {
+			tn, err = decodeNode(current, blob)
+		}
 		if err != nil {
 			fmt.Printf("Resolve HashNode error: %v, TrieRoot: %v, Height: %v, Path: %v\n", err, trie.Hash().String(), height+1, path)
 			return
@@ -257,7 +261,6 @@ func (s *Inspector) traversal(trie *Trie, ts *trieStat, n node, height int, path
 		if err != nil {
 			panic(err)
 		}
-		contractTrie.tracer.reset()
 
 		if s.sem.TryAcquire(1) {
 			s.wg.Add(1)

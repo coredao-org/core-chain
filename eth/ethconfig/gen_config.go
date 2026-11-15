@@ -31,6 +31,9 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		EnableTrustProtocol     bool
 		RangeLimit              bool
 		TxLookupLimit           uint64 `toml:",omitempty"`
+		LogHistory              uint64 `toml:",omitempty"`
+		LogNoHistory            bool   `toml:",omitempty"`
+		LogExportCheckpoints    string
 		TransactionHistory      uint64 `toml:",omitempty"`
 		StateHistory            uint64 `toml:",omitempty"`
 		StateScheme             string `toml:",omitempty"`
@@ -85,6 +88,9 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.EnableTrustProtocol = c.EnableTrustProtocol
 	enc.RangeLimit = c.RangeLimit
 	enc.TxLookupLimit = c.TxLookupLimit
+	enc.LogHistory = c.LogHistory
+	enc.LogNoHistory = c.LogNoHistory
+	enc.LogExportCheckpoints = c.LogExportCheckpoints
 	enc.TransactionHistory = c.TransactionHistory
 	enc.StateHistory = c.StateHistory
 	enc.StateScheme = c.StateScheme
@@ -143,6 +149,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		EnableTrustProtocol     *bool
 		RangeLimit              *bool
 		TxLookupLimit           *uint64 `toml:",omitempty"`
+		LogHistory              *uint64 `toml:",omitempty"`
+		LogNoHistory            *bool   `toml:",omitempty"`
+		LogExportCheckpoints    *string
 		TransactionHistory      *uint64 `toml:",omitempty"`
 		StateHistory            *uint64 `toml:",omitempty"`
 		StateScheme             *string `toml:",omitempty"`
@@ -229,6 +238,15 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.TxLookupLimit != nil {
 		c.TxLookupLimit = *dec.TxLookupLimit
+	}
+	if dec.LogHistory != nil {
+		c.LogHistory = *dec.LogHistory
+	}
+	if dec.LogNoHistory != nil {
+		c.LogNoHistory = *dec.LogNoHistory
+	}
+	if dec.LogExportCheckpoints != nil {
+		c.LogExportCheckpoints = *dec.LogExportCheckpoints
 	}
 	if dec.TransactionHistory != nil {
 		c.TransactionHistory = *dec.TransactionHistory

@@ -250,12 +250,12 @@ func accessDb(ctx *cli.Context, stack *node.Node) (ethdb.Database, error) {
 	var config *triedb.Config
 	if dbScheme == rawdb.PathScheme {
 		config = &triedb.Config{
-			PathDB: utils.PathDBConfigAddJournalFilePath(stack, pathdb.ReadOnly),
+			PathDB: pathdb.ReadOnly,
 		}
 	} else if dbScheme == rawdb.HashScheme {
 		config = triedb.HashDefaults
 	}
-	snaptree, err := snapshot.New(snapconfig, chaindb, triedb.NewDatabase(chaindb, config), headBlock.Root(), TriesInMemory, false)
+	snaptree, err := snapshot.New(snapconfig, chaindb, triedb.NewDatabase(chaindb, config), headBlock.Root())
 	if err != nil {
 		log.Error("snaptree error", "err", err)
 		return nil, err // The relevant snapshot(s) might not exist
@@ -554,7 +554,7 @@ func verifyState(ctx *cli.Context) error {
 		NoBuild:    true,
 		AsyncBuild: false,
 	}
-	snaptree, err := snapshot.New(snapConfig, chaindb, triedb, headBlock.Root(), 128, false)
+	snaptree, err := snapshot.New(snapConfig, chaindb, triedb, headBlock.Root())
 	if err != nil {
 		log.Error("Failed to open snapshot tree", "err", err)
 		return err
@@ -886,8 +886,7 @@ func dumpState(ctx *cli.Context) error {
 		NoBuild:    true,
 		AsyncBuild: false,
 	}
-	triesInMemory := ctx.Uint64(utils.TriesInMemoryFlag.Name)
-	snaptree, err := snapshot.New(snapConfig, db, triedb, root, int(triesInMemory), false)
+	snaptree, err := snapshot.New(snapConfig, db, triedb, root)
 	if err != nil {
 		return err
 	}
@@ -984,7 +983,7 @@ func snapshotExportPreimages(ctx *cli.Context) error {
 		NoBuild:    true,
 		AsyncBuild: false,
 	}
-	snaptree, err := snapshot.New(snapConfig, chaindb, triedb, root, 128, false)
+	snaptree, err := snapshot.New(snapConfig, chaindb, triedb, root)
 	if err != nil {
 		return err
 	}

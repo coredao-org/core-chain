@@ -744,6 +744,7 @@ func TestOptionMaxPeersPerIP(t *testing.T) {
 		head          = handler.chain.CurrentBlock()
 		td            = handler.chain.GetTd(head.Hash(), head.Number.Uint64())
 		wg            = sync.WaitGroup{}
+		connections   sync.WaitGroup
 		maxPeersPerIP = handler.handler.maxPeersPerIP
 		uniPort       = 1000
 	)
@@ -770,7 +771,9 @@ func TestOptionMaxPeersPerIP(t *testing.T) {
 
 		wg.Add(1)
 		time.Sleep(time.Duration((tryNum-1)*200) * time.Millisecond)
+		connections.Add(1)
 		go func(num int) {
+			defer connections.Done()
 			err := handler.handler.runEthPeer(sink, func(peer *eth.Peer) error {
 				wg.Done()
 				<-doneCh
@@ -810,6 +813,7 @@ func TestOptionMaxPeersPerIP(t *testing.T) {
 		tryFunc(tryNum, "1.2.3.11:", "1.2.3.22:", false, doneCh1)
 	}
 	close(doneCh1)
+	connections.Wait()
 
 	// case 2: once the previous connection was unregisterred, new connections with same IP can be accepted.
 	doneCh2 := make(chan struct{})
@@ -817,6 +821,7 @@ func TestOptionMaxPeersPerIP(t *testing.T) {
 		tryFunc(tryNum, "1.2.3.11:", "1.2.3.22:", false, doneCh2)
 	}
 	close(doneCh2)
+	connections.Wait()
 
 	// case 3: ipv6 address, like: [2001:db8::1]:80
 	doneCh3 := make(chan struct{})
@@ -824,6 +829,7 @@ func TestOptionMaxPeersPerIP(t *testing.T) {
 		tryFunc(tryNum, "[2001:db8::11]:", "[2001:db8::22]:", false, doneCh3)
 	}
 	close(doneCh3)
+	connections.Wait()
 
 	// case 4: same as case 2, but for ipv6
 	doneCh4 := make(chan struct{})
@@ -831,6 +837,7 @@ func TestOptionMaxPeersPerIP(t *testing.T) {
 		tryFunc(tryNum, "[2001:db8::11]:", "[2001:db8::22]:", false, doneCh4)
 	}
 	close(doneCh4)
+	connections.Wait()
 
 	// case 5: test trust node
 	doneCh5 := make(chan struct{})
@@ -838,4 +845,5 @@ func TestOptionMaxPeersPerIP(t *testing.T) {
 		tryFunc(tryNum, "[2001:db8::11]:", "[2001:db8::22]:", true, doneCh5)
 	}
 	close(doneCh5)
+	connections.Wait()
 }

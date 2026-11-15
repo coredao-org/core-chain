@@ -27,7 +27,7 @@ func GetOrRegisterLabel(name string, r Registry) *Label {
 	if r == nil {
 		r = DefaultRegistry
 	}
-	return r.GetOrRegister(name, NewLabel).(*Label)
+	return r.GetOrRegister(name, func() interface{} { return NewLabel() }).(*Label)
 }
 
 // NewLabel constructs a new Label.

@@ -18,11 +18,9 @@ package pathdb
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"time"
 
@@ -33,6 +31,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+const tempJournalSuffix = ".tmp"
 
 var (
 	errMissJournal       = errors.New("journal not found")
@@ -52,137 +52,25 @@ var (
 // - Version 3: a flag has been added to indicate whether the storage slot key is the raw key or a hash
 const journalVersion uint64 = 3
 
-type JournalWriter interface {
-	io.Writer
-
-	Close()
-	Size() uint64
-}
-
-type JournalReader interface {
-	io.Reader
-	Close()
-}
-
-type JournalFileWriter struct {
-	file *os.File
-}
-
-type JournalFileReader struct {
-	file *os.File
-}
-
-type JournalKVWriter struct {
-	journalBuf bytes.Buffer
-	diskdb     ethdb.Database
-}
-
-type JournalKVReader struct {
-	journalBuf *bytes.Buffer
-}
-
-// Write appends b directly to the encoder output.
-func (fw *JournalFileWriter) Write(b []byte) (int, error) {
-	return fw.file.Write(b)
-}
-
-func (fw *JournalFileWriter) Close() {
-	fw.file.Close()
-}
-
-func (fw *JournalFileWriter) Size() uint64 {
-	if fw.file == nil {
-		return 0
-	}
-	fileInfo, err := fw.file.Stat()
-	if err != nil {
-		log.Crit("Failed to stat journal", "err", err)
-	}
-	return uint64(fileInfo.Size())
-}
-
-func (kw *JournalKVWriter) Write(b []byte) (int, error) {
-	return kw.journalBuf.Write(b)
-}
-
-func (kw *JournalKVWriter) Close() {
-	rawdb.WriteTrieJournal(kw.diskdb, kw.journalBuf.Bytes())
-	kw.journalBuf.Reset()
-}
-
-func (kw *JournalKVWriter) Size() uint64 {
-	return uint64(kw.journalBuf.Len())
-}
-
-func (fr *JournalFileReader) Read(p []byte) (n int, err error) {
-	return fr.file.Read(p)
-}
-
-func (fr *JournalFileReader) Close() {
-	fr.file.Close()
-}
-
-func (kr *JournalKVReader) Read(p []byte) (n int, err error) {
-	return kr.journalBuf.Read(p)
-}
-
-func (kr *JournalKVReader) Close() {
-}
-
-func newJournalWriter(file string, db ethdb.Database, journalType JournalType) JournalWriter {
-	if journalType == JournalKVType {
-		log.Info("New journal writer for journal kv")
-		return &JournalKVWriter{
-			diskdb: db,
-		}
-	} else {
-		log.Info("New journal writer for journal file", "path", file)
-		fd, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+// loadJournal tries to parse the layer journal from the disk.
+func (db *Database) loadJournal(diskRoot common.Hash) (layer, error) {
+	var reader io.Reader
+	if path := db.journalPath(); path != "" && common.FileExist(path) {
+		// If a journal file is specified, read it from there
+		log.Info("Load database journal from file", "path", path)
+		f, err := os.OpenFile(path, os.O_RDONLY, 0644)
 		if err != nil {
-			return nil
+			return nil, fmt.Errorf("failed to read journal file %s: %w", path, err)
 		}
-		return &JournalFileWriter{
-			file: fd,
-		}
-	}
-}
-
-func newJournalReader(file string, db ethdb.Database, journalType JournalType) (JournalReader, error) {
-	if journalType == JournalKVType {
-		log.Info("New journal reader for journal kv")
-		journal := rawdb.ReadTrieJournal(db)
+		defer f.Close()
+		reader = f
+	} else {
+		log.Info("Load database journal from disk")
+		journal := rawdb.ReadTrieJournal(db.diskdb)
 		if len(journal) == 0 {
 			return nil, errMissJournal
 		}
-		return &JournalKVReader{
-			journalBuf: bytes.NewBuffer(journal),
-		}, nil
-	} else {
-		log.Info("New journal reader for journal file", "path", file)
-		fd, err := os.Open(file)
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, errMissJournal
-		}
-		if err != nil {
-			return nil, err
-		}
-		return &JournalFileReader{
-			file: fd,
-		}, nil
-	}
-}
-
-// loadJournal tries to parse the layer journal from the disk.
-func (db *Database) loadJournal(diskRoot common.Hash) (layer, error) {
-	start := time.Now()
-	journalTypeForReader := db.DetermineJournalTypeForReader()
-	reader, err := newJournalReader(db.config.JournalFilePath, db.diskdb, journalTypeForReader)
-
-	if err != nil {
-		return nil, err
-	}
-	if reader != nil {
-		defer reader.Close()
+		reader = bytes.NewReader(journal)
 	}
 	r := rlp.NewStream(reader, 0)
 
@@ -207,17 +95,67 @@ func (db *Database) loadJournal(diskRoot common.Hash) (layer, error) {
 		return nil, fmt.Errorf("%w want %x got %x", errUnmatchedJournal, root, diskRoot)
 	}
 	// Load the disk layer from the journal
-	base, err := db.loadDiskLayer(r, journalTypeForReader, version)
+	base, err := db.loadDiskLayer(r)
 	if err != nil {
 		return nil, err
 	}
 	// Load all the diff layers from the journal
-	head, err := db.loadDiffLayer(base, r, journalTypeForReader)
+	head, err := db.loadDiffLayer(base, r)
 	if err != nil {
 		return nil, err
 	}
-	log.Info("Loaded layer journal", "diskroot", diskRoot, "diffhead", head.rootHash(), "elapsed", common.PrettyDuration(time.Since(start)))
+	log.Debug("Loaded layer journal", "diskroot", diskRoot, "diffhead", head.rootHash())
 	return head, nil
+}
+
+// journalGenerator is a disk layer entry containing the generator progress marker.
+type journalGenerator struct {
+	// Indicator that whether the database was in progress of being wiped.
+	// It's deprecated but keep it here for backward compatibility.
+	Wiping bool
+
+	Done     bool // Whether the generator finished creating the snapshot
+	Marker   []byte
+	Accounts uint64
+	Slots    uint64
+	Storage  uint64
+}
+
+// loadGenerator loads the state generation progress marker from the database.
+func loadGenerator(db ethdb.KeyValueReader, hash nodeHasher) (*journalGenerator, common.Hash, error) {
+	trieRoot, err := hash(rawdb.ReadAccountTrieNode(db, nil))
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	// State generation progress marker is lost, rebuild it
+	blob := rawdb.ReadSnapshotGenerator(db)
+	if len(blob) == 0 {
+		log.Info("State snapshot generator is not found")
+		return nil, trieRoot, nil
+	}
+	// State generation progress marker is not compatible, rebuild it
+	var generator journalGenerator
+	if err := rlp.DecodeBytes(blob, &generator); err != nil {
+		log.Info("State snapshot generator is not compatible")
+		return nil, trieRoot, nil
+	}
+	// The state snapshot is inconsistent with the trie data and must
+	// be rebuilt.
+	//
+	// Note: The SnapshotRoot and SnapshotGenerator are always consistent
+	// with each other, both in the legacy state snapshot and the path database.
+	// Therefore, if the SnapshotRoot does not match the trie root,
+	// the entire generator is considered stale and must be discarded.
+	stateRoot := rawdb.ReadSnapshotRoot(db)
+	if trieRoot != stateRoot {
+		log.Info("State snapshot is not consistent", "trie", trieRoot, "state", stateRoot)
+		return nil, trieRoot, nil
+	}
+	// Slice null-ness is lost after rlp decoding, reset it back to empty
+	if !generator.Done && generator.Marker == nil {
+		generator.Marker = []byte{}
+	}
+	return &generator, trieRoot, nil
 }
 
 // loadLayers loads a pre-existing state layer backed by a key-value store.
@@ -238,77 +176,23 @@ func (db *Database) loadLayers() layer {
 	if !(root == types.EmptyRootHash && errors.Is(err, errMissJournal)) {
 		log.Info("Failed to load journal, discard it", "err", err)
 	}
-	// try to load node buffer only, it can be compatible with old journal ver
-	base, err := db.loadNodeBufferAsJournalV0V1(root)
-	if err == nil {
-		log.Info("load legacy node buffer successful", "new root", base.rootHash(), "disk root", root)
-		return base
-	}
-	log.Warn("Failed to load disk journal with node buffer, discard it", "err", err)
 	// Return single layer with persistent state.
-	return newDiskLayer(root, rawdb.ReadPersistentStateID(db.diskdb), db, nil, NewTrieNodeBuffer(db.config.SyncFlush, db.config.WriteBufferSize, nil, nil, 0))
-}
-
-// loadNodeBufferAsJournalV0V1 try to load legacy node buffer data from journal
-// TODO(galaio): the method is a temporary solution for legacy journal, it could be removed in the future
-func (db *Database) loadNodeBufferAsJournalV0V1(diskRoot common.Hash) (layer, error) {
-	journalTypeForReader := db.DetermineJournalTypeForReader()
-	reader, err := newJournalReader(db.config.JournalFilePath, db.diskdb, journalTypeForReader)
-
-	if err != nil {
-		return nil, err
-	}
-	if reader != nil {
-		defer reader.Close()
-	}
-	r := rlp.NewStream(reader, 0)
-
-	// read & check journal version
-	version, err := r.Uint64()
-	if err != nil {
-		return nil, errMissVersion
-	}
-	if version >= journalVersion {
-		return nil, fmt.Errorf("%w, only handle legacy journal version, got %v", errUnexpectedVersion, version)
-	}
-
-	// read & check disk root
-	var root common.Hash
-	if err := r.Decode(&root); err != nil {
-		return nil, errMissDiskRoot
-	}
-	if !bytes.Equal(root.Bytes(), diskRoot.Bytes()) {
-		return nil, fmt.Errorf("%w want %x got %x", errUnmatchedJournal, root, diskRoot)
-	}
-	return db.loadDiskLayer(r, journalTypeForReader, version)
+	return newDiskLayer(root, rawdb.ReadPersistentStateID(db.diskdb), db, nil, nil, newBuffer(db.config.WriteBufferSize, nil, nil, 0), nil)
 }
 
 // loadDiskLayer reads the binary blob from the layer journal, reconstructing
 // a new disk layer on it.
-func (db *Database) loadDiskLayer(r *rlp.Stream, journalTypeForReader JournalType, version uint64) (layer, error) {
+func (db *Database) loadDiskLayer(r *rlp.Stream) (layer, error) {
 	// Resolve disk layer root
-	var (
-		root               common.Hash
-		journalBuf         *rlp.Stream
-		journalEncodedBuff []byte
-	)
-	if journalTypeForReader == JournalFileType {
-		if err := r.Decode(&journalEncodedBuff); err != nil {
-			return nil, fmt.Errorf("load disk journal: %v", err)
-		}
-		journalBuf = rlp.NewStream(bytes.NewReader(journalEncodedBuff), 0)
-	} else {
-		journalBuf = r
-	}
-
-	if err := journalBuf.Decode(&root); err != nil {
+	var root common.Hash
+	if err := r.Decode(&root); err != nil {
 		return nil, fmt.Errorf("load disk root: %v", err)
 	}
 	// Resolve the state id of disk layer, it can be different
 	// with the persistent id tracked in disk, the id distance
 	// is the number of transitions aggregated in disk layer.
 	var id uint64
-	if err := journalBuf.Decode(&id); err != nil {
+	if err := r.Decode(&id); err != nil {
 		return nil, fmt.Errorf("load state id: %v", err)
 	}
 	stored := rawdb.ReadPersistentStateID(db.diskdb)
@@ -317,59 +201,23 @@ func (db *Database) loadDiskLayer(r *rlp.Stream, journalTypeForReader JournalTyp
 	}
 	// Resolve nodes cached in aggregated buffer
 	var nodes nodeSet
-	if err := nodes.decode(journalBuf); err != nil {
+	if err := nodes.decode(r); err != nil {
 		return nil, err
 	}
-
-	// handle new states in journal v2
-	var states = newStates(nil, nil, false)
-	if version == journalVersion {
-		// Resolve flat state sets in aggregated buffer
-		if err := states.decode(journalBuf); err != nil {
-			return nil, err
-		}
+	// Resolve flat state sets in aggregated buffer
+	var states stateSet
+	if err := states.decode(r); err != nil {
+		return nil, err
 	}
-
-	if journalTypeForReader == JournalFileType {
-		var shaSum [32]byte
-		if err := r.Decode(&shaSum); err != nil {
-			return nil, fmt.Errorf("load shasum: %v", err)
-		}
-
-		expectSum := sha256.Sum256(journalEncodedBuff)
-		if shaSum != expectSum {
-			return nil, fmt.Errorf("expect shaSum: %v, real:%v", expectSum, shaSum)
-		}
-	}
-
-	// Calculate the internal state transitions by id difference.
-	base := newDiskLayer(root, id, db, nil, NewTrieNodeBuffer(db.config.SyncFlush, db.config.WriteBufferSize, &nodes, states, id-stored))
-	return base, nil
+	return newDiskLayer(root, id, db, nil, nil, newBuffer(db.config.WriteBufferSize, &nodes, &states, id-stored), nil), nil
 }
 
 // loadDiffLayer reads the next sections of a layer journal, reconstructing a new
 // diff and verifying that it can be linked to the requested parent.
-func (db *Database) loadDiffLayer(parent layer, r *rlp.Stream, journalTypeForReader JournalType) (layer, error) {
+func (db *Database) loadDiffLayer(parent layer, r *rlp.Stream) (layer, error) {
 	// Read the next diff journal entry
-	var (
-		root               common.Hash
-		journalBuf         *rlp.Stream
-		journalEncodedBuff []byte
-	)
-	if journalTypeForReader == JournalFileType {
-		if err := r.Decode(&journalEncodedBuff); err != nil {
-			// The first read may fail with EOF, marking the end of the journal
-			if err == io.EOF {
-				return parent, nil
-			}
-			return nil, fmt.Errorf("load disk journal buffer: %v", err)
-		}
-		journalBuf = rlp.NewStream(bytes.NewReader(journalEncodedBuff), 0)
-	} else {
-		journalBuf = r
-	}
-
-	if err := journalBuf.Decode(&root); err != nil {
+	var root common.Hash
+	if err := r.Decode(&root); err != nil {
 		// The first read may fail with EOF, marking the end of the journal
 		if err == io.EOF {
 			return parent, nil
@@ -377,131 +225,78 @@ func (db *Database) loadDiffLayer(parent layer, r *rlp.Stream, journalTypeForRea
 		return nil, fmt.Errorf("load diff root: %v", err)
 	}
 	var block uint64
-	if err := journalBuf.Decode(&block); err != nil {
+	if err := r.Decode(&block); err != nil {
 		return nil, fmt.Errorf("load block number: %v", err)
 	}
 	// Read in-memory trie nodes from journal
-	var nodes nodeSet
-	if err := nodes.decode(journalBuf); err != nil {
+	var nodes nodeSetWithOrigin
+	if err := nodes.decode(r); err != nil {
 		return nil, err
 	}
 	// Read flat states set (with original value attached) from journal
 	var stateSet StateSetWithOrigin
-	if err := stateSet.decode(journalBuf); err != nil {
+	if err := stateSet.decode(r); err != nil {
 		return nil, err
 	}
-
-	if journalTypeForReader == JournalFileType {
-		var shaSum [32]byte
-		if err := r.Decode(&shaSum); err != nil {
-			return nil, fmt.Errorf("load shasum: %v", err)
-		}
-
-		expectSum := sha256.Sum256(journalEncodedBuff)
-		if shaSum != expectSum {
-			return nil, fmt.Errorf("expect shaSum: %v, real:%v", expectSum, shaSum)
-		}
-	}
-
-	log.Debug("Loaded diff layer journal", "root", root, "parent", parent.rootHash(), "id", parent.stateID()+1, "block", block)
-
-	return db.loadDiffLayer(newDiffLayer(parent, root, parent.stateID()+1, block, &nodes, &stateSet), r, journalTypeForReader)
+	return db.loadDiffLayer(newDiffLayer(parent, root, parent.stateID()+1, block, &nodes, &stateSet), r)
 }
 
 // journal implements the layer interface, marshaling the un-flushed trie nodes
-// along with layer metadata into provided byte buffer.
-func (dl *diskLayer) journal(w io.Writer, journalType JournalType) error {
+// along with layer meta data into provided byte buffer.
+func (dl *diskLayer) journal(w io.Writer) error {
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
-
-	// Create a buffer to store encoded data
-	journalBuf := new(bytes.Buffer)
 
 	// Ensure the layer didn't get stale
 	if dl.stale {
 		return errSnapshotStale
 	}
 	// Step one, write the disk root into the journal.
-	if err := rlp.Encode(journalBuf, dl.root); err != nil {
+	if err := rlp.Encode(w, dl.root); err != nil {
 		return err
 	}
 	// Step two, write the corresponding state id into the journal
-	if err := rlp.Encode(journalBuf, dl.id); err != nil {
+	if err := rlp.Encode(w, dl.id); err != nil {
 		return err
 	}
-	nodes, states := dl.buffer.getAllNodesAndStates()
 	// Step three, write the accumulated trie nodes into the journal
-	if err := nodes.encode(journalBuf); err != nil {
+	if err := dl.buffer.nodes.encode(w); err != nil {
 		return err
 	}
 	// Step four, write the accumulated flat states into the journal
-	if err := states.encode(journalBuf); err != nil {
+	if err := dl.buffer.states.encode(w); err != nil {
 		return err
 	}
-
-	// Store the journal buf into w and calculate checksum
-	if journalType == JournalFileType {
-		shasum := sha256.Sum256(journalBuf.Bytes())
-		if err := rlp.Encode(w, journalBuf.Bytes()); err != nil {
-			return err
-		}
-		if err := rlp.Encode(w, shasum); err != nil {
-			return err
-		}
-	} else {
-		if _, err := w.Write(journalBuf.Bytes()); err != nil {
-			return err
-		}
-	}
-
-	log.Info("Journaled pathdb disk layer", "root", dl.root)
+	log.Debug("Journaled pathdb disk layer", "root", dl.root, "id", dl.id)
 	return nil
 }
 
 // journal implements the layer interface, writing the memory layer contents
 // into a buffer to be stored in the database as the layer journal.
-func (dl *diffLayer) journal(w io.Writer, journalType JournalType) error {
+func (dl *diffLayer) journal(w io.Writer) error {
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
 
 	// journal the parent first
-	if err := dl.parent.journal(w, journalType); err != nil {
+	if err := dl.parent.journal(w); err != nil {
 		return err
 	}
-	// Create a buffer to store encoded data
-	journalBuf := new(bytes.Buffer)
 	// Everything below was journaled, persist this layer too
-	if err := rlp.Encode(journalBuf, dl.root); err != nil {
+	if err := rlp.Encode(w, dl.root); err != nil {
 		return err
 	}
-	if err := rlp.Encode(journalBuf, dl.block); err != nil {
+	if err := rlp.Encode(w, dl.block); err != nil {
 		return err
 	}
 	// Write the accumulated trie nodes into buffer
-	if err := dl.nodes.encode(journalBuf); err != nil {
+	if err := dl.nodes.encode(w); err != nil {
 		return err
 	}
 	// Write the associated flat state set into buffer
-	if err := dl.states.encode(journalBuf); err != nil {
+	if err := dl.states.encode(w); err != nil {
 		return err
 	}
-
-	// Store the journal buf into w and calculate checksum
-	if journalType == JournalFileType {
-		shasum := sha256.Sum256(journalBuf.Bytes())
-		if err := rlp.Encode(w, journalBuf.Bytes()); err != nil {
-			return err
-		}
-		if err := rlp.Encode(w, shasum); err != nil {
-			return err
-		}
-	} else {
-		if _, err := w.Write(journalBuf.Bytes()); err != nil {
-			return err
-		}
-	}
-
-	log.Info("Journaled pathdb diff layer", "root", dl.root, "parent", dl.parent.rootHash(), "id", dl.stateID(), "block", dl.block)
+	log.Debug("Journaled pathdb diff layer", "root", dl.root, "parent", dl.parent.rootHash(), "id", dl.stateID(), "block", dl.block)
 	return nil
 }
 
@@ -512,10 +307,6 @@ func (dl *diffLayer) journal(w io.Writer, journalType JournalType) error {
 //
 // The supplied root must be a valid trie hash value.
 func (db *Database) Journal(root common.Hash) error {
-	// Run the journaling
-	db.lock.Lock()
-	defer db.lock.Unlock()
-
 	// Retrieve the head layer to journal from.
 	l := db.tree.get(root)
 	if l == nil {
@@ -523,23 +314,65 @@ func (db *Database) Journal(root common.Hash) error {
 	}
 	disk := db.tree.bottom()
 	if l, ok := l.(*diffLayer); ok {
-		log.Info("Persisting dirty state to disk", "head", l.block, "root", root, "layers", l.id-disk.id+disk.buffer.getLayers())
+		log.Info("Persisting dirty state", "head", l.block, "root", root, "layers", l.id-disk.id+disk.buffer.layers)
 	} else { // disk layer only on noop runs (likely) or deep reorgs (unlikely)
-		log.Info("Persisting dirty state to disk", "root", root, "layers", disk.buffer.getLayers())
+		log.Info("Persisting dirty state", "root", root, "layers", disk.buffer.layers)
+	}
+	// Block until the background flushing is finished and terminate
+	// the potential active state generator.
+	if err := disk.terminate(); err != nil {
+		return err
 	}
 	start := time.Now()
 
-	// wait and stop the flush trienodebuffer, for asyncnodebuffer need fixed diskroot
-	disk.buffer.waitAndStopFlushing()
+	// Run the journaling
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
 	// Short circuit if the database is in read only mode.
 	if db.readOnly {
 		return errDatabaseReadOnly
 	}
-	// Firstly write out the metadata of journal
-	db.DeleteTrieJournal(db.diskdb)
-	journal := newJournalWriter(db.config.JournalFilePath, db.diskdb, db.DetermineJournalTypeForWriter())
-	defer journal.Close()
+	// Forcibly sync the ancient store before persisting the in-memory layers.
+	// This prevents an edge case where the in-memory layers are persisted
+	// but the ancient store is not properly closed, resulting in recent writes
+	// being lost. After a restart, the ancient store would then be misaligned
+	// with the disk layer, causing data corruption.
+	if db.stateFreezer != nil {
+		if err := db.stateFreezer.SyncAncient(); err != nil {
+			return err
+		}
+	}
+	// Store the journal into the database and return
+	var (
+		file        *os.File
+		journal     io.Writer
+		journalPath = db.journalPath()
+	)
+	if journalPath != "" {
+		// Write into a temp file first
+		err := os.MkdirAll(db.config.JournalDirectory, 0755)
+		if err != nil {
+			return err
+		}
+		tmp := journalPath + tempJournalSuffix
+		file, err = os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open journal file %s: %w", tmp, err)
+		}
+		defer func() {
+			if file != nil {
+				file.Close()
+				os.Remove(tmp) // Clean up temp file if we didn't successfully rename it
+				log.Warn("Removed leftover temporary journal file", "path", tmp)
+			}
+		}()
+		journal = file
+	} else {
+		journal = new(bytes.Buffer)
+	}
 
+	// Firstly write out the metadata of journal
 	if err := rlp.Encode(journal, journalVersion); err != nil {
 		return err
 	}
@@ -553,14 +386,41 @@ func (db *Database) Journal(root common.Hash) error {
 		return err
 	}
 	// Finally write out the journal of each layer in reverse order.
-	if err := l.journal(journal, db.DetermineJournalTypeForWriter()); err != nil {
+	if err := l.journal(journal); err != nil {
 		return err
 	}
-	// Store the journal into the database and return
-	journalSize := journal.Size()
 
+	// Store the journal into the database and return
+	if file == nil {
+		data := journal.(*bytes.Buffer)
+		size := data.Len()
+		rawdb.WriteTrieJournal(db.diskdb, data.Bytes())
+		log.Info("Persisted dirty state to disk", "size", common.StorageSize(size), "elapsed", common.PrettyDuration(time.Since(start)))
+	} else {
+		stat, err := file.Stat()
+		if err != nil {
+			return err
+		}
+		size := int(stat.Size())
+
+		// Close the temporary file and atomically rename it
+		if err := file.Sync(); err != nil {
+			return fmt.Errorf("failed to fsync the journal, %v", err)
+		}
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("failed to close the journal: %v", err)
+		}
+		// Replace the live journal with the newly generated one
+		if err := os.Rename(journalPath+tempJournalSuffix, journalPath); err != nil {
+			return fmt.Errorf("failed to rename the journal: %v", err)
+		}
+		if err := syncDir(db.config.JournalDirectory); err != nil {
+			return fmt.Errorf("failed to fsync the dir: %v", err)
+		}
+		file = nil
+		log.Info("Persisted dirty state to file", "path", journalPath, "size", common.StorageSize(size), "elapsed", common.PrettyDuration(time.Since(start)))
+	}
 	// Set the db in read only mode to reject all following mutations
 	db.readOnly = true
-	log.Info("Persisted dirty state to disk", "size", common.StorageSize(journalSize), "elapsed", common.PrettyDuration(time.Since(start)))
 	return nil
 }

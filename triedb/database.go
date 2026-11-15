@@ -18,7 +18,6 @@ package triedb
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -32,9 +31,7 @@ import (
 
 // Config defines all necessary options for database.
 type Config struct {
-	Preimages bool // Flag whether the preimage of node key is recorded
-	Cache     int
-	NoTries   bool
+	Preimages bool           // Flag whether the preimage of node key is recorded
 	IsVerkle  bool           // Flag whether the db is holding a verkle tree
 	HashDB    *hashdb.Config // Configs for hash-based scheme
 	PathDB    *pathdb.Config // Configs for experimental path-based scheme
@@ -72,7 +69,7 @@ type backend interface {
 	//
 	// For hash scheme, there is no differentiation between diff layer nodes
 	// and dirty disk layer nodes, so both are merged into the second return.
-	Size() (common.StorageSize, common.StorageSize, common.StorageSize)
+	Size() (common.StorageSize, common.StorageSize)
 
 	// Commit writes all relevant trie nodes belonging to the specified state
 	// to disk. Report specifies whether logs will be displayed in info level.
@@ -96,72 +93,27 @@ type Database struct {
 // the legacy hash-based scheme is used by default.
 func NewDatabase(diskdb ethdb.Database, config *Config) *Database {
 	// Sanitize the config and use the default one if it's not specified.
-	var triediskdb ethdb.Database
-	if diskdb != nil && diskdb.StateStore() != nil {
-		triediskdb = diskdb.StateStore()
-	} else {
-		triediskdb = diskdb
-	}
-	dbScheme := rawdb.ReadStateScheme(diskdb)
 	if config == nil {
-		if dbScheme == rawdb.PathScheme {
-			config = &Config{
-				PathDB: pathdb.Defaults,
-			}
-		} else {
-			config = HashDefaults
-		}
-	}
-	if config.PathDB == nil && config.HashDB == nil {
-		if dbScheme == rawdb.PathScheme {
-			config.PathDB = pathdb.Defaults
-		} else {
-			config.HashDB = hashdb.Defaults
-		}
-	}
-	if config.PathDB != nil && config.NoTries {
-		config.PathDB.NoTries = true
+		config = HashDefaults
 	}
 	var preimages *preimageStore
 	if config.Preimages {
-		preimages = newPreimageStore(triediskdb)
+		preimages = newPreimageStore(diskdb)
 	}
 	db := &Database{
 		disk:      diskdb,
 		config:    config,
 		preimages: preimages,
 	}
-	/*
-	 * 1. First, initialize db according to the user config
-	 * 2. Second, initialize the db according to the scheme already used by db
-	 * 3. Last, use the default scheme, namely hash scheme
-	 */
-	if config.HashDB != nil {
-		if rawdb.ReadStateScheme(triediskdb) == rawdb.PathScheme {
-			log.Warn("Incompatible state scheme", "old", rawdb.PathScheme, "new", rawdb.HashScheme)
-		}
-		db.backend = hashdb.New(triediskdb, config.HashDB)
-	} else if config.PathDB != nil {
-		if rawdb.ReadStateScheme(triediskdb) == rawdb.HashScheme {
-			log.Warn("Incompatible state scheme", "old", rawdb.HashScheme, "new", rawdb.PathScheme)
-		}
-		db.backend = pathdb.New(triediskdb, config.PathDB, config.IsVerkle)
-	} else if strings.Compare(dbScheme, rawdb.PathScheme) == 0 {
-		if config.PathDB == nil {
-			config.PathDB = pathdb.Defaults
-		}
-		db.backend = pathdb.New(triediskdb, config.PathDB, config.IsVerkle)
+	if config.HashDB != nil && config.PathDB != nil {
+		log.Crit("Both 'hash' and 'path' mode are configured")
+	}
+	if config.PathDB != nil {
+		db.backend = pathdb.New(diskdb, config.PathDB, config.IsVerkle)
 	} else {
-		if config.HashDB == nil {
-			config.HashDB = hashdb.Defaults
-		}
-		db.backend = hashdb.New(triediskdb, config.HashDB)
+		db.backend = hashdb.New(diskdb, config.HashDB)
 	}
 	return db
-}
-
-func (db *Database) Config() *Config {
-	return db.config
 }
 
 // NodeReader returns a reader for accessing trie nodes within the specified state.
@@ -175,6 +127,15 @@ func (db *Database) NodeReader(blockRoot common.Hash) (database.NodeReader, erro
 // not available.
 func (db *Database) StateReader(blockRoot common.Hash) (database.StateReader, error) {
 	return db.backend.StateReader(blockRoot)
+}
+
+// HistoricReader constructs a reader for accessing the requested historic state.
+func (db *Database) HistoricReader(root common.Hash) (*pathdb.HistoricalStateReader, error) {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return nil, errors.New("not supported")
+	}
+	return pdb.HistoricReader(root)
 }
 
 // Update performs a state transition by committing dirty nodes contained in the
@@ -210,16 +171,16 @@ func (db *Database) Commit(root common.Hash, report bool) error {
 // Size returns the storage size of diff layer nodes above the persistent disk
 // layer, the dirty nodes buffered within the disk layer, and the size of cached
 // preimages.
-func (db *Database) Size() (common.StorageSize, common.StorageSize, common.StorageSize, common.StorageSize) {
+func (db *Database) Size() (common.StorageSize, common.StorageSize, common.StorageSize) {
 	var (
-		diffs, nodes, immutablenodes common.StorageSize
-		preimages                    common.StorageSize
+		diffs, nodes common.StorageSize
+		preimages    common.StorageSize
 	)
-	diffs, nodes, immutablenodes = db.backend.Size()
+	diffs, nodes = db.backend.Size()
 	if db.preimages != nil {
 		preimages = db.preimages.size()
 	}
-	return diffs, nodes, immutablenodes, preimages
+	return diffs, nodes, preimages
 }
 
 // Scheme returns the node scheme used in the database.
@@ -259,6 +220,11 @@ func (db *Database) InsertPreimage(preimages map[common.Hash][]byte) {
 		return
 	}
 	db.preimages.insertPreimage(preimages)
+}
+
+// PreimageEnabled returns the indicator if the pre-image store is enabled.
+func (db *Database) PreimageEnabled() bool {
+	return db.preimages != nil
 }
 
 // Cap iteratively flushes old but still referenced trie nodes until the total
@@ -360,27 +326,44 @@ func (db *Database) Journal(root common.Hash) error {
 	return pdb.Journal(root)
 }
 
-// Head return the top non-fork difflayer/disklayer root hash for rewinding.
-// It's only supported by path-based database and will return empty hash for
-// others.
-func (db *Database) Head() common.Hash {
+// VerifyState traverses the flat states specified by the given state root and
+// ensures they are matched with each other.
+func (db *Database) VerifyState(root common.Hash) error {
 	pdb, ok := db.backend.(*pathdb.Database)
 	if !ok {
-		return common.Hash{}
+		return errors.New("not supported")
 	}
-	return pdb.Head()
+	return pdb.VerifyState(root)
 }
 
-// GetAllRooHash returns all MPT root hash in diffLayer and diskLayer.
-// It's only supported by path-based database and will return nil for
-// others.
-func (db *Database) GetAllRooHash() [][]string {
+// AccountIterator creates a new account iterator for the specified root hash and
+// seeks to a starting account hash.
+func (db *Database) AccountIterator(root common.Hash, seek common.Hash) (pathdb.AccountIterator, error) {
 	pdb, ok := db.backend.(*pathdb.Database)
 	if !ok {
-		log.Error("Not supported")
-		return nil
+		return nil, errors.New("not supported")
 	}
-	return pdb.GetAllRooHash()
+	return pdb.AccountIterator(root, seek)
+}
+
+// StorageIterator creates a new storage iterator for the specified root hash and
+// account. The iterator will be move to the specific start position.
+func (db *Database) StorageIterator(root common.Hash, account common.Hash, seek common.Hash) (pathdb.StorageIterator, error) {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return nil, errors.New("not supported")
+	}
+	return pdb.StorageIterator(root, account, seek)
+}
+
+// IndexProgress returns the indexing progress made so far. It provides the
+// number of states that remain unindexed.
+func (db *Database) IndexProgress() (uint64, error) {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return 0, errors.New("not supported")
+	}
+	return pdb.IndexProgress()
 }
 
 // IsVerkle returns the indicator if the database is holding a verkle tree.
@@ -391,4 +374,27 @@ func (db *Database) IsVerkle() bool {
 // Disk returns the underlying disk database.
 func (db *Database) Disk() ethdb.Database {
 	return db.disk
+}
+
+// SnapshotCompleted returns the indicator if the snapshot is completed.
+func (db *Database) SnapshotCompleted() bool {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return false
+	}
+	return pdb.SnapshotCompleted()
+}
+
+func (db *Database) Head() common.Hash {
+	if pdb, ok := db.backend.(*pathdb.Database); ok {
+		return pdb.Head()
+	}
+	return common.Hash{}
+}
+
+func (db *Database) GetAllRooHash() [][]string {
+	if pdb, ok := db.backend.(*pathdb.Database); ok {
+		return pdb.GetAllRooHash()
+	}
+	return nil
 }

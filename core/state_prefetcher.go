@@ -55,10 +55,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 	// No need to execute the first batch, since the main processor will do it.
 	for i := 0; i < prefetchThread; i++ {
 		go func() {
-			newStatedb := statedb.CopyDoPrefetch()
-			if !p.config.IsHertz(header.Number) {
-				newStatedb.EnableWriteOnSharedStorage()
-			}
+			newStatedb := statedb.Copy()
 			gaspool := new(GasPool).AddGas(block.GasLimit())
 			blockContext := NewEVMBlockContext(header, p.chain, nil)
 			evm := vm.NewEVM(blockContext, newStatedb, p.config, *cfg)
@@ -70,7 +67,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 					// Convert the transaction into an executable message and pre-cache its sender
 					msg, err := TransactionToMessage(tx, signer, header.BaseFee)
 					msg.SkipNonceChecks = true
-					msg.SkipFromEOACheck = true
+					msg.SkipTransactionChecks = true
 					if err != nil {
 						return // Also invalid block, bail out
 					}
@@ -107,10 +104,7 @@ func (p *statePrefetcher) PrefetchMining(txs TransactionsByPriceAndNonce, header
 	for i := 0; i < prefetchThread; i++ {
 		go func(startCh <-chan *types.Transaction, stopCh <-chan struct{}) {
 			idx := 0
-			newStatedb := statedb.CopyDoPrefetch()
-			if !p.config.IsHertz(header.Number) {
-				newStatedb.EnableWriteOnSharedStorage()
-			}
+			newStatedb := statedb.Copy()
 			gaspool := new(GasPool).AddGas(gasLimit)
 			blockContext := NewEVMBlockContext(header, p.chain, nil)
 			evm := vm.NewEVM(blockContext, newStatedb, p.config, cfg)
@@ -121,7 +115,7 @@ func (p *statePrefetcher) PrefetchMining(txs TransactionsByPriceAndNonce, header
 					// Convert the transaction into an executable message and pre-cache its sender
 					msg, err := TransactionToMessage(tx, signer, header.BaseFee)
 					msg.SkipNonceChecks = true
-					msg.SkipFromEOACheck = true
+					msg.SkipTransactionChecks = true
 					if err != nil {
 						return // Also invalid block, bail out
 					}

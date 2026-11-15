@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -202,6 +203,12 @@ func newTestBackend(config *node.Config) (*node.Node, []*types.Block, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't create new ethereum service: %v", err)
 	}
+	// Ensure tx pool starts the background operation
+	txPool := ethservice.TxPool()
+	if err = txPool.Sync(); err != nil {
+		return nil, nil, fmt.Errorf("can't sync transaction pool: %v", err)
+	}
+
 	// Import the test chain.
 	if err := n.Start(); err != nil {
 		return nil, nil, fmt.Errorf("can't start test node: %v", err)
@@ -435,6 +442,12 @@ func testTransactionInBlock(t *testing.T, client *rpc.Client) {
 	if tx.Hash() != testTx2.Hash() {
 		t.Fatalf("unexpected transaction: %v", tx)
 	}
+
+	// Test pending block
+	_, err = ec.BlockByNumber(context.Background(), big.NewInt(int64(rpc.PendingBlockNumber)))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func testChainID(t *testing.T, client *rpc.Client) {
@@ -532,6 +545,15 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 		t.Fatalf("unexpected gas tip cap: %v", gasTipCap)
 	}
 
+	// This fixture chain is pre-Cancun; Core returns null for the blob base fee.
+	var blobBaseFee *hexutil.Big
+	if err := client.CallContext(context.Background(), &blobBaseFee, "eth_blobBaseFee"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if blobBaseFee != nil {
+		t.Fatalf("unexpected blob base fee: %v", blobBaseFee)
+	}
+
 	// FeeHistory
 	history, err := ec.FeeHistory(context.Background(), 1, big.NewInt(2), []float64{95, 99})
 	if err != nil {
@@ -616,6 +638,48 @@ func testSendTransactionConditional(t *testing.T, client *rpc.Client) {
 	if err := sendTransactionConditional(ec); err != nil {
 		t.Fatalf("error: %v", err)
 	}
+	// Use HeaderByNumber to get a header for EstimateGasAtBlock and EstimateGasAtBlockHash
+	latestHeader, err := ec.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// EstimateGasAtBlock
+	msg := ethereum.CallMsg{
+		From:  testAddr,
+		To:    &common.Address{},
+		Gas:   21000,
+		Value: big.NewInt(1),
+	}
+	gas, err := ec.EstimateGasAtBlock(context.Background(), msg, latestHeader.Number)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gas != 21000 {
+		t.Fatalf("unexpected gas limit: %v", gas)
+	}
+	// EstimateGasAtBlockHash
+	gas, err = ec.EstimateGasAtBlockHash(context.Background(), msg, latestHeader.Hash())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gas != 21000 {
+		t.Fatalf("unexpected gas limit: %v", gas)
+	}
+
+	// Verify that sender address of pending transaction is saved in cache.
+	pendingBlock, err := ec.BlockByNumber(context.Background(), big.NewInt(int64(rpc.PendingBlockNumber)))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// No additional RPC should be required, ensure the server is not asked by
+	// canceling the context.
+	sender, err := ec.TransactionSender(newCanceledContext(), pendingBlock.Transactions()[0], pendingBlock.Hash(), 0)
+	if err != nil {
+		t.Fatal("unable to recover sender:", err)
+	}
+	if sender != testAddr {
+		t.Fatal("wrong sender:", sender)
+	}
 }
 
 func sendTransactionConditional(ec *ethclient.Client) error {
@@ -687,4 +751,257 @@ func ExampleRevertErrorData() {
 	// Output:
 	// revert: 08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000a75736572206572726f72
 	// message: user error
+}
+
+func TestSimulateV1(t *testing.T) {
+	backend, _, err := newTestBackend(nil)
+	if err != nil {
+		t.Fatalf("Failed to create test backend: %v", err)
+	}
+	defer backend.Close()
+
+	client := ethclient.NewClient(backend.Attach())
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Get current base fee
+	header, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		t.Fatalf("Failed to get header: %v", err)
+	}
+
+	// Simple test: transfer ETH from one account to another
+	from := testAddr
+	to := common.HexToAddress("0x0000000000000000000000000000000000000001")
+	value := big.NewInt(100)
+	gas := uint64(100000)
+	maxFeePerGas := new(big.Int).Mul(header.BaseFee, big.NewInt(2))
+
+	opts := ethclient.SimulateOptions{
+		BlockStateCalls: []ethclient.SimulateBlock{
+			{
+				Calls: []ethereum.CallMsg{
+					{
+						From:      from,
+						To:        &to,
+						Value:     value,
+						Gas:       gas,
+						GasFeeCap: maxFeePerGas,
+					},
+				},
+			},
+		},
+		Validation: true,
+	}
+
+	results, err := client.SimulateV1(ctx, opts, nil)
+	if err != nil {
+		t.Fatalf("SimulateV1 failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 block result, got %d", len(results))
+	}
+
+	if len(results[0].Calls) != 1 {
+		t.Fatalf("expected 1 call result, got %d", len(results[0].Calls))
+	}
+
+	// Check that the transaction succeeded
+	if results[0].Calls[0].Status != 1 {
+		t.Errorf("expected status 1 (success), got %d", results[0].Calls[0].Status)
+	}
+
+	if results[0].Calls[0].Error != nil {
+		t.Errorf("expected no error, got %v", results[0].Calls[0].Error)
+	}
+}
+
+func TestSimulateV1WithBlockOverrides(t *testing.T) {
+	backend, _, err := newTestBackend(nil)
+	if err != nil {
+		t.Fatalf("Failed to create test backend: %v", err)
+	}
+	defer backend.Close()
+
+	client := ethclient.NewClient(backend.Attach())
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Get current base fee
+	header, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		t.Fatalf("Failed to get header: %v", err)
+	}
+
+	from := testAddr
+	to := common.HexToAddress("0x0000000000000000000000000000000000000001")
+	value := big.NewInt(100)
+	gas := uint64(100000)
+	maxFeePerGas := new(big.Int).Mul(header.BaseFee, big.NewInt(2))
+
+	// Override timestamp only
+	timestamp := uint64(1234567890)
+
+	opts := ethclient.SimulateOptions{
+		BlockStateCalls: []ethclient.SimulateBlock{
+			{
+				BlockOverrides: &ethereum.BlockOverrides{
+					Time: timestamp,
+				},
+				Calls: []ethereum.CallMsg{
+					{
+						From:      from,
+						To:        &to,
+						Value:     value,
+						Gas:       gas,
+						GasFeeCap: maxFeePerGas,
+					},
+				},
+			},
+		},
+		Validation: true,
+	}
+
+	results, err := client.SimulateV1(ctx, opts, nil)
+	if err != nil {
+		t.Fatalf("SimulateV1 with block overrides failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 block result, got %d", len(results))
+	}
+
+	// Verify the timestamp was overridden
+	if results[0].Timestamp != timestamp {
+		t.Errorf("expected timestamp %d, got %d", timestamp, results[0].Timestamp)
+	}
+}
+
+func TestSimulateV1WithStateOverrides(t *testing.T) {
+	backend, _, err := newTestBackend(nil)
+	if err != nil {
+		t.Fatalf("Failed to create test backend: %v", err)
+	}
+	defer backend.Close()
+
+	client := ethclient.NewClient(backend.Attach())
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Get current base fee
+	header, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		t.Fatalf("Failed to get header: %v", err)
+	}
+
+	from := testAddr
+	to := common.HexToAddress("0x0000000000000000000000000000000000000001")
+	value := big.NewInt(1000000000000000000) // 1 ETH
+	gas := uint64(100000)
+	maxFeePerGas := new(big.Int).Mul(header.BaseFee, big.NewInt(2))
+
+	// Override the balance of the 'from' address
+	balanceStr := "1000000000000000000000"
+	balance := new(big.Int)
+	balance.SetString(balanceStr, 10)
+
+	stateOverrides := map[common.Address]ethereum.OverrideAccount{
+		from: {
+			Balance: balance,
+		},
+	}
+
+	opts := ethclient.SimulateOptions{
+		BlockStateCalls: []ethclient.SimulateBlock{
+			{
+				StateOverrides: stateOverrides,
+				Calls: []ethereum.CallMsg{
+					{
+						From:      from,
+						To:        &to,
+						Value:     value,
+						Gas:       gas,
+						GasFeeCap: maxFeePerGas,
+					},
+				},
+			},
+		},
+		Validation: true,
+	}
+
+	results, err := client.SimulateV1(ctx, opts, nil)
+	if err != nil {
+		t.Fatalf("SimulateV1 with state overrides failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 block result, got %d", len(results))
+	}
+
+	if results[0].Calls[0].Status != 1 {
+		t.Errorf("expected status 1 (success), got %d", results[0].Calls[0].Status)
+	}
+}
+
+func TestSimulateV1WithBlockNumberOrHash(t *testing.T) {
+	backend, _, err := newTestBackend(nil)
+	if err != nil {
+		t.Fatalf("Failed to create test backend: %v", err)
+	}
+	defer backend.Close()
+
+	client := ethclient.NewClient(backend.Attach())
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Get current base fee
+	header, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		t.Fatalf("Failed to get header: %v", err)
+	}
+
+	from := testAddr
+	to := common.HexToAddress("0x0000000000000000000000000000000000000001")
+	value := big.NewInt(100)
+	gas := uint64(100000)
+	maxFeePerGas := new(big.Int).Mul(header.BaseFee, big.NewInt(2))
+
+	opts := ethclient.SimulateOptions{
+		BlockStateCalls: []ethclient.SimulateBlock{
+			{
+				Calls: []ethereum.CallMsg{
+					{
+						From:      from,
+						To:        &to,
+						Value:     value,
+						Gas:       gas,
+						GasFeeCap: maxFeePerGas,
+					},
+				},
+			},
+		},
+		Validation: true,
+	}
+
+	// Simulate on the latest block
+	latest := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+	results, err := client.SimulateV1(ctx, opts, &latest)
+	if err != nil {
+		t.Fatalf("SimulateV1 with latest block failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 block result, got %d", len(results))
+	}
+}
+
+func newCanceledContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx
 }

@@ -161,6 +161,7 @@ func (api *EthereumAPI) Syncing() (interface{}, error) {
 	// Otherwise gather the block sync stats
 	return map[string]interface{}{
 		"startingBlock":          hexutil.Uint64(progress.StartingBlock),
+		"stateIndexRemaining":    hexutil.Uint64(progress.StateIndexRemaining),
 		"currentBlock":           hexutil.Uint64(progress.CurrentBlock),
 		"highestBlock":           hexutil.Uint64(progress.HighestBlock),
 		"syncedAccounts":         hexutil.Uint64(progress.SyncedAccounts),
@@ -828,7 +829,7 @@ func (diff *StateOverride) Apply(statedb *state.StateDB, precompiles vm.Precompi
 		}
 		// Override account(contract) code.
 		if account.Code != nil {
-			statedb.SetCode(addr, *account.Code)
+			statedb.SetCode(addr, *account.Code, tracing.CodeChangeUnspecified)
 		}
 		// Override account balance.
 		if account.Balance != nil {

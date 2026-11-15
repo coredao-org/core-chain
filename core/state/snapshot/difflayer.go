@@ -19,6 +19,7 @@ package snapshot
 import (
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"math"
 	"math/rand"
 	"slices"
@@ -30,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	bloomfilter "github.com/holiman/bloomfilter/v2"
-	"golang.org/x/exp/maps"
 )
 
 var (
@@ -130,7 +130,6 @@ func newDiffLayer(parent snapshot, root common.Hash, accounts map[common.Hash][]
 		storageData: storage,
 		storageList: make(map[common.Hash][]common.Hash),
 	}
-
 	switch parent := parent.(type) {
 	case *diskLayer:
 		dl.rebloom(parent)
@@ -139,7 +138,6 @@ func newDiffLayer(parent snapshot, root common.Hash, accounts map[common.Hash][]
 	default:
 		panic("unknown parent type")
 	}
-
 	// Sanity check that accounts or storage slots are never nil
 	for _, blob := range accounts {
 		// Determine memory size and track the dirty writes
@@ -231,24 +229,6 @@ func (dl *diffLayer) Account(hash common.Hash) (*types.SlimAccount, error) {
 		panic(err)
 	}
 	return account, nil
-}
-
-// Accounts directly retrieves all accounts in current snapshot in
-// the snapshot slim data format.
-func (dl *diffLayer) Accounts() (map[common.Hash]*types.SlimAccount, error) {
-	dl.lock.RLock()
-	defer dl.lock.RUnlock()
-
-	accounts := make(map[common.Hash]*types.SlimAccount, len(dl.accountData))
-	for hash, data := range dl.accountData {
-		account := new(types.SlimAccount)
-		if err := rlp.DecodeBytes(data, account); err != nil {
-			return nil, err
-		}
-		accounts[hash] = account
-	}
-
-	return accounts, nil
 }
 
 // AccountRLP directly retrieves the account RLP associated with a particular
@@ -361,7 +341,7 @@ func (dl *diffLayer) storage(accountHash, storageHash common.Hash, depth int) ([
 	if storage, ok := dl.storageData[accountHash]; ok {
 		if data, ok := storage[storageHash]; ok {
 			snapshotDirtyStorageHitMeter.Mark(1)
-			//snapshotDirtyStorageHitDepthHist.Update(int64(depth))
+			snapshotDirtyStorageHitDepthHist.Update(int64(depth))
 			if n := len(data); n > 0 {
 				snapshotDirtyStorageReadMeter.Mark(int64(n))
 			} else {
@@ -451,8 +431,7 @@ func (dl *diffLayer) AccountList() []common.Hash {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
-	dl.accountList = maps.Keys(dl.accountData)
-	slices.SortFunc(dl.accountList, common.Hash.Cmp)
+	dl.accountList = slices.SortedFunc(maps.Keys(dl.accountData), common.Hash.Cmp)
 	dl.memory += uint64(len(dl.accountList) * common.HashLength)
 	return dl.accountList
 }
@@ -484,8 +463,7 @@ func (dl *diffLayer) StorageList(accountHash common.Hash) []common.Hash {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 
-	storageList := maps.Keys(dl.storageData[accountHash])
-	slices.SortFunc(storageList, common.Hash.Cmp)
+	storageList := slices.SortedFunc(maps.Keys(dl.storageData[accountHash]), common.Hash.Cmp)
 	dl.storageList[accountHash] = storageList
 	dl.memory += uint64(len(dl.storageList)*common.HashLength + common.HashLength)
 	return storageList

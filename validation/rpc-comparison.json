@@ -1,0 +1,1070 @@
+{
+  "referenceVersion": "Geth/v1.0.27-90aca9a0-20261031/linux-amd64/go1.23.12",
+  "allowedAdditionalFields": [
+    "blockTimestamp"
+  ],
+  "checks": [
+    {
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x1",
+        false
+      ],
+      "sha256": "10b6db441bcc6edf93e9ac2503d28f0d478c67116adefda98c7f9349bd7cbcf7",
+      "inputSha256": "56d0a231452a4591361bba5507b64887879a962fda5de11706a2d4d6a37d5e65"
+    },
+    {
+      "method": "eth_getBlockByHash",
+      "params": [
+        "0x560e8e83dd178b52306fc83de8607ad2c1da84418805f242bee54195f28366f4",
+        true
+      ],
+      "sha256": "29fce85b7b39c99112aaf5c8df4755224742f107a9aeeb360544db607d0f4930",
+      "inputSha256": "d5811f32412227d20398c681f9416c5badf75215c91fcff90fdf4159c02d8b90"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x19e3c7d7e69f273f3f91c060bb438a007f6fc33c",
+        "0x1"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "3d6cc7872bfaddef65c6603e907190cb034872f6540d42dfab07202d06fc8b07"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x19e3c7d7e69f273f3f91c060bb438a007f6fc33c",
+        "0x1"
+      ],
+      "sha256": "2faa736df559cb273e68fbdf65f0e7f740ba3a884e0e18213275309dec99b187",
+      "inputSha256": "3d6cc7872bfaddef65c6603e907190cb034872f6540d42dfab07202d06fc8b07"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x19e3c7d7e69f273f3f91c060bb438a007f6fc33c",
+        "0x1"
+      ],
+      "sha256": "1c9409806518d1a5f52d79299ea0289ea2ff527e05895cd8f7a36d4cca28a13e",
+      "inputSha256": "3d6cc7872bfaddef65c6603e907190cb034872f6540d42dfab07202d06fc8b07"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x19e3c7d7e69f273f3f91c060bb438a007f6fc33c",
+        "0x0",
+        "0x1"
+      ],
+      "sha256": "88700ae849c5ddd12e1d8a2c3221be6bec9061deee12e0a7aa7f7e8a0eda2d5f",
+      "inputSha256": "d61f21c9ff6cf690a2d5e97061dc1d5a6409674acd55be7f9acbeb3f234cc8e6"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x1"
+      ],
+      "sha256": "1998dc9b2ef3a58f44f5a6d6e739f6567c8870f6ca7c63f6d35c3e01d24fdd66",
+      "inputSha256": "d59195838b9125a428c743e9558482ff3d7d23d00ca5fdb88f959c1f4f14baca"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x1"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "d59195838b9125a428c743e9558482ff3d7d23d00ca5fdb88f959c1f4f14baca"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x1"
+      ],
+      "sha256": "ab225b6c37967f7d4aadbf8bee83442a39d1affe12852dcf8dc3b0599ed6d936",
+      "inputSha256": "d59195838b9125a428c743e9558482ff3d7d23d00ca5fdb88f959c1f4f14baca"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x0",
+        "0x1"
+      ],
+      "sha256": "c216a27bbea8a35d75b3b0a4c7c79bb1d3698c2aeee7bbe921f174f385a91c2d",
+      "inputSha256": "9c840d0746db528a9efae0444f654a91258fe2ed4a230b780de9b410d5dfc11e"
+    },
+    {
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "blockHash": "0x560e8e83dd178b52306fc83de8607ad2c1da84418805f242bee54195f28366f4"
+        }
+      ],
+      "sha256": "d7bb0f968cd20338057565982532f034cd637edfdc98eabdb40e19fffd58e7e6",
+      "inputSha256": "0561594fce345cab81d914a489fd71f715d2666b43291c605396529cd8a6a039"
+    },
+    {
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x1"
+      ],
+      "sha256": "c9712013509bc01bb593b025b2939c1ace218da8b118106d41f5af4183e9f844",
+      "inputSha256": "d048a139be479a4e05502bafc000fd6491d9988da5e55b27492ac853c54b8078"
+    },
+    {
+      "method": "eth_estimateGas",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x1"
+      ],
+      "sha256": "93b0a50f9717cafeaa5110078843f04a2de2d15601147e3f5c0503a5aa09333e",
+      "inputSha256": "d048a139be479a4e05502bafc000fd6491d9988da5e55b27492ac853c54b8078"
+    },
+    {
+      "method": "debug_traceCall",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x1",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "8c07a7a126dce6889f37f14232720873c4c9c7c7fc54747cb469a4b27a6c4fe8",
+      "inputSha256": "7a316e47d9f02d691e708c844fe6bfd3eaf2df4676c934232e174754c11ccb4d"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x1",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "c00e9770b7694712ef79ef3e6991b3580cc61f766b63a65c39c07c74586f2043",
+      "inputSha256": "69c2a326903c082fae701cf94599899935e3e7e4d0f282462b220edf2e3a1720"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x1",
+        {
+          "tracer": "prestateTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "c4765327e0b54442825931b2e3ad86baf3466277072ff2a595dc9aeeeb8715ae",
+      "inputSha256": "568d0063e43f23c0a01e03da36802329ddff71e0afbaea1a562d8914ef1099a8"
+    },
+    {
+      "method": "eth_getTransactionByHash",
+      "params": [
+        "0x6cc6b4bf7a68dcb554b94545ebaa339433b6aa04eb005de0d5dda2b5918dc586"
+      ],
+      "sha256": "10803ec94323eafc3a1204c3939af01d2b7475e2a51f5b3fc1abb54222496b22",
+      "inputSha256": "64ced8aa819a2a01dfab7e360df728361bc5dc6143a1a9ae6d2459359c7b2326"
+    },
+    {
+      "method": "eth_getTransactionReceipt",
+      "params": [
+        "0x6cc6b4bf7a68dcb554b94545ebaa339433b6aa04eb005de0d5dda2b5918dc586"
+      ],
+      "sha256": "3264cc4f3f546f6e9cc84290a03f11979790ba8e089f10bd762c9e31a6c649ce",
+      "inputSha256": "64ced8aa819a2a01dfab7e360df728361bc5dc6143a1a9ae6d2459359c7b2326"
+    },
+    {
+      "method": "debug_traceTransaction",
+      "params": [
+        "0x6cc6b4bf7a68dcb554b94545ebaa339433b6aa04eb005de0d5dda2b5918dc586",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "1b109899652d7ec514c933caff2b023cff7e9411549f126c49daa088b261a4a4",
+      "inputSha256": "a69d1b4d7df73475f283c445f39e673161e267b1ad3fb2bc17912e65dcc4b427"
+    },
+    {
+      "method": "eth_getTransactionByHash",
+      "params": [
+        "0xe9974bdf5ca5504c22e507062a21d86e59673ee88fecac8cb17d272f1d3104a6"
+      ],
+      "sha256": "76de6a1cba74a12c5c3c927a5acffd4009e9bbbbfaf8136e49acd2303edf534a",
+      "inputSha256": "76a1509c17b165a31352b25ec6bfcdbc5ff52e04346fc706dfb1431146a75274"
+    },
+    {
+      "method": "eth_getTransactionReceipt",
+      "params": [
+        "0xe9974bdf5ca5504c22e507062a21d86e59673ee88fecac8cb17d272f1d3104a6"
+      ],
+      "sha256": "274212ceeb91b395e12452cf122a84b188507de508998a7c32c53f1fa0b3f6d5",
+      "inputSha256": "76a1509c17b165a31352b25ec6bfcdbc5ff52e04346fc706dfb1431146a75274"
+    },
+    {
+      "method": "debug_traceTransaction",
+      "params": [
+        "0xe9974bdf5ca5504c22e507062a21d86e59673ee88fecac8cb17d272f1d3104a6",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "5a680ffcc7101d43ef9eea6fd6ca775391e92c32610926563404b3923a78f0b4",
+      "inputSha256": "bf40b4be88fb99bec9a05c30eb4b5e3b2822d4ad1449911e4c008d90731572c4"
+    },
+    {
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x2",
+        false
+      ],
+      "sha256": "6723e88126d534b9f6efe106397442684adab836bc1db1b7b86edbc236c4ad89",
+      "inputSha256": "9148ae5e2864ab6b247896e01195da2a56b977b87ee0715553f23c3315f8a8a9"
+    },
+    {
+      "method": "eth_getBlockByHash",
+      "params": [
+        "0xa8e01a34a544091670490dd79430a539c3357e51ac56296dc483a4c0445a32ed",
+        true
+      ],
+      "sha256": "01aaa72ac444692d045a4d543da0324356a35ad19632563c93b03a7bb78c6fc1",
+      "inputSha256": "02dd616a02f86d723192dfde680bba9b0b4a23202f285a12aba0fc8a7888bf59"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x2efd3cf0733421aec3e4202480d0a90bd1575149",
+        "0x2"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "8f9895230f4f585f9c06cd81dca32d4f9e5f0d3108e2bfb520b4f62ed4dd890c"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x2efd3cf0733421aec3e4202480d0a90bd1575149",
+        "0x2"
+      ],
+      "sha256": "7abf5ed3c2a1483253938b48b720e86cff4b6e47f3a4ae8bdcd5d941ff6f38a7",
+      "inputSha256": "8f9895230f4f585f9c06cd81dca32d4f9e5f0d3108e2bfb520b4f62ed4dd890c"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x2efd3cf0733421aec3e4202480d0a90bd1575149",
+        "0x2"
+      ],
+      "sha256": "1c9409806518d1a5f52d79299ea0289ea2ff527e05895cd8f7a36d4cca28a13e",
+      "inputSha256": "8f9895230f4f585f9c06cd81dca32d4f9e5f0d3108e2bfb520b4f62ed4dd890c"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x2efd3cf0733421aec3e4202480d0a90bd1575149",
+        "0x0",
+        "0x2"
+      ],
+      "sha256": "88700ae849c5ddd12e1d8a2c3221be6bec9061deee12e0a7aa7f7e8a0eda2d5f",
+      "inputSha256": "af59ede9dcae32e201bb8412ffa2c3f19bfd59e8c9613a95c741b1434f473cf8"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x2"
+      ],
+      "sha256": "1998dc9b2ef3a58f44f5a6d6e739f6567c8870f6ca7c63f6d35c3e01d24fdd66",
+      "inputSha256": "5250718ccac44e7133acbf060da537e8d6ca82e1d7016a6dfd3c441e3ad6b848"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x2"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "5250718ccac44e7133acbf060da537e8d6ca82e1d7016a6dfd3c441e3ad6b848"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x2"
+      ],
+      "sha256": "ab225b6c37967f7d4aadbf8bee83442a39d1affe12852dcf8dc3b0599ed6d936",
+      "inputSha256": "5250718ccac44e7133acbf060da537e8d6ca82e1d7016a6dfd3c441e3ad6b848"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x0",
+        "0x2"
+      ],
+      "sha256": "c216a27bbea8a35d75b3b0a4c7c79bb1d3698c2aeee7bbe921f174f385a91c2d",
+      "inputSha256": "df2331515a7eeed11ab6debaa62e727d915ff2e28f75f3d6c0e7608801a09c3f"
+    },
+    {
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "blockHash": "0xa8e01a34a544091670490dd79430a539c3357e51ac56296dc483a4c0445a32ed"
+        }
+      ],
+      "sha256": "539d1ac77723a9b42f4855651c79202cd0a4a2c6daeb1fb13799c8493e59cd6b",
+      "inputSha256": "433ffbefcf7b8075125be8c25f38f17e7beceece760438a196220d882b6ebaa5"
+    },
+    {
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x2"
+      ],
+      "sha256": "c9712013509bc01bb593b025b2939c1ace218da8b118106d41f5af4183e9f844",
+      "inputSha256": "a736568b0a8e807adab509df1bde2b7e2b1282330c3715b22e669ac3b96daf8d"
+    },
+    {
+      "method": "eth_estimateGas",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x2"
+      ],
+      "sha256": "93b0a50f9717cafeaa5110078843f04a2de2d15601147e3f5c0503a5aa09333e",
+      "inputSha256": "a736568b0a8e807adab509df1bde2b7e2b1282330c3715b22e669ac3b96daf8d"
+    },
+    {
+      "method": "debug_traceCall",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x2",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "8c07a7a126dce6889f37f14232720873c4c9c7c7fc54747cb469a4b27a6c4fe8",
+      "inputSha256": "4ae55c94c25fbfe6c2e0f648b48ce2f85abb94ec945d44033d7e8dd91626263e"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x2",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "8b3a4ae9716d73050b94eb00db714ed4cccf3df41074c3bdfabbf6c605c0f756",
+      "inputSha256": "fa379f5d105934311e1e47383c2305c9c4a6eeb4058142069dae599e8d540d29"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x2",
+        {
+          "tracer": "prestateTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "c163042b47b60bc336859abe47485b45d3063a6d0ab9fb134cb609d833ba0001",
+      "inputSha256": "7da86ab6a5f8a6308bfe00b4d69da919f33f161d88bb2fd700742b3454caa0c1"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x2",
+        {
+          "tracer": "{steps:0,step:function(log,db){this.steps++;},fault:function(log,db){},result:function(ctx,db){return this.steps;}}",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "cb5461b32c22ddac59650ea3b27799889409bfd66fb7f65d6ab3cc29e0e14a62",
+      "inputSha256": "68ed91273d2ee7968e32776be75c81510feab04e40a5b7ea6131ebf43ef497b0"
+    },
+    {
+      "method": "eth_getTransactionByHash",
+      "params": [
+        "0xa3bade7c2f60f365d7bafcad86d5fa141a65f46d7eeac4417620a562375e730f"
+      ],
+      "sha256": "00f53b215d157c1d2c063e0b786ffcedc7e015366f1d9330d5e653ce9fc52381",
+      "inputSha256": "abda8cef4ffd8546b28f3d620a69d514bfcc4cb1e0524209b6309b68bdbf1b5b"
+    },
+    {
+      "method": "eth_getTransactionReceipt",
+      "params": [
+        "0xa3bade7c2f60f365d7bafcad86d5fa141a65f46d7eeac4417620a562375e730f"
+      ],
+      "sha256": "4054d71cbd2a0208ed05bc68e6dbfcd5b69596d6960deb1e7c64a999cbdb44a6",
+      "inputSha256": "abda8cef4ffd8546b28f3d620a69d514bfcc4cb1e0524209b6309b68bdbf1b5b"
+    },
+    {
+      "method": "debug_traceTransaction",
+      "params": [
+        "0xa3bade7c2f60f365d7bafcad86d5fa141a65f46d7eeac4417620a562375e730f",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "8f97f045d68118ca06bfdea8d4edf4bbf44775a8ed5f04e7cadb0119f0658167",
+      "inputSha256": "b9ffa18f831752035f2d9c7eaf27803c9629d6c6cf4f1ccccbbf9633fafaecfa"
+    },
+    {
+      "method": "eth_getTransactionByHash",
+      "params": [
+        "0x6b50f26e3919ad2dfb103c51b278a34368a22422895600749982e1f6ddb5a535"
+      ],
+      "sha256": "78887be95aa21840795ed0d09c83a5976ad3f1ae66b1a027d456c403779d356a",
+      "inputSha256": "cf785355a58234fe1041577875637fcb2d775f0beefe296f43143165fb6150e3"
+    },
+    {
+      "method": "eth_getTransactionReceipt",
+      "params": [
+        "0x6b50f26e3919ad2dfb103c51b278a34368a22422895600749982e1f6ddb5a535"
+      ],
+      "sha256": "e473cece02bb1cb0550eefab43a7dc03e6722777cb24f740a5fc838dd804aa64",
+      "inputSha256": "cf785355a58234fe1041577875637fcb2d775f0beefe296f43143165fb6150e3"
+    },
+    {
+      "method": "debug_traceTransaction",
+      "params": [
+        "0x6b50f26e3919ad2dfb103c51b278a34368a22422895600749982e1f6ddb5a535",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "7e6e00208137880036437adc144dcd44af0473302fcd4ffb5b899c4040aebeec",
+      "inputSha256": "14b145fc45cb3e59188929b4f303dfa0684758512d2799aab3be075740fa6040"
+    },
+    {
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x80",
+        false
+      ],
+      "sha256": "407fd2905078385e8d28a229b2d05f6da8ff8f78efefe7e22dd7ce5ec8d20289",
+      "inputSha256": "69c6e8ab6a243daf42152db3f120a707f013cad7832c14f0a0bdbab4a0bf7d70"
+    },
+    {
+      "method": "eth_getBlockByHash",
+      "params": [
+        "0x7fc2567c065bc2ba1d52f2eb9e1ba8ed2f504e82c27eeb5b3f7137b2a5433a93",
+        true
+      ],
+      "sha256": "fd3c05a9943301d98b546aebd3b65e864ecebb96c46aee8b3f488296d7806839",
+      "inputSha256": "75c5bd63e512fdf99f369ce5d398cdf962e67f66ac6229eca4ecce6797f612b8"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x7ef3a94ad1c443481fb3d86829355ca90477f8b5",
+        "0x80"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "751dd06901c3ca519856e69a3d9960059706b79526d7b0801c67e8a80c177878"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x7ef3a94ad1c443481fb3d86829355ca90477f8b5",
+        "0x80"
+      ],
+      "sha256": "c3db94ac7d7be9add1442f7bf64939495782d0e62f3dae16f22eb66a5a2916de",
+      "inputSha256": "751dd06901c3ca519856e69a3d9960059706b79526d7b0801c67e8a80c177878"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x7ef3a94ad1c443481fb3d86829355ca90477f8b5",
+        "0x80"
+      ],
+      "sha256": "1c9409806518d1a5f52d79299ea0289ea2ff527e05895cd8f7a36d4cca28a13e",
+      "inputSha256": "751dd06901c3ca519856e69a3d9960059706b79526d7b0801c67e8a80c177878"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x7ef3a94ad1c443481fb3d86829355ca90477f8b5",
+        "0x0",
+        "0x80"
+      ],
+      "sha256": "88700ae849c5ddd12e1d8a2c3221be6bec9061deee12e0a7aa7f7e8a0eda2d5f",
+      "inputSha256": "3217bebe6cd479c950409ea63676418d04fa32c4b4fc94a3c664c7c4861bf4e5"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x80"
+      ],
+      "sha256": "1998dc9b2ef3a58f44f5a6d6e739f6567c8870f6ca7c63f6d35c3e01d24fdd66",
+      "inputSha256": "50fce8843b0c898eb802da527b3df3fe6e4e5b83a1f6226e566f9bba3133259f"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x80"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "50fce8843b0c898eb802da527b3df3fe6e4e5b83a1f6226e566f9bba3133259f"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x80"
+      ],
+      "sha256": "ab225b6c37967f7d4aadbf8bee83442a39d1affe12852dcf8dc3b0599ed6d936",
+      "inputSha256": "50fce8843b0c898eb802da527b3df3fe6e4e5b83a1f6226e566f9bba3133259f"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x0",
+        "0x80"
+      ],
+      "sha256": "c216a27bbea8a35d75b3b0a4c7c79bb1d3698c2aeee7bbe921f174f385a91c2d",
+      "inputSha256": "6f087a01631d83e58ce85cbe93b9f0ba7fca328122547842ea581a32ef9ef9c5"
+    },
+    {
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "blockHash": "0x7fc2567c065bc2ba1d52f2eb9e1ba8ed2f504e82c27eeb5b3f7137b2a5433a93"
+        }
+      ],
+      "sha256": "ac6e2bbfe9da4805a265ae2c816e74b63a433847eb555b2dfd9375c3d4a7d29e",
+      "inputSha256": "375ed4c8605b0d0342d68ebeadcbf913c970457270ededfaf38a562ee8ca09a0"
+    },
+    {
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x80"
+      ],
+      "sha256": "c9712013509bc01bb593b025b2939c1ace218da8b118106d41f5af4183e9f844",
+      "inputSha256": "0e3f413294f91b443f05ef77f1ce5aafd47f5f33daf4b3818158366d042bc356"
+    },
+    {
+      "method": "eth_estimateGas",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x80"
+      ],
+      "sha256": "93b0a50f9717cafeaa5110078843f04a2de2d15601147e3f5c0503a5aa09333e",
+      "inputSha256": "0e3f413294f91b443f05ef77f1ce5aafd47f5f33daf4b3818158366d042bc356"
+    },
+    {
+      "method": "debug_traceCall",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x80",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "8c07a7a126dce6889f37f14232720873c4c9c7c7fc54747cb469a4b27a6c4fe8",
+      "inputSha256": "cbfb4b14386cc7d870f165dbb416715c4250f7418233c55d2d555af47200a678"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x80",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "b6c9870e3d184f1529b530a8b302977dc706e98b6dc871741f9af5b673532115",
+      "inputSha256": "6f23f9126ea05f75b7b78146c0b0878c563150b51a29bb09c7d67a9669cc410f"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x80",
+        {
+          "tracer": "prestateTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "feefef7f43bed1c4e0115042f4d45a825d53bb80e33bae2689032f606719d02d",
+      "inputSha256": "b70d83378e120102fc1d96ee56fc1cf2d7fe8d698d9e4abd438bbf9166f6f0a4"
+    },
+    {
+      "method": "eth_getTransactionByHash",
+      "params": [
+        "0xac6017ee350aa5f3afa733bafc7472a67918bea58f258e7692a286ceebc4d691"
+      ],
+      "sha256": "c21f8d7de48d5db75c6e6c3600f38fb2ec869840351a30a753285a867bda5d63",
+      "inputSha256": "b2aab2e2663e632b975ad969c8bc8458c0266265226d61b039ad097398b408dc"
+    },
+    {
+      "method": "eth_getTransactionReceipt",
+      "params": [
+        "0xac6017ee350aa5f3afa733bafc7472a67918bea58f258e7692a286ceebc4d691"
+      ],
+      "sha256": "10cf6af4eec927e3908418db9891d2a4b5b5f5bbcfeef07573031bfe31eaf989",
+      "inputSha256": "b2aab2e2663e632b975ad969c8bc8458c0266265226d61b039ad097398b408dc"
+    },
+    {
+      "method": "debug_traceTransaction",
+      "params": [
+        "0xac6017ee350aa5f3afa733bafc7472a67918bea58f258e7692a286ceebc4d691",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "e1c3d38c74785397d1cc8a392bbe9256e042ca25394d96e4ed9131f6d2bd5786",
+      "inputSha256": "029544cd104e69c13624dd9c5c5a2aa6e6416bc82962bcb2ab654f1b89866454"
+    },
+    {
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x100",
+        false
+      ],
+      "sha256": "8bdc69619db39197edea0d07f2985ff364e7bc4c24da596274900668e420389f",
+      "inputSha256": "801afaaa40c8d72be771fea6fff5cb23da14cf997c45bfa736d0e1c76166d150"
+    },
+    {
+      "method": "eth_getBlockByHash",
+      "params": [
+        "0x6f058b5e86986cf7b1473d42fb6539c5bc35d54914fd5f7b78e54a21761fd32c",
+        true
+      ],
+      "sha256": "bddcfed71c614dddc8a3acacbce5306cf44a2b2383ef52107bf86bfb07533997",
+      "inputSha256": "4d839e8b380618532a8c57adbb2a46f88a3e3491f1801487b646c7367f9369da"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x2efd3cf0733421aec3e4202480d0a90bd1575149",
+        "0x100"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "eee41b73edec9c875482d45cf5659d7869a6b01ec602d338867a8603c35c6fe4"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x2efd3cf0733421aec3e4202480d0a90bd1575149",
+        "0x100"
+      ],
+      "sha256": "ff3d6a9beb6e758eaf6ac7ed05b93d87c6bdb917767f060c2255b4284e730ff4",
+      "inputSha256": "eee41b73edec9c875482d45cf5659d7869a6b01ec602d338867a8603c35c6fe4"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x2efd3cf0733421aec3e4202480d0a90bd1575149",
+        "0x100"
+      ],
+      "sha256": "1c9409806518d1a5f52d79299ea0289ea2ff527e05895cd8f7a36d4cca28a13e",
+      "inputSha256": "eee41b73edec9c875482d45cf5659d7869a6b01ec602d338867a8603c35c6fe4"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x2efd3cf0733421aec3e4202480d0a90bd1575149",
+        "0x0",
+        "0x100"
+      ],
+      "sha256": "88700ae849c5ddd12e1d8a2c3221be6bec9061deee12e0a7aa7f7e8a0eda2d5f",
+      "inputSha256": "4d9e7186420423e559404249eefe087f38e8c617478d607674ad7cf2862bc6e0"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x100"
+      ],
+      "sha256": "1998dc9b2ef3a58f44f5a6d6e739f6567c8870f6ca7c63f6d35c3e01d24fdd66",
+      "inputSha256": "7958ca217b665e27b27a13363b47a656bb8c39ed57ce4dc7fe7df17650253196"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x100"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "7958ca217b665e27b27a13363b47a656bb8c39ed57ce4dc7fe7df17650253196"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x100"
+      ],
+      "sha256": "ab225b6c37967f7d4aadbf8bee83442a39d1affe12852dcf8dc3b0599ed6d936",
+      "inputSha256": "7958ca217b665e27b27a13363b47a656bb8c39ed57ce4dc7fe7df17650253196"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x0",
+        "0x100"
+      ],
+      "sha256": "c216a27bbea8a35d75b3b0a4c7c79bb1d3698c2aeee7bbe921f174f385a91c2d",
+      "inputSha256": "7e4e1543cdd212a426e372aae5de3678aeec10b6ad8e9dd0be76f28ae36b9654"
+    },
+    {
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "blockHash": "0x6f058b5e86986cf7b1473d42fb6539c5bc35d54914fd5f7b78e54a21761fd32c"
+        }
+      ],
+      "sha256": "a35afe65dde58ea755b06469208dd9182edd1fce4c49b66c2f2c966d8d3c0fbd",
+      "inputSha256": "eb8f465b360105a6afd316c869191c3ec66a33b55353b74c4a67064534d03802"
+    },
+    {
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x100"
+      ],
+      "sha256": "c9712013509bc01bb593b025b2939c1ace218da8b118106d41f5af4183e9f844",
+      "inputSha256": "a54893aab6b5e3c8ec76090ec33f1de43d006403ff8ab01ee5a72303b9a44451"
+    },
+    {
+      "method": "eth_estimateGas",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x100"
+      ],
+      "sha256": "93b0a50f9717cafeaa5110078843f04a2de2d15601147e3f5c0503a5aa09333e",
+      "inputSha256": "a54893aab6b5e3c8ec76090ec33f1de43d006403ff8ab01ee5a72303b9a44451"
+    },
+    {
+      "method": "debug_traceCall",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x100",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "8c07a7a126dce6889f37f14232720873c4c9c7c7fc54747cb469a4b27a6c4fe8",
+      "inputSha256": "439b22ea6e54f2059573df0e10a684783272fc50ff2cb101d3e3f7d1829fef56"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x100",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "d52cb1f21e8b7ce17cb612bc008b2308eaadd22a63a580bd71ebbd67e5c4c714",
+      "inputSha256": "5d4a17c4956f338352c2c428e1cf455ebb52e10b6c148237d332459d791b7342"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x100",
+        {
+          "tracer": "prestateTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "49533691796dce2d361303d5ba202c568a2f8d456837f555dd4734590a55a9a5",
+      "inputSha256": "a2123d42c280146f5193c0368dcea8bb4742aa07f61d38fd0ea2b84401abdd2d"
+    },
+    {
+      "method": "eth_getTransactionByHash",
+      "params": [
+        "0xc80eab3202321b802605c8802b5c7bc1b4b30021091d6ff35ead3a5c939a5eb2"
+      ],
+      "sha256": "bd439ea86a929e87bdba6024e873f9134ca05e8483c921cfa5fdb1ec46368145",
+      "inputSha256": "57b635398c8178e1923d92079fdb4f52918b207fc87848a74139b052c8f6c451"
+    },
+    {
+      "method": "eth_getTransactionReceipt",
+      "params": [
+        "0xc80eab3202321b802605c8802b5c7bc1b4b30021091d6ff35ead3a5c939a5eb2"
+      ],
+      "sha256": "75ad8ef5d3f38fcb97856b427bfc19dc4f41d19d29aeb27e7a81d5cd5f189134",
+      "inputSha256": "57b635398c8178e1923d92079fdb4f52918b207fc87848a74139b052c8f6c451"
+    },
+    {
+      "method": "debug_traceTransaction",
+      "params": [
+        "0xc80eab3202321b802605c8802b5c7bc1b4b30021091d6ff35ead3a5c939a5eb2",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "48fb32cf93cff6ea920ec2d3c54ddc4d57219b344073c5402b1a7b92465490a7",
+      "inputSha256": "d8cd5838b621811543ab549a36c3d66829e03cdd2b610a221532be367fb6e69f"
+    },
+    {
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x200",
+        false
+      ],
+      "sha256": "e71186ba45317594db521a986c1548a825371eee4c5815d3629c2f31b966bc06",
+      "inputSha256": "8f7a79ba99263be617e240a61c16d7f705db850164f3d6b9ac635fd8f77fd1d0"
+    },
+    {
+      "method": "eth_getBlockByHash",
+      "params": [
+        "0x0b01ad0b8b046218b6bb0777e00bcad41c0c363861ca9495f79b114cf341c4a3",
+        true
+      ],
+      "sha256": "20b77ddb60ddf8dca42590031508ddc419d6efe8c7f97b8578ce77557794cc44",
+      "inputSha256": "ba593a1d5d1652fb8122e45703d6aeb4ddf7f5119e14419230bb04c9135246db"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x3511e3b8ac7336b99517d324145e9b5bb33e08a4",
+        "0x200"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "266e6e3ded5c54e8d0d8fb7defa76d9aa68be3421122e7a3d44e1533cc328278"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x3511e3b8ac7336b99517d324145e9b5bb33e08a4",
+        "0x200"
+      ],
+      "sha256": "7aae08d85c73acd442a5a38b9e37fe7e5150078363a15f27ec78ced9fe7dad6c",
+      "inputSha256": "266e6e3ded5c54e8d0d8fb7defa76d9aa68be3421122e7a3d44e1533cc328278"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x3511e3b8ac7336b99517d324145e9b5bb33e08a4",
+        "0x200"
+      ],
+      "sha256": "1c9409806518d1a5f52d79299ea0289ea2ff527e05895cd8f7a36d4cca28a13e",
+      "inputSha256": "266e6e3ded5c54e8d0d8fb7defa76d9aa68be3421122e7a3d44e1533cc328278"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x3511e3b8ac7336b99517d324145e9b5bb33e08a4",
+        "0x0",
+        "0x200"
+      ],
+      "sha256": "88700ae849c5ddd12e1d8a2c3221be6bec9061deee12e0a7aa7f7e8a0eda2d5f",
+      "inputSha256": "e8a9a0f764714bdc5b322618e0ce99a27ae5c0de0de6a7521af27a2e758ded12"
+    },
+    {
+      "method": "eth_getBalance",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x200"
+      ],
+      "sha256": "1998dc9b2ef3a58f44f5a6d6e739f6567c8870f6ca7c63f6d35c3e01d24fdd66",
+      "inputSha256": "b578330e704d72eaded31666dde83161d1c2001eefde85d41d1b357a22685f39"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x200"
+      ],
+      "sha256": "900238c4b70206173dcafad0d497ed0bebd778006f3b81be8c97a5f117295fb3",
+      "inputSha256": "b578330e704d72eaded31666dde83161d1c2001eefde85d41d1b357a22685f39"
+    },
+    {
+      "method": "eth_getCode",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x200"
+      ],
+      "sha256": "ab225b6c37967f7d4aadbf8bee83442a39d1affe12852dcf8dc3b0599ed6d936",
+      "inputSha256": "b578330e704d72eaded31666dde83161d1c2001eefde85d41d1b357a22685f39"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "params": [
+        "0x0000000000000000000000000000000000001000",
+        "0x0",
+        "0x200"
+      ],
+      "sha256": "c216a27bbea8a35d75b3b0a4c7c79bb1d3698c2aeee7bbe921f174f385a91c2d",
+      "inputSha256": "7db022ae97f2beed7c1d9de46a637cadc80b7bcff641260e3c1df52b100d21bb"
+    },
+    {
+      "method": "eth_getLogs",
+      "params": [
+        {
+          "blockHash": "0x0b01ad0b8b046218b6bb0777e00bcad41c0c363861ca9495f79b114cf341c4a3"
+        }
+      ],
+      "sha256": "ac5662297ee9436d145ab12ba17de900f5790e6bc4603409cd2bc08853984cf2",
+      "inputSha256": "119aed38ad5f9ad888d5919cef52dd4b38451bb32f6a19f3c4ef322592194154"
+    },
+    {
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x200"
+      ],
+      "sha256": "c9712013509bc01bb593b025b2939c1ace218da8b118106d41f5af4183e9f844",
+      "inputSha256": "359a6e69c408fc43ce8bca103a70612b5e20155ac1f8c94a892bed437a36736b"
+    },
+    {
+      "method": "eth_estimateGas",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x200"
+      ],
+      "sha256": "93b0a50f9717cafeaa5110078843f04a2de2d15601147e3f5c0503a5aa09333e",
+      "inputSha256": "359a6e69c408fc43ce8bca103a70612b5e20155ac1f8c94a892bed437a36736b"
+    },
+    {
+      "method": "debug_traceCall",
+      "params": [
+        {
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0xb7ab4db5",
+          "gas": "0x989680"
+        },
+        "0x200",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "8c07a7a126dce6889f37f14232720873c4c9c7c7fc54747cb469a4b27a6c4fe8",
+      "inputSha256": "b9b91c4421d996c3a5e947b386ed815a96b8929afaeb6310de9bb885188db170"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x200",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "a55822e63143c2ce8c5e5d0c00e4124a879cea6da14138f6448f34ed93b2e921",
+      "inputSha256": "992ecbc30177b859ee1e94005e9643c588537243e79c89c6935fcf1dd64e9fc2"
+    },
+    {
+      "method": "debug_traceBlockByNumber",
+      "params": [
+        "0x200",
+        {
+          "tracer": "prestateTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "5d6d51d3f4674618e23a2e81234123080d608ce17e3cf5977c1ebf8664412e75",
+      "inputSha256": "b7a1ecd42f9dcc0c5d45d676ff775acbcbfe16e486a32a84ba738c6d1a12d5a2"
+    },
+    {
+      "method": "eth_getTransactionByHash",
+      "params": [
+        "0x7035f431b7e640f3a867e1ffc99e968b368171b9cab753c215e0565ff23497d6"
+      ],
+      "sha256": "c23e6f90747271b21c43b0ff5a446250a575610c527a3fa0c9333dd9ad0e3e31",
+      "inputSha256": "ba71036e9a27a26191a83b4b34aec9cf828e2001d132c72de17ed2e886f76919"
+    },
+    {
+      "method": "eth_getTransactionReceipt",
+      "params": [
+        "0x7035f431b7e640f3a867e1ffc99e968b368171b9cab753c215e0565ff23497d6"
+      ],
+      "sha256": "6dd59a6f90678006a91d638200ef8e120187928e657ddfea414aff683f03e981",
+      "inputSha256": "ba71036e9a27a26191a83b4b34aec9cf828e2001d132c72de17ed2e886f76919"
+    },
+    {
+      "method": "debug_traceTransaction",
+      "params": [
+        "0x7035f431b7e640f3a867e1ffc99e968b368171b9cab753c215e0565ff23497d6",
+        {
+          "tracer": "callTracer",
+          "timeout": "60s"
+        }
+      ],
+      "sha256": "e5f45b95b1fe6904438b4f9cac12aa3eb0eb7b2837b2ff3d400e3c1b9a61d9c1",
+      "inputSha256": "962a8d6a66db26c34633de9426202f525447ba7d3437d6a772543ba93a5f0ff9"
+    }
+  ],
+  "passed": 102,
+  "candidateBuild": {
+    "coreVersion": "1.0.27",
+    "gethVersion": "1.16.9",
+    "sourceCommit": "2f9c0ec45634046cc3cc89a39cad09f8d547111e",
+    "buildDate": "20261109",
+    "platform": "darwin-arm64",
+    "goVersion": "go1.24.4"
+  }
+}

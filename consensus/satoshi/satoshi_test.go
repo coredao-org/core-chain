@@ -724,6 +724,50 @@ func TestSatoshi_applyTransactionTracing(t *testing.T) {
 	}
 }
 
+// Before Hermes, system transactions start with no warm addresses or slots,
+// including after Berlin enables the EIP-2929 gas operations.
+func TestSystemTransactionAccessList(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		number int64
+		time   uint64
+		gas    uint64
+	}{
+		{"before Berlin", 19_537_199, 1_731_100_000, 2_315},
+		{"Berlin", 19_537_200, 1_731_100_000, 4_815},
+		{"Hermes", 30_000_000, *params.CoreChainConfig.HermesTime, 2_315},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			statedb, err := state.New(types.EmptyRootHash, state.NewDatabaseForTesting())
+			if err != nil {
+				t.Fatal(err)
+			}
+			from, to := common.HexToAddress("0x1234"), common.HexToAddress("0x5678")
+			// Read a slot twice, then read the sender's balance. Both were warm
+			// in the preceding transaction and must be reset for this one.
+			code := append(common.FromHex("0x600054506000545073"), from.Bytes()...)
+			code = append(code, byte(vm.BALANCE), byte(vm.POP), byte(vm.STOP))
+			statedb.SetCode(to, code, tracing.CodeChangeUnspecified)
+			statedb.AddAddressToAccessList(from)
+			statedb.AddSlotToAccessList(to, common.Hash{})
+			header := &types.Header{Number: big.NewInt(tc.number), Time: tc.time}
+			msg := &core.Message{From: from, To: &to, GasLimit: 100_000, Value: new(big.Int), GasPrice: new(big.Int)}
+			evm := vm.NewEVM(vm.BlockContext{
+				BlockNumber: header.Number, Time: header.Time,
+				CanTransfer: core.CanTransfer, Transfer: core.Transfer,
+			}, statedb, params.CoreChainConfig, vm.Config{})
+			evm.SetTxContext(core.NewEVMTxContext(msg))
+			gas, err := applyMessage(msg, evm, statedb, header, params.CoreChainConfig, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if gas != tc.gas {
+				t.Fatalf("system transaction gas = %d, want %d", gas, tc.gas)
+			}
+		})
+	}
+}
+
 func formatRecords(records []string) string {
 	indented := make([]string, 0, len(records))
 	for _, record := range records {

@@ -204,11 +204,6 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'seedHash',
-			call: 'debug_seedHash',
-			params: 1
-		}),
-		new web3._extend.Method({
 			name: 'dumpBlock',
 			call: 'debug_dumpBlock',
 			params: 1,
@@ -234,11 +229,6 @@ web3._extend({
 			params: 1
 		}),
 		new web3._extend.Method({
-			name: 'backtraceAt',
-			call: 'debug_backtraceAt',
-			params: 1,
-		}),
-		new web3._extend.Method({
 			name: 'stacks',
 			call: 'debug_stacks',
 			params: 1,
@@ -253,6 +243,11 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'setGCPercent',
 			call: 'debug_setGCPercent',
+			params: 1,
+		}),
+		new web3._extend.Method({
+			name: 'setMemoryLimit',
+			call: 'debug_setMemoryLimit',
 			params: 1,
 		}),
 		new web3._extend.Method({
@@ -453,6 +448,17 @@ web3._extend({
 			name: 'getTrieFlushInterval',
 			call: 'debug_getTrieFlushInterval',
 			params: 0
+		}),
+		new web3._extend.Method({
+			name: 'sync',
+			call: 'debug_sync',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'stateSize',
+			call: 'debug_stateSize',
+			params: 1,
+			inputFormatter: [null],
 		}),
 	],
 	properties: []

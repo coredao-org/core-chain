@@ -128,6 +128,18 @@ func testRequestRoot(t *testing.T, protocol uint) {
 	backend := newTestBackend(blockNum)
 	defer backend.close()
 
+	// Supply trusted diff fixtures explicitly: this is a protocol response test,
+	// independent of whether the block processor generates legacy diffs.
+	diffStore := rawdb.NewMemoryDatabase()
+	defer diffStore.Close()
+	backend.db.SetDiffStore(diffStore)
+	for _, number := range []uint64{128, 1024} {
+		header := backend.chain.GetHeaderByNumber(number)
+		rawdb.WriteDiffLayer(diffStore, header.Hash(), &types.DiffLayer{
+			BlockHash: header.Hash(), Number: number,
+		})
+	}
+
 	peer, _ := newTestPeer("peer", protocol, backend)
 	defer peer.close()
 
@@ -265,9 +277,15 @@ func testRequestRoot(t *testing.T, protocol uint) {
 			}
 		}
 
-		p2p.Send(peer.app, RequestRootMsg, pair.req)
+		// MsgPipe writes wait for the payload to be consumed. The handler
+		// discards any remaining request bytes after writing its response.
+		sent := make(chan error, 1)
+		go func() { sent <- p2p.Send(peer.app, RequestRootMsg, pair.req) }()
 		if err := p2p.ExpectMsg(peer.app, RespondRootMsg, pair.res); err != nil {
 			t.Errorf("test %d: root response not expected: %v", idx, err)
+		}
+		if err := <-sent; err != nil {
+			t.Fatal(err)
 		}
 	}
 }

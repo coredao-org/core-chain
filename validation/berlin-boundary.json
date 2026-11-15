@@ -1,0 +1,150 @@
+{
+  "observedAtUTC": "2026-11-12T02:18:49.261241+00:00",
+  "referenceVersion": "Geth/v1.0.27-90aca9a0-20261031/linux-amd64/go1.23.12",
+  "allowedAdditionalFields": [
+    "blockTimestamp"
+  ],
+  "checks": [
+    {
+      "block": 19537199,
+      "method": "eth_getBlockByNumber",
+      "sha256": "8725dfff420e4696bc1a5b19e4de8efe8391697b551b448271e2f309a09b8c37"
+    },
+    {
+      "block": 19537199,
+      "method": "eth_getBlockReceipts",
+      "sha256": "b3cc749ea9a1e9951c563bdc42c6ae8120dd3fdc30507a5d38421ef76ee61215"
+    },
+    {
+      "block": 19537199,
+      "method": "debug_traceBlockByNumber",
+      "sha256": "27ff73ce90d16ab1dd0eb60138cd61223a87fcc41642cfc5772a0165dc9352b5"
+    },
+    {
+      "block": 19537199,
+      "method": "debug_traceBlockByNumber",
+      "sha256": "792e817b84546fcdbf1ddf3df36270b837e15c830e9a39529fd0a4d77fb2073a"
+    },
+    {
+      "block": 19537199,
+      "method": "eth_getBalance",
+      "sha256": "137669557689b1bbb168a2694917bee3405e06932a3b6c289d363b456d593b1c"
+    },
+    {
+      "block": 19537199,
+      "method": "eth_getCode",
+      "sha256": "997c3d24e65c7698230b7a770dc0392022efcb887d33f9f8aa225bbdc326b713"
+    },
+    {
+      "block": 19537199,
+      "method": "eth_getStorageAt",
+      "sha256": "c216a27bbea8a35d75b3b0a4c7c79bb1d3698c2aeee7bbe921f174f385a91c2d"
+    },
+    {
+      "block": 19537199,
+      "method": "eth_call",
+      "sha256": "1a300e51b98b130604c51ce1b2584f50c577a56185d7c24960e0b40ca57656f6"
+    },
+    {
+      "block": 19537200,
+      "method": "eth_getBlockByNumber",
+      "sha256": "d019b9e7d91c68fe073b56b37a3a304a466dd5925c0484ffe47e6e0fba78a3a8"
+    },
+    {
+      "block": 19537200,
+      "method": "eth_getBlockReceipts",
+      "sha256": "dadf289e80da6fca66ff16eaaa6700eb1724701cb595767dc56274d45be2be1d"
+    },
+    {
+      "block": 19537200,
+      "method": "debug_traceBlockByNumber",
+      "sha256": "3d970514e590e445135ca7e82b72cdc3a5148463fc67f252cf4ea8da0353a793"
+    },
+    {
+      "block": 19537200,
+      "method": "debug_traceBlockByNumber",
+      "sha256": "ea7ed32b4ab9e354c6306a481538cb033b6ba2299b485971f0f920257cfd09f6"
+    },
+    {
+      "block": 19537200,
+      "method": "eth_getBalance",
+      "sha256": "5871e4f8a66ee1851a9a57db846c8059b0c4757d2b7633f49c864beeff9fe02d"
+    },
+    {
+      "block": 19537200,
+      "method": "eth_getCode",
+      "sha256": "997c3d24e65c7698230b7a770dc0392022efcb887d33f9f8aa225bbdc326b713"
+    },
+    {
+      "block": 19537200,
+      "method": "eth_getStorageAt",
+      "sha256": "c216a27bbea8a35d75b3b0a4c7c79bb1d3698c2aeee7bbe921f174f385a91c2d"
+    },
+    {
+      "block": 19537200,
+      "method": "eth_call",
+      "sha256": "1a300e51b98b130604c51ce1b2584f50c577a56185d7c24960e0b40ca57656f6"
+    },
+    {
+      "block": 19537201,
+      "method": "eth_getBlockByNumber",
+      "sha256": "7b5ef2c8165be910251d7f58c5be1be56cc14356e7250bda168a964425475c49"
+    },
+    {
+      "block": 19537201,
+      "method": "eth_getBlockReceipts",
+      "sha256": "8517f32a81ad318d1f49711c0f2b44f9bd948dfcfabc7f3b22a8468b296cf891"
+    },
+    {
+      "block": 19537201,
+      "method": "debug_traceBlockByNumber",
+      "sha256": "8be69f038c13894869585f691718356ef623a8380406d65b75e154ed8af0cab9"
+    },
+    {
+      "block": 19537201,
+      "method": "debug_traceBlockByNumber",
+      "sha256": "105189bcc8594cdb2901c418e18b4729c77fd67de187fe47b8c2ec9fb1096b0e"
+    },
+    {
+      "block": 19537201,
+      "method": "eth_getBalance",
+      "sha256": "08243895eab2336fd070e2b543066b10cb455da76fe8b080488ed5b079978318"
+    },
+    {
+      "block": 19537201,
+      "method": "eth_getCode",
+      "sha256": "997c3d24e65c7698230b7a770dc0392022efcb887d33f9f8aa225bbdc326b713"
+    },
+    {
+      "block": 19537201,
+      "method": "eth_getStorageAt",
+      "sha256": "c216a27bbea8a35d75b3b0a4c7c79bb1d3698c2aeee7bbe921f174f385a91c2d"
+    },
+    {
+      "block": 19537201,
+      "method": "eth_call",
+      "sha256": "1a300e51b98b130604c51ce1b2584f50c577a56185d7c24960e0b40ca57656f6"
+    }
+  ],
+  "passed": 24,
+  "validatedSourceCommit": "86bcb14892c3ca01e4771e2fee5de62003fdd0cd",
+  "canonicalImport": "Full sync passed the Berlin boundary with normal state-root, receipt-root, gas and bloom validation enabled.",
+  "regression": {
+    "command": "GOMAXPROCS=2 go test -p=1 -parallel=1 -timeout=4m ./consensus/satoshi ./core/state ./core/vm",
+    "result": "passed",
+    "reproducedBeforeFix": "TestSystemTransactionAccessList/Berlin panicked in StateDB.SlotInAccessList before the fix.",
+    "gasCases": [
+      "before Berlin: 2315",
+      "Berlin: 4815",
+      "Hermes: 2315"
+    ]
+  },
+  "candidateBuild": {
+    "coreVersion": "1.0.27",
+    "gethVersion": "1.16.9",
+    "sourceCommit": "86bcb14892c3ca01e4771e2fee5de62003fdd0cd",
+    "buildDate": "20261112",
+    "platform": "linux-amd64",
+    "goVersion": "go1.24.13"
+  }
+}

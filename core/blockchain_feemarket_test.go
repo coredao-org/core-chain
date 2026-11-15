@@ -37,6 +37,11 @@ import (
 	"github.com/holiman/uint256"
 )
 
+var (
+	testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	testAddr   = crypto.PubkeyToAddress(testKey.PublicKey)
+)
+
 func getFeeMarketGenesisAlloc(maxRewards, maxEvents uint8, maxGas uint32) (accountAddress common.Address, account types.Account) {
 	constantsBytes := make([]byte, 32)
 	binary.BigEndian.PutUint32(constantsBytes[24:28], maxGas)

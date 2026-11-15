@@ -25,8 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/gopool"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -173,20 +171,16 @@ func (stat *generateStats) report() {
 		// If there's progress on the account trie, estimate the time to finish crawling it
 		if done := binary.BigEndian.Uint64(stat.head[:8]) / stat.accounts; done > 0 {
 			var (
-				left  = (math.MaxUint64 - binary.BigEndian.Uint64(stat.head[:8])) / stat.accounts
-				speed = done/uint64(time.Since(stat.start)/time.Millisecond+1) + 1 // +1s to avoid division by zero
-				eta   = time.Duration(left/speed) * time.Millisecond
+				left = (math.MaxUint64 - binary.BigEndian.Uint64(stat.head[:8])) / stat.accounts
+				eta  = common.CalculateETA(done, left, time.Since(stat.start))
 			)
 			// If there are large contract crawls in progress, estimate their finish time
 			for acc, head := range stat.slotsHead {
 				start := stat.slotsStart[acc]
 				if done := binary.BigEndian.Uint64(head[:8]); done > 0 {
-					var (
-						left  = math.MaxUint64 - binary.BigEndian.Uint64(head[:8])
-						speed = done/uint64(time.Since(start)/time.Millisecond+1) + 1 // +1s to avoid division by zero
-					)
+					left := math.MaxUint64 - binary.BigEndian.Uint64(head[:8])
 					// Override the ETA if larger than the largest until now
-					if slotETA := time.Duration(left/speed) * time.Millisecond; eta < slotETA {
+					if slotETA := common.CalculateETA(done, left, time.Since(start)); eta < slotETA {
 						eta = slotETA
 					}
 				}
@@ -308,8 +302,7 @@ func generateTrieRoot(db ethdb.KeyValueWriter, scheme string, it Iterator, accou
 				if err != nil {
 					return stop(err)
 				}
-				hash := it.Hash()
-				gopool.Submit(func() {
+				go func(hash common.Hash) {
 					subroot, err := leafCallback(db, hash, common.BytesToHash(account.CodeHash), stats)
 					if err != nil {
 						results <- err
@@ -320,7 +313,7 @@ func generateTrieRoot(db ethdb.KeyValueWriter, scheme string, it Iterator, accou
 						return
 					}
 					results <- nil
-				})
+				}(it.Hash())
 				fullData, err = rlp.EncodeToBytes(account)
 				if err != nil {
 					return stop(err)

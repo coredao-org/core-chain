@@ -110,7 +110,7 @@ func journalProgress(db ethdb.KeyValueWriter, marker []byte, stats *generatorSta
 	default:
 		logstr = fmt.Sprintf("%#x:%#x", marker[:common.HashLength], marker[common.HashLength:])
 	}
-	log.Debug("Journaled generator progress", "progress", logstr)
+	log.Debug("Journalled generator progress", "progress", logstr)
 	rawdb.WriteSnapshotGenerator(db, blob)
 }
 

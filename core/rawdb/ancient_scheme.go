@@ -93,7 +93,11 @@ var freezers = []string{ChainFreezerName, MerkleStateFreezerName, VerkleStateFre
 //     state freezer (e.g. dev mode).
 //   - if non-empty directory is given, initializes the regular file-based
 //     state freezer.
-func NewStateFreezer(ancientDir string, verkle bool, readOnly bool, offset uint64) (ethdb.ResettableAncientStore, error) {
+func NewStateFreezer(ancientDir string, verkle bool, readOnly bool, offsets ...uint64) (ethdb.ResettableAncientStore, error) {
+	var offset uint64
+	if len(offsets) > 0 {
+		offset = offsets[0]
+	}
 	if ancientDir == "" {
 		return NewMemoryFreezer(readOnly, stateFreezerNoSnappy), nil
 	}
@@ -104,4 +108,25 @@ func NewStateFreezer(ancientDir string, verkle bool, readOnly bool, offset uint6
 		name = filepath.Join(ancientDir, MerkleStateFreezerName)
 	}
 	return newResettableFreezer(name, "eth/db/state", readOnly, offset, stateHistoryTableSize, stateFreezerNoSnappy)
+}
+
+const (
+	trienodeHistoryHeaderTable       = "trienode.header"
+	trienodeHistoryKeySectionTable   = "trienode.key"
+	trienodeHistoryValueSectionTable = "trienode.value"
+	MerkleTrienodeFreezerName        = "trienode"
+	VerkleTrienodeFreezerName        = "trienode_verkle"
+)
+
+var trienodeFreezerNoSnappy = map[string]bool{trienodeHistoryHeaderTable: false, trienodeHistoryKeySectionTable: true, trienodeHistoryValueSectionTable: true}
+
+func NewTrienodeFreezer(ancientDir string, verkle bool, readOnly bool) (ethdb.ResettableAncientStore, error) {
+	if ancientDir == "" {
+		return NewMemoryFreezer(readOnly, trienodeFreezerNoSnappy), nil
+	}
+	name := MerkleTrienodeFreezerName
+	if verkle {
+		name = VerkleTrienodeFreezerName
+	}
+	return newResettableFreezer(filepath.Join(ancientDir, name), "eth/db/trienode", readOnly, 0, stateHistoryTableSize, trienodeFreezerNoSnappy)
 }

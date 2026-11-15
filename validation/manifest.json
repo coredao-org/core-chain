@@ -1,0 +1,79 @@
+{
+  "validatedSourceCommit": "2f9c0ec45634046cc3cc89a39cad09f8d547111e",
+  "coreBase": {
+    "tag": "v1.0.27",
+    "commit": "90aca9a0640a9f3194f1f42c27f3f637da7d804c"
+  },
+  "gethBase": {
+    "tag": "v1.16.9",
+    "commit": "95665d5703e1023995a0ff93e4ce9eb77e8a59bd"
+  },
+  "dateUTC": "2026-11-09T17:01:37.987120+00:00",
+  "canonicalImport": {
+    "fromBlock": 1,
+    "toBlock": 512,
+    "transactions": 532,
+    "genesisHash": "0xf7fc87f11e61508a5828cd1508060ed1714c8d32a92744ae10acb43c953357ad",
+    "headHash": "0x0b01ad0b8b046218b6bb0777e00bcad41c0c363861ca9495f79b114cf341c4a3",
+    "headStateRoot": "0x668eb2e4370d95fc297923d0478d39a27b7a6ee5582940cdf47f8527f06d4311",
+    "rlpSha256": "9be4c8ac045ca7b83b26175c77432a1d9907fc4cefa4c8f299e73dd115ab4abf",
+    "validates": [
+      "state root",
+      "receipt root",
+      "gas used",
+      "logs bloom"
+    ]
+  },
+  "archive": {
+    "stateScheme": "path",
+    "syncMode": "full",
+    "historyState": 0,
+    "historyTransactions": 0,
+    "gcmode": "archive",
+    "restartedBeforeComparison": true,
+    "syncing": false
+  },
+  "comparisons": {
+    "rpc": "rpc-comparison.json",
+    "rpcChecks": 102,
+    "modernReplay": "modern-replay.json",
+    "modernReplayChecks": 10,
+    "candidateLogTimestampsChecked": 7,
+    "allowedAdditionalFields": [
+      "blockTimestamp"
+    ]
+  },
+  "limitations": [
+    "No full mainnet sync or mainnet disk measurement",
+    "Modern transaction replays use sparse touched prestate and block overrides; they do not validate full modern block state roots",
+    "Historical eth_getProof is unsupported by the flat-state archive",
+    "Validator operation, remote/no-trie verification and persisted diff sync are not qualified or supported"
+  ],
+  "localChecks": {
+    "gethBuild": "passed",
+    "allTestPackages": {
+      "command": "go test -mod=mod -p=1 -parallel=2 -run ^$ ./...",
+      "status": "passed"
+    },
+    "core": {
+      "command": "go test -mod=mod -p=1 -parallel=2 -timeout=8m ./core -count=1",
+      "status": "passed",
+      "durationSeconds": 212.26
+    },
+    "components": {
+      "command": "go test -mod=mod -p=1 -parallel=2 -timeout=3m ./core/vm ./core/state ./core/rawdb ./eth/tracers/native ./eth/tracers/js ./eth/tracers/logger ./core/systemcontracts ./consensus/satoshi",
+      "status": "passed"
+    },
+    "generationAndTidy": {
+      "command": "go run build/ci.go check_generate",
+      "status": "passed"
+    },
+    "lint": {
+      "version": "golangci-lint 2.4.0",
+      "concurrency": 2,
+      "status": "passed",
+      "issues": 0
+    },
+    "GOMAXPROCS": 2
+  }
+}

@@ -763,13 +763,16 @@ func init() {
 }
 
 func TryUpdateBuildInSystemContract(config *params.ChainConfig, blockNumber *big.Int, lastBlockTime uint64, blockTime uint64, statedb vm.StateDB, atBlockBegin bool) {
+	if config.Satoshi == nil {
+		return
+	}
 	if atBlockBegin {
 		if !config.IsHermes(blockNumber, lastBlockTime) {
 			upgradeBuildInSystemContract(config, blockNumber, lastBlockTime, blockTime, statedb)
 		}
 		// HistoryStorageAddress is a special system contract in bsc, which can't be upgraded
 		if config.IsOnPrague(blockNumber, lastBlockTime, blockTime) {
-			statedb.SetCode(params.HistoryStorageAddress, params.HistoryStorageCode)
+			statedb.SetCode(params.HistoryStorageAddress, params.HistoryStorageCode, tracing.CodeChangeUnspecified)
 			statedb.SetNonce(params.HistoryStorageAddress, 1, tracing.NonceChangeNewContract)
 			log.Info("Set code for HistoryStorageAddress", "blockNumber", blockNumber.Int64(), "blockTime", blockTime)
 		}
@@ -850,7 +853,7 @@ func applySystemContractUpgrade(upgrade *Upgrade, blockNumber *big.Int, statedb 
 		if err != nil {
 			panic(fmt.Errorf("failed to decode new contract code: %s", err.Error()))
 		}
-		statedb.SetCode(cfg.ContractAddr, newContractCode)
+		statedb.SetCode(cfg.ContractAddr, newContractCode, tracing.CodeChangeUnspecified)
 
 		if cfg.AfterUpgrade != nil {
 			err := cfg.AfterUpgrade(blockNumber, cfg.ContractAddr, statedb)

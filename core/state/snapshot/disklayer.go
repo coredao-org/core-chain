@@ -74,12 +74,6 @@ func (dl *diskLayer) Stale() bool {
 	return dl.stale
 }
 
-// Accounts directly retrieves all accounts in current snapshot in
-// the snapshot slim data format.
-func (dl *diskLayer) Accounts() (map[common.Hash]*types.SlimAccount, error) {
-	return nil, nil
-}
-
 // markStale sets the stale flag as true.
 func (dl *diskLayer) markStale() {
 	dl.lock.Lock()

@@ -368,3 +368,10 @@ func (iter *tableIterator) Value() []byte {
 func (iter *tableIterator) Release() {
 	iter.iter.Release()
 }
+
+func (b *tableBatch) DeleteRange(start, end []byte) error {
+	if end == nil {
+		end = ethdb.MaximumKey
+	}
+	return b.batch.DeleteRange(append([]byte(b.prefix), start...), append([]byte(b.prefix), end...))
+}

@@ -478,7 +478,6 @@ func TestReadStateDuringFlattening(t *testing.T) {
 		case <-time.NewTimer(time.Millisecond * 300).C:
 		}
 	}
-
 	// Cap the snap tree, which will mark the bottom-most layer as stale.
 	snaps.Cap(common.HexToHash("0xa3"), 1)
 	select {

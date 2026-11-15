@@ -779,7 +779,7 @@ func parseDumpConfig(ctx *cli.Context, stack *node.Node, db ethdb.Database) (*st
 	} else {
 		// Use latest
 		if scheme == rawdb.PathScheme {
-			triedb := triedb.NewDatabase(db, &triedb.Config{PathDB: utils.PathDBConfigAddJournalFilePath(stack, pathdb.ReadOnly)})
+			triedb := triedb.NewDatabase(db, &triedb.Config{PathDB: pathdb.ReadOnly})
 			defer triedb.Close()
 			if stateRoot := triedb.Head(); stateRoot != (common.Hash{}) {
 				header.Root = stateRoot
@@ -813,10 +813,9 @@ func parseDumpConfig(ctx *cli.Context, stack *node.Node, db ethdb.Database) (*st
 		Start:             start.Bytes(),
 		Max:               ctx.Uint64(utils.DumpLimitFlag.Name),
 	}
-	conf.StateScheme = scheme
 	log.Info("State dump configured", "block", header.Number, "hash", header.Hash().Hex(),
 		"skipcode", conf.SkipCode, "skipstorage", conf.SkipStorage, "start", hexutil.Encode(conf.Start),
-		"limit", conf.Max, "state scheme", conf.StateScheme)
+		"limit", conf.Max, "state scheme", scheme)
 	return conf, header.Root, nil
 }
 
@@ -852,7 +851,7 @@ func dumpAllRootHashInPath(ctx *cli.Context) error {
 	defer stack.Close()
 	db := utils.MakeChainDatabase(ctx, stack, true, false)
 	defer db.Close()
-	triedb := triedb.NewDatabase(db, &triedb.Config{PathDB: utils.PathDBConfigAddJournalFilePath(stack, pathdb.ReadOnly)})
+	triedb := triedb.NewDatabase(db, &triedb.Config{PathDB: pathdb.ReadOnly})
 	defer triedb.Close()
 
 	scheme, err := rawdb.ParseStateScheme(ctx.String(utils.StateSchemeFlag.Name), db)

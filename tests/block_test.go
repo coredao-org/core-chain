@@ -26,6 +26,8 @@ import (
 
 func TestBlockchain(t *testing.T) {
 	bt := new(testMatcher)
+	// Fixture metadata contains no blockchain tests.
+	bt.skipLoad(`.*\.meta/.*`)
 
 	// We are running most of GeneralStatetests to tests witness support, even
 	// though they are ran as state tests too. Still, the performance tests are
@@ -64,8 +66,10 @@ func TestExecutionSpecBlocktests(t *testing.T) {
 	}
 	bt := new(testMatcher)
 
-	// the deployment is different from go-ethereum
-	bt.skipLoad("^prague/eip2935_historical_block_hashes_from_state/contract_deployment/system_contract_deployment.json")
+	// Match Geth v1.16.9: these fixtures require rejecting a missing system
+	// contract, which that release does not enforce.
+	bt.skipLoad(".*prague/eip7251_consolidations/test_system_contract_deployment.json")
+	bt.skipLoad(".*prague/eip7002_el_triggerable_withdrawals/test_system_contract_deployment.json")
 
 	bt.walk(t, executionSpecBlockchainTestDir, func(t *testing.T, name string, test *BlockTest) {
 		execBlockTest(t, bt, test)

@@ -59,8 +59,7 @@ type journal struct {
 // newJournal creates a new initialized journal.
 func newJournal() *journal {
 	return &journal{
-		dirties: make(map[common.Address]int, defaultNumOfSlots),
-		entries: make([]journalEntry, 0, defaultNumOfSlots),
+		dirties: make(map[common.Address]int),
 	}
 }
 
@@ -409,6 +408,7 @@ func (ch storageChange) copy() journalEntry {
 		account:   ch.account,
 		key:       ch.key,
 		prevvalue: ch.prevvalue,
+		origvalue: ch.origvalue,
 	}
 }
 

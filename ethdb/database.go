@@ -18,10 +18,15 @@
 package ethdb
 
 import (
+	"bytes"
+	"errors"
 	"io"
 
 	"github.com/ethereum/go-ethereum/params"
 )
+
+var MaximumKey = bytes.Repeat([]byte{0xff}, 32)
+var ErrTooManyKeys = errors.New("too many keys in deleted range")
 
 // KeyValueReader wraps the Has and Get method of a backing data store.
 type KeyValueReader interface {

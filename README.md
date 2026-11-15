@@ -1,5 +1,7 @@
 ## Core chain
 
+For path archive setup and historical RPC validation with Geth **v1.16.9**, see [RPC/archive documentation](README.archive.md).
+
 Core is an evolution of the Geth codebase. We leveraged the improvements made by the BSC team to add greater throughput and cheaper transactions by way of hard fork. Nevertheless, we differ from BSC in many ways. One preeminent difference is that Core is based on Satoshi Plus Consensus which relies on Proof of Work (PoW) alongside Delegated Proof of Stake (DPoS). With these modifications, we’re able to remain decentralized without the performance tradeoffs seen in traditional PoW consensus systems. Additionally, with our hybrid score based off of both delegated Bitcoin hash power and delegated stake, we’ve created a fluid market for validators and rewards that anyone can participate in.
 
 [![API Reference](
@@ -29,7 +31,7 @@ Many of the below are the same as or similar to go-ethereum.
 
 For prerequisites and detailed build instructions please read the [Installation Instructions](https://geth.ethereum.org/docs/getting-started/installing-geth).
 
-Building `geth` requires both a Go (version 1.22 or later) and a C compiler (GCC 5 or higher). You can install
+Building `geth` requires both a Go (version 1.24 or later) and a C compiler (GCC 5 or higher). You can install
 them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell

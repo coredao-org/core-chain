@@ -46,7 +46,9 @@ func makeTestState(scheme string) (ethdb.Database, Database, *triedb.Database, c
 	// Create an empty state
 	config := &triedb.Config{Preimages: true}
 	if scheme == rawdb.PathScheme {
-		config.PathDB = pathdb.Defaults
+		pconfig := *pathdb.Defaults
+		pconfig.NoAsyncFlush = true
+		config.PathDB = &pconfig
 	} else {
 		config.HashDB = hashdb.Defaults
 	}
@@ -79,7 +81,7 @@ func makeTestState(scheme string) (ethdb.Database, Database, *triedb.Database, c
 		}
 		accounts = append(accounts, acc)
 	}
-	root, _, _ := state.Commit(0, false, false)
+	root, _ := state.Commit(0, false, false)
 
 	// Return the generated state
 	return db, sdb, nodeDb, root, accounts
@@ -270,7 +272,7 @@ func testIterativeStateSync(t *testing.T, count int, commit bool, bypath bool, s
 			}
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch, nil); err != nil {
+		if err := sched.Commit(batch); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
@@ -375,7 +377,7 @@ func testIterativeDelayedStateSync(t *testing.T, scheme string) {
 			nodeProcessed = len(nodeResults)
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch, nil); err != nil {
+		if err := sched.Commit(batch); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
@@ -479,7 +481,7 @@ func testIterativeRandomStateSync(t *testing.T, count int, scheme string) {
 			}
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch, nil); err != nil {
+		if err := sched.Commit(batch); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
@@ -589,7 +591,7 @@ func testIterativeRandomDelayedStateSync(t *testing.T, scheme string) {
 			}
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch, nil); err != nil {
+		if err := sched.Commit(batch); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
@@ -706,7 +708,7 @@ func testIncompleteStateSync(t *testing.T, scheme string) {
 			}
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch, nil); err != nil {
+		if err := sched.Commit(batch); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()

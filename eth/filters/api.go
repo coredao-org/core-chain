@@ -35,6 +35,7 @@ import (
 )
 
 var (
+	errUnknownBlock           = errors.New("unknown block")
 	errInvalidTopic           = errors.New("invalid topic(s)")
 	errFilterNotFound         = errors.New("filter not found")
 	errInvalidBlockRange      = errors.New("invalid block range params")

@@ -20,8 +20,6 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -360,18 +358,6 @@ func (bc *BlockChain) GetTd(hash common.Hash, number uint64) *big.Int {
 
 // HasState checks if state trie is fully present in the database or not.
 func (bc *BlockChain) HasState(hash common.Hash) bool {
-	if bc.NoTries() {
-		if bc.snaps != nil {
-			return bc.snaps.Snapshot(hash) != nil
-		}
-		// snaps is nil when the blockchain creates
-		found, err := snapshot.PreCheckSnapshot(bc.db, hash)
-		if err != nil {
-			log.Warn("Check HasState in NoTries mode failed", "root", hash, "err", err)
-			return false
-		}
-		return found
-	}
 	_, err := bc.statedb.OpenTrie(hash)
 	return err == nil
 }
@@ -417,14 +403,6 @@ func (bc *BlockChain) StateAt(root common.Hash) (*state.StateDB, error) {
 	stateDb, err := state.New(root, bc.statedb)
 	if err != nil {
 		return nil, err
-	}
-
-	// If there's no trie and the specified snapshot is not available, getting
-	// any state will by default return nil.
-	// Instead of that, it will be more useful to return an error to indicate
-	// the state is not available.
-	if stateDb.NoTrie() && stateDb.GetSnap() == nil {
-		return nil, errors.New("state is not available")
 	}
 
 	return stateDb, err
@@ -537,4 +515,19 @@ func (bc *BlockChain) AncientTail() (uint64, error) {
 		return 0, err
 	}
 	return tail, nil
+}
+
+func (bc *BlockChain) HistoricState(root common.Hash) (*state.StateDB, error) {
+	return state.New(root, state.NewHistoricDatabase(bc.db, bc.triedb))
+}
+
+func (bc *BlockChain) StateIndexProgress() (uint64, error) {
+	return bc.triedb.IndexProgress()
+}
+
+func (bc *BlockChain) HistoryPruningCutoff() (uint64, common.Hash) { return 0, bc.genesisBlock.Hash() }
+
+// GetRawReceipts retrieves stored receipts without deriving log metadata.
+func (bc *BlockChain) GetRawReceipts(hash common.Hash, number uint64) types.Receipts {
+	return rawdb.ReadRawReceipts(bc.db, hash, number)
 }

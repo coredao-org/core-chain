@@ -165,7 +165,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	// Create vote manager
 	// Create a temporary file for the votes journal
-	file, err := os.CreateTemp("", "")
+	file, err := os.CreateTemp(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("failed to create temporary file path: %v", err)
 	}

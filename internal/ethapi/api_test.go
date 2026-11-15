@@ -47,7 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/bloombits"
+	"github.com/ethereum/go-ethereum/core/filtermaps"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -653,10 +653,9 @@ func (b testBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscripti
 func (b testBackend) SubscribePendingLogsEvent(ch chan<- []*types.Log) event.Subscription {
 	panic("implement me")
 }
-func (b testBackend) BloomStatus() (uint64, uint64) { panic("implement me") }
-func (b testBackend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession) {
-	panic("implement me")
-}
+func (b testBackend) HistoryPruningCutoff() uint64                 { return 0 }
+func (b testBackend) CurrentView() *filtermaps.ChainView           { panic("implement me") }
+func (b testBackend) NewMatcherBackend() filtermaps.MatcherBackend { panic("implement me") }
 
 func (b *testBackend) MevRunning() bool                       { return false }
 func (b *testBackend) HasBuilder(builder common.Address) bool { return false }
@@ -3767,3 +3766,5 @@ func testRPCResponseWithFile(t *testing.T, testid int, result interface{}, rpc s
 func addressToHash(a common.Address) common.Hash {
 	return common.BytesToHash(a.Bytes())
 }
+
+func (*precompileContract) Name() string { return "test" }

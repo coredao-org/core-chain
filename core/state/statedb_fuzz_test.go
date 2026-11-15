@@ -89,7 +89,7 @@ func newStateTestAction(addr common.Address, r *rand.Rand, index int) testAction
 				code := make([]byte, 16)
 				binary.BigEndian.PutUint64(code, uint64(a.args[0]))
 				binary.BigEndian.PutUint64(code[8:], uint64(a.args[1]))
-				s.SetCode(addr, code)
+				s.SetCode(addr, code, tracing.CodeChangeUnspecified)
 			},
 			args: make([]int64, 2),
 		},
@@ -202,7 +202,7 @@ func (test *stateTest) run() bool {
 			Recovery:   false,
 			NoBuild:    false,
 			AsyncBuild: false,
-		}, disk, tdb, types.EmptyRootHash, 128, false)
+		}, disk, tdb, types.EmptyRootHash)
 	}
 	for i, actions := range test.actions {
 		root := types.EmptyRootHash

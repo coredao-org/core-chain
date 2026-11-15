@@ -408,7 +408,6 @@ func (db *Database) Commit(node common.Hash, report bool) error {
 	start := time.Now()
 	batch := db.diskdb.NewBatch()
 
-	// Move all of the accumulated preimages into a write batch
 	// Move the trie itself into the batch, flushing if enough data is accumulated
 	nodes, storage := len(db.dirties), db.dirtiesSize
 
@@ -454,7 +453,6 @@ func (db *Database) commit(hash common.Hash, batch ethdb.Batch, uncacher *cleane
 	if !ok {
 		return nil
 	}
-
 	var err error
 
 	// Dereference all children and delete the node
@@ -592,7 +590,7 @@ func (db *Database) Update(root common.Hash, parent common.Hash, block uint64, n
 //
 // The first return will always be 0, representing the memory stored in unbounded
 // diff layers above the dirty cache. This is only available in pathdb.
-func (db *Database) Size() (common.StorageSize, common.StorageSize, common.StorageSize) {
+func (db *Database) Size() (common.StorageSize, common.StorageSize) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -600,7 +598,7 @@ func (db *Database) Size() (common.StorageSize, common.StorageSize, common.Stora
 	// the total memory consumption, the maintenance metadata is also needed to be
 	// counted.
 	var metadataSize = common.StorageSize(len(db.dirties) * cachedNodeSize)
-	return 0, db.dirtiesSize + db.childrenSize + metadataSize, 0
+	return 0, db.dirtiesSize + db.childrenSize + metadataSize
 }
 
 // Close closes the trie database and releases all held resources.

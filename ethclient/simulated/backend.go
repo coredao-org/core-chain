@@ -19,6 +19,7 @@ package simulated
 import (
 	"context"
 	"errors"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -93,6 +94,9 @@ func NewBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Config,
 	}
 	ethConf.SyncMode = ethconfig.FullSync
 	ethConf.TxPool.NoLocals = true
+	// Simulated Ethereum chains use Geth's minimum tip independently of Core's
+	// mainnet miner defaults, so low-fee test transactions can be included.
+	ethConf.Miner.GasPrice = big.NewInt(params.GWei / 1000)
 
 	for _, option := range options {
 		option(&nodeConf, &ethConf)

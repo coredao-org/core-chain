@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/consensus/satoshi"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/bloombits"
+	"github.com/ethereum/go-ethereum/core/filtermaps"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -208,6 +208,9 @@ func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.B
 		return nil, nil, errors.New("header not found")
 	}
 	stateDb, err := b.eth.BlockChain().StateAt(header.Root)
+	if err != nil && b.eth.BlockChain().TrieDB().Scheme() == rawdb.PathScheme {
+		stateDb, err = b.eth.BlockChain().HistoricState(header.Root)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -230,6 +233,9 @@ func (b *EthAPIBackend) StateAndHeaderByNumberOrHash(ctx context.Context, blockN
 			return nil, nil, errors.New("hash is not currently canonical")
 		}
 		stateDb, err := b.eth.BlockChain().StateAt(header.Root)
+		if err != nil && b.eth.BlockChain().TrieDB().Scheme() == rawdb.PathScheme {
+			stateDb, err = b.eth.BlockChain().HistoricState(header.Root)
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -371,6 +377,11 @@ func (b *EthAPIBackend) Downloader() *downloader.Downloader {
 
 func (b *EthAPIBackend) SyncProgress() ethereum.SyncProgress {
 	prog := b.eth.Downloader().Progress()
+	if b.eth.blockchain.TrieDB().Scheme() == rawdb.PathScheme {
+		if remaining, err := b.eth.blockchain.StateIndexProgress(); err == nil {
+			prog.StateIndexRemaining = remaining
+		}
+	}
 	if txProg, err := b.eth.blockchain.TxIndexProgress(); err == nil {
 		prog.TxIndexFinishedBlocks = txProg.Indexed
 		prog.TxIndexRemainingBlocks = txProg.Remaining
@@ -429,15 +440,21 @@ func (b *EthAPIBackend) RPCTxFeeCap() float64 {
 	return b.eth.config.RPCTxFeeCap
 }
 
-func (b *EthAPIBackend) BloomStatus() (uint64, uint64) {
-	sections, _, _ := b.eth.bloomIndexer.Sections()
-	return params.BloomBitsBlocks, sections
+func (b *EthAPIBackend) CurrentView() *filtermaps.ChainView {
+	head := b.eth.blockchain.CurrentBlock()
+	if head == nil {
+		return nil
+	}
+	return filtermaps.NewChainView(b.eth.blockchain, head.Number.Uint64(), head.Hash())
 }
 
-func (b *EthAPIBackend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession) {
-	for i := 0; i < bloomFilterThreads; i++ {
-		go session.Multiplex(bloomRetrievalBatch, bloomRetrievalWait, b.eth.bloomRequests)
-	}
+func (b *EthAPIBackend) NewMatcherBackend() filtermaps.MatcherBackend {
+	return b.eth.filterMaps.NewMatcherBackend()
+}
+
+func (b *EthAPIBackend) HistoryPruningCutoff() uint64 {
+	cutoff, _ := b.eth.blockchain.HistoryPruningCutoff()
+	return cutoff
 }
 
 func (b *EthAPIBackend) Engine() consensus.Engine {

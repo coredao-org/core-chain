@@ -199,12 +199,16 @@ func setupPool() (*LegacyPool, *ecdsa.PrivateKey) {
 }
 
 func setupPoolWithConfig(config *params.ChainConfig) (*LegacyPool, *ecdsa.PrivateKey) {
+	return setupPoolWithConfigs(config, testTxPoolConfig)
+}
+
+func setupPoolWithConfigs(config *params.ChainConfig, poolConfig Config) (*LegacyPool, *ecdsa.PrivateKey) {
 	statedb, _ := state.New(types.EmptyRootHash, state.NewDatabaseForTesting())
 	blockchain := newTestBlockChain(config, 10000000, statedb, new(event.Feed))
 
 	key, _ := crypto.GenerateKey()
-	pool := New(testTxPoolConfig, blockchain)
-	if err := pool.Init(testTxPoolConfig.PriceLimit, blockchain.CurrentBlock(), makeAddressReserver()); err != nil {
+	pool := New(poolConfig, blockchain)
+	if err := pool.Init(poolConfig.PriceLimit, blockchain.CurrentBlock(), makeAddressReserver()); err != nil {
 		panic(err)
 	}
 	// wait for the pool to initialize
@@ -1597,13 +1601,13 @@ func TestRepricingDynamicFee(t *testing.T) {
 // Note, local transactions are never allowed to be dropped.
 func TestUnderpricing(t *testing.T) {
 	t.Parallel()
-	testTxPoolConfig.OverflowPoolSlots = 5
 
 	// Create the pool to test the pricing enforcement with
 	statedb, _ := state.New(types.EmptyRootHash, state.NewDatabaseForTesting())
 	blockchain := newTestBlockChain(params.TestChainConfig, 1000000, statedb, new(event.Feed))
 
 	config := testTxPoolConfig
+	config.OverflowPoolSlots = 5
 	config.GlobalSlots = 2
 	config.GlobalQueue = 2
 
@@ -1842,13 +1846,14 @@ func TestUnderpricingDynamicFee(t *testing.T) {
 func TestDualHeapEviction(t *testing.T) {
 	t.Parallel()
 
-	testTxPoolConfig.OverflowPoolSlots = 1
-	pool, _ := setupPoolWithConfig(eip1559Config)
+	config := testTxPoolConfig
+	config.OverflowPoolSlots = 1
+	// Both heaps need capacity under their 4:1 split. Four total slots would
+	// leave the floating heap empty after a reheap.
+	config.GlobalSlots = 10
+	config.GlobalQueue = 10
+	pool, _ := setupPoolWithConfigs(eip1559Config, config)
 	defer pool.Close()
-
-	pool.config.GlobalSlots = 2
-	pool.config.GlobalQueue = 2
-	pool.config.OverflowPoolSlots = 1
 
 	var (
 		highTip, highCap *types.Transaction
@@ -1864,7 +1869,7 @@ func TestDualHeapEviction(t *testing.T) {
 	}
 
 	add := func(urgent bool) {
-		for i := 0; i < 4; i++ {
+		for i := 0; i < 20; i++ {
 			var tx *types.Transaction
 			// Create a test accounts and fund it
 			key, _ := crypto.GenerateKey()
@@ -1885,8 +1890,8 @@ func TestDualHeapEviction(t *testing.T) {
 			pool.addRemotesSync([]*types.Transaction{tx})
 		}
 		pending, queued := pool.Stats()
-		if pending+queued != 4 {
-			t.Fatalf("transaction count mismatch: have %d, want %d, pending %d, queued %d, OverflowPool %d", pending+queued, 5, pending, queued, pool.localBufferPool.Size())
+		if pending+queued != 20 {
+			t.Fatalf("transaction count mismatch: have %d, want %d, pending %d, queued %d, OverflowPool %d", pending+queued, 20, pending, queued, pool.localBufferPool.Size())
 		}
 	}
 
@@ -2053,8 +2058,9 @@ func TestReplacement(t *testing.T) {
 
 func TestTransferTransactions(t *testing.T) {
 	t.Parallel()
-	testTxPoolConfig.OverflowPoolSlots = 1
-	pool, _ := setupPoolWithConfig(eip1559Config)
+	config := testTxPoolConfig
+	config.OverflowPoolSlots = 1
+	pool, _ := setupPoolWithConfigs(eip1559Config, config)
 	defer pool.Close()
 
 	pool.config.GlobalSlots = 1
@@ -2361,8 +2367,8 @@ func TestSetCodeTransactions(t *testing.T) {
 			pending: 1,
 			run: func(name string) {
 				aa := common.Address{0xaa, 0xaa}
-				statedb.SetCode(addrA, append(types.DelegationPrefix, aa.Bytes()...))
-				statedb.SetCode(aa, []byte{byte(vm.ADDRESS), byte(vm.PUSH0), byte(vm.SSTORE)})
+				statedb.SetCode(addrA, append(types.DelegationPrefix, aa.Bytes()...), tracing.CodeChangeUnspecified)
+				statedb.SetCode(aa, []byte{byte(vm.ADDRESS), byte(vm.PUSH0), byte(vm.SSTORE)}, tracing.CodeChangeUnspecified)
 				// Send transactions. First is accepted, second is rejected.
 				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1), keyA)); err != nil {
 					t.Fatalf("%s: failed to add remote transaction: %v", name, err)
@@ -2572,7 +2578,7 @@ func TestSetCodeTransactionsReorg(t *testing.T) {
 	}
 	// Simulate the chain moving
 	blockchain.statedb.SetNonce(addrA, 1, tracing.NonceChangeAuthorization)
-	blockchain.statedb.SetCode(addrA, types.AddressToDelegation(auth.Address))
+	blockchain.statedb.SetCode(addrA, types.AddressToDelegation(auth.Address), tracing.CodeChangeUnspecified)
 	<-pool.requestReset(nil, nil)
 	// Set an authorization for 0x00
 	auth, _ = types.SignSetCode(keyA, types.SetCodeAuthorization{
@@ -2590,7 +2596,7 @@ func TestSetCodeTransactionsReorg(t *testing.T) {
 	}
 	// Simulate the chain moving
 	blockchain.statedb.SetNonce(addrA, 2, tracing.NonceChangeAuthorization)
-	blockchain.statedb.SetCode(addrA, nil)
+	blockchain.statedb.SetCode(addrA, nil, tracing.CodeChangeUnspecified)
 	<-pool.requestReset(nil, nil)
 	// Now send two transactions from addrA
 	if err := pool.addRemoteSync(pricedTransaction(2, 100000, big.NewInt(1000), keyA)); err != nil {

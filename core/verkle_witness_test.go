@@ -232,8 +232,10 @@ func TestProcessParentBlockHash(t *testing.T) {
 	// etc
 	checkBlockHashes := func(statedb *state.StateDB, isVerkle bool) {
 		statedb.SetNonce(params.HistoryStorageAddress, 1, tracing.NonceChangeUnspecified)
-		statedb.SetCode(params.HistoryStorageAddress, params.HistoryStorageCode)
-		// Process n blocks, from 1 .. num
+		statedb.SetCode(params.HistoryStorageAddress, params.HistoryStorageCode, tracing.
+			// Process n blocks, from 1 .. num
+			CodeChangeUnspecified)
+
 		var num = 2
 		for i := 1; i <= num; i++ {
 			header := &types.Header{ParentHash: common.Hash{byte(i)}, Number: big.NewInt(int64(i)), Difficulty: new(big.Int)}

@@ -64,6 +64,10 @@ func NewBlockValidator(config *params.ChainConfig, blockchain *BlockChain, opts 
 // header's transaction and uncle roots. The headers are assumed to be already
 // validated at this point.
 func (v *BlockValidator) ValidateBody(block *types.Block) error {
+	// check EIP 7934 RLP-encoded block size cap
+	if v.config.IsOsaka(block.Number(), block.Time()) && block.Size() > params.MaxBlockSize {
+		return ErrBlockOversized
+	}
 	// Check whether the block is already imported.
 	if v.bc.HasBlockAndState(block.Hash(), block.NumberU64()) {
 		return ErrKnownBlock
@@ -172,7 +176,7 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 	// For valid blocks this should always validate to true.
 	validateFuns := []func() error{
 		func() error {
-			rbloom := types.CreateBloom(res.Receipts)
+			rbloom := types.MergeBloom(res.Receipts)
 			if rbloom != header.Bloom {
 				return fmt.Errorf("invalid bloom (remote: %x  local: %x)", header.Bloom, rbloom)
 			}

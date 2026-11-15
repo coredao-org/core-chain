@@ -112,7 +112,7 @@ func NewPruner(db ethdb.Database, config Config, triesInMemory uint64) (*Pruner,
 		NoBuild:    true,
 		AsyncBuild: false,
 	}
-	snaptree, err := snapshot.New(snapconfig, db, triedb, headBlock.Root(), int(triesInMemory), false)
+	snaptree, err := snapshot.New(snapconfig, db, triedb, headBlock.Root())
 	if err != nil {
 		return nil, err // The relevant snapshot(s) might not exist
 	}
@@ -236,13 +236,13 @@ func (p *Pruner) pruneAll(maindb ethdb.Database, g *core.Genesis) error {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(triedb.NewDatabase(maindb, nil), p.snaptree))
 	for addr, account := range g.Alloc {
 		statedb.AddBalance(addr, uint256.MustFromBig(account.Balance), tracing.BalanceChangeUnspecified)
-		statedb.SetCode(addr, account.Code)
+		statedb.SetCode(addr, account.Code, tracing.CodeChangeGenesis)
 		statedb.SetNonce(addr, account.Nonce, tracing.NonceChangeGenesis)
 		for key, value := range account.Storage {
 			statedb.SetState(addr, key, value)
 		}
 	}
-	root, _, _ := statedb.Commit(0, false, false)
+	root, _ := statedb.Commit(0, false, false)
 	statedb.Database().TrieDB().Commit(root, true)
 	log.Info("State pruning successful", "pruned", size, "elapsed", common.PrettyDuration(time.Since(start)))
 	return nil
@@ -716,7 +716,7 @@ func RecoverPruning(datadir string, db ethdb.Database, triesInMemory uint64) err
 	}
 	// Offline pruning is only supported in legacy hash based scheme.
 	triedb := triedb.NewDatabase(db, triedb.HashDefaults)
-	snaptree, err := snapshot.New(snapconfig, db, triedb, headBlock.Root(), int(triesInMemory), false)
+	snaptree, err := snapshot.New(snapconfig, db, triedb, headBlock.Root())
 	if err != nil {
 		return err // The relevant snapshot(s) might not exist
 	}

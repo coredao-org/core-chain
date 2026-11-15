@@ -123,26 +123,8 @@ func loadAndParseJournal(db ethdb.KeyValueStore, base *diskLayer) (snapshot, jou
 	return current, generator, nil
 }
 
-func PreCheckSnapshot(db ethdb.KeyValueStore, root common.Hash) (bool, error) {
-	baseRoot := rawdb.ReadSnapshotRoot(db)
-	if baseRoot == (common.Hash{}) {
-		return false, errors.New("missing or corrupted snapshot")
-	}
-	if baseRoot == root {
-		return true, nil
-	}
-	var found bool
-	err := iterateJournal(db, func(parent common.Hash, current common.Hash, accountData map[common.Hash][]byte, storageData map[common.Hash]map[common.Hash][]byte) error {
-		if current == root {
-			found = true
-		}
-		return nil
-	})
-	return found, err
-}
-
 // loadSnapshot loads a pre-existing state snapshot backed by a key-value store.
-func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *triedb.Database, root common.Hash, cache int, recovery bool, noBuild bool, withoutTrie bool) (snapshot, bool, error) {
+func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *triedb.Database, root common.Hash, cache int, recovery bool, noBuild bool) (snapshot, bool, error) {
 	// If snapshotting is disabled (initial sync in progress), don't do anything,
 	// wait for the chain to permit us to do something meaningful
 	if rawdb.ReadSnapshotDisabled(diskdb) {
@@ -161,7 +143,6 @@ func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *triedb.Database, root comm
 		root:   baseRoot,
 	}
 	snapshot, generator, err := loadAndParseJournal(diskdb, base)
-
 	if err != nil {
 		log.Warn("Failed to load journal", "error", err)
 		return nil, false, err
@@ -175,11 +156,6 @@ func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *triedb.Database, root comm
 	// which is below the snapshot. In this case the snapshot can be recovered
 	// by re-executing blocks but right now it's unavailable.
 	if head := snapshot.Root(); head != root {
-		log.Warn("Snapshot is not continuous with chain", "snaproot", head, "chainroot", root)
-
-		if withoutTrie {
-			return snapshot, false, nil
-		}
 		// If it's legacy snapshot, or it's new-format snapshot but
 		// it's not in recovery mode, returns the error here for
 		// rebuilding the entire snapshot forcibly.
@@ -190,6 +166,7 @@ func loadSnapshot(diskdb ethdb.KeyValueStore, triedb *triedb.Database, root comm
 		// the disk layer is always higher than chain head. It can
 		// be eventually recovered when the chain head beyonds the
 		// disk layer.
+		log.Warn("Snapshot is not continuous with chain", "snaproot", head, "chainroot", root)
 	}
 	// Load the disk layer status from the generator if it's not complete
 	if !generator.Done {
@@ -261,7 +238,6 @@ func (dl *diffLayer) Journal(buffer *bytes.Buffer) (common.Hash, error) {
 	if dl.Stale() {
 		return common.Hash{}, ErrSnapshotStale
 	}
-
 	// Everything below was journalled, persist this layer too
 	if err := rlp.Encode(buffer, dl.root); err != nil {
 		return common.Hash{}, err
@@ -374,7 +350,7 @@ func iterateJournal(db ethdb.KeyValueReader, callback journalCallback) error {
 			}
 			if len(destructs) > 0 {
 				log.Warn("Incompatible legacy journal detected", "version", journalV0)
-				return fmt.Errorf("incompatible legacy journal detected")
+				return errors.New("incompatible legacy journal detected")
 			}
 		}
 		if err := r.Decode(&accounts); err != nil {

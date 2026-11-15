@@ -107,6 +107,9 @@ var (
 		utils.TxLookupLimitFlag, // deprecated
 		utils.TransactionHistoryFlag,
 		utils.StateHistoryFlag,
+		utils.LogHistoryFlag,
+		utils.LogNoHistoryFlag,
+		utils.LogExportCheckpointsFlag,
 		utils.PathDBSyncFlag,
 		utils.JournalFileFlag,
 		utils.LightServeFlag,       // deprecated

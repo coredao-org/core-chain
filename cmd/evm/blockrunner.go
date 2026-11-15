@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -28,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/tests"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/exp/maps"
 )
 
 var blockTestCommand = &cli.Command{
@@ -80,8 +80,7 @@ func runBlockTest(ctx *cli.Context, fname string) ([]testResult, error) {
 	tracer := tracerFromFlags(ctx)
 
 	// Pull out keys to sort and ensure tests are run in order.
-	keys := maps.Keys(tests)
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(tests))
 
 	// Run all the tests.
 	var results []testResult
@@ -90,7 +89,7 @@ func runBlockTest(ctx *cli.Context, fname string) ([]testResult, error) {
 			continue
 		}
 		result := &testResult{Name: name, Pass: true}
-		if err := tests[name].Run(false, rawdb.HashScheme, ctx.Bool(WitnessCrossCheckFlag.Name), tracer, func(res error, chain *core.BlockChain) {
+		if err := tests[name].Run(false, rawdb.PathScheme, ctx.Bool(WitnessCrossCheckFlag.Name), tracer, func(res error, chain *core.BlockChain) {
 			if ctx.Bool(DumpFlag.Name) {
 				if s, _ := chain.State(); s != nil {
 					result.State = dump(s)

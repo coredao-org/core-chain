@@ -124,3 +124,5 @@ func hex2Bytes(str string) *hexutil.Bytes {
 	rpcBytes := hexutil.Bytes(common.FromHex(str))
 	return &rpcBytes
 }
+
+func (*precompileContract) Name() string { return "test" }

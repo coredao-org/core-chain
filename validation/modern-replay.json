@@ -1,0 +1,127 @@
+{
+  "referenceVersion": "Geth/v1.0.27-90aca9a0-20261031/linux-amd64/go1.23.12",
+  "allowedAdditionalFields": [
+    "blockTimestamp"
+  ],
+  "checks": [
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0x102e83f7191af896828ee75970f8ab400c57bb81fa48ab6f6b03f5ee01c9028e",
+        "number": "0x12a1d31",
+        "tracer": "callTracer"
+      },
+      "sha256": "ca9c99ad43c5f139b2cca05565ca4c06a5b0773ec4854237b2cdfc59c16ce395",
+      "inputSha256": "16a3fc15911a41d655711ccfb695ab422212bddf1599d2d0b8e63271ea9eb1a2",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0x102e83f7191af896828ee75970f8ab400c57bb81fa48ab6f6b03f5ee01c9028e",
+        "number": "0x12a1d31",
+        "tracer": "prestateTracer"
+      },
+      "sha256": "babf396c3c803ae6c54eebdd6bbba12658f9d130913435692017c8c2433a52e6",
+      "inputSha256": "5c852fac05434574a0d9ab66b9d50e7b840155ef4fccfe072a3104f4aced7614",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0xfbdd44b76f24c2ca200b63c1b2537f8f9666d01b38d413f295781a54f2ae98c3",
+        "number": "0x15ef3c0",
+        "tracer": "callTracer"
+      },
+      "sha256": "b093f00ff0aa7c57d97a6d957568f6e526f61b6a03d122b5394339c55dbf8127",
+      "inputSha256": "db2b8096ab44974c76b0bf77e8ebdbbff94bcbc36caab05d46ca94080aae8610",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0xfbdd44b76f24c2ca200b63c1b2537f8f9666d01b38d413f295781a54f2ae98c3",
+        "number": "0x15ef3c0",
+        "tracer": "prestateTracer"
+      },
+      "sha256": "7f02a81f56cd75aacb05c7136c3ad1663a6f1adae2c9a9e919472a821f05127c",
+      "inputSha256": "5a11b96358b6a00756c6494a7b503eaeb0aaa6fc027cd114515c7ddad7dd5364",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0x5cb6806172b19a0a9401e3971afadb04aa238d7011570eed26a5b4b2abe3ea9b",
+        "number": "0x1c9c380",
+        "tracer": "callTracer"
+      },
+      "sha256": "f037a1fcbe87d7b97654e4857fcdb25960679685823fbf03cfea690f04d6da32",
+      "inputSha256": "9a01a55d3b32f8aeddfa26b8613ef3a89c5e25c1a10740f608442fbe5a6eef91",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0x5cb6806172b19a0a9401e3971afadb04aa238d7011570eed26a5b4b2abe3ea9b",
+        "number": "0x1c9c380",
+        "tracer": "prestateTracer"
+      },
+      "sha256": "fb91424781f39fdebf7c2555341248eaf2d6c2fc01b8ab5650c5a0df8f3910da",
+      "inputSha256": "ec778bf224df16807c1a27cb3c61c0711ca7aa5d10dabefc23dc40382383da4e",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0xc90e250d52838f9e3483e36de2fbc2adda74bce75c408f499cf0567b8746a8a5",
+        "number": "0x2625a0b",
+        "tracer": "callTracer"
+      },
+      "sha256": "d809472e2db8145bfcb87b91fd4ddb6b8c690af528522a1c150129a5b49dd31f",
+      "inputSha256": "c6f9b7c790c41e6e12b4933823bf72718b195a6826c619999e7212eb72f3835a",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0xc90e250d52838f9e3483e36de2fbc2adda74bce75c408f499cf0567b8746a8a5",
+        "number": "0x2625a0b",
+        "tracer": "prestateTracer"
+      },
+      "sha256": "6ccfcc39e2e6b5cd2924947e0048529c061a26965246c994598e7c11695728a9",
+      "inputSha256": "997643bb6ca9fc162a5c698fcc394434be6bb7244f8f9f7a195c2dc9c9206c08",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0xbb24aaa8304e40b2cb4b111fb71845c50f24f601076ad957348469eb51d4060a",
+        "number": "0x2671084",
+        "tracer": "callTracer"
+      },
+      "sha256": "d3f0b4c4e7454454bf5d1585426e0dbd6a7cd2ecdae7cad578eea97a58cce615",
+      "inputSha256": "58bbc4bfc57466044d3f64b8bddd3c7c8fdf6f6a932bc89f400515eee039ed82",
+      "matchesOriginalTransaction": true
+    },
+    {
+      "method": "debug_traceCall",
+      "params": {
+        "transaction": "0xbb24aaa8304e40b2cb4b111fb71845c50f24f601076ad957348469eb51d4060a",
+        "number": "0x2671084",
+        "tracer": "prestateTracer"
+      },
+      "sha256": "ffa4bb0129ea0e53ebdd4f62ccb84b24fe86eceb11d3214d77648186cbd297c6",
+      "inputSha256": "37549becfb9f1ec1825d8711521d849c21acec14b6ddf426a3a24e7eedfa6ff1",
+      "matchesOriginalTransaction": true
+    }
+  ],
+  "passed": 10,
+  "candidateBuild": {
+    "coreVersion": "1.0.27",
+    "gethVersion": "1.16.9",
+    "sourceCommit": "2f9c0ec45634046cc3cc89a39cad09f8d547111e",
+    "buildDate": "20261109",
+    "platform": "darwin-arm64",
+    "goVersion": "go1.24.4"
+  }
+}

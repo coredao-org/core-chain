@@ -24,7 +24,6 @@ import (
 	"math/big"
 	"runtime"
 	"slices"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -185,25 +184,18 @@ type CacheConfig struct {
 
 // triedbConfig derives the configures for trie database.
 func (c *CacheConfig) triedbConfig(isVerkle bool) *triedb.Config {
-	config := &triedb.Config{
-		Cache:     c.TrieCleanLimit,
-		Preimages: c.Preimages,
-		NoTries:   c.NoTries,
-		IsVerkle:  isVerkle,
-	}
+	config := &triedb.Config{Preimages: c.Preimages, IsVerkle: isVerkle}
 	if c.StateScheme == rawdb.HashScheme {
-		config.HashDB = &hashdb.Config{
-			CleanCacheSize: c.TrieCleanLimit * 1024 * 1024,
-		}
+		config.HashDB = &hashdb.Config{CleanCacheSize: c.TrieCleanLimit * 1024 * 1024}
 	}
 	if c.StateScheme == rawdb.PathScheme {
 		config.PathDB = &pathdb.Config{
-			SyncFlush:       c.PathSyncFlush,
-			StateHistory:    c.StateHistory,
-			CleanCacheSize:  c.TrieCleanLimit * 1024 * 1024,
-			WriteBufferSize: c.TrieDirtyLimit * 1024 * 1024,
-			JournalFilePath: c.JournalFilePath,
-			JournalFile:     c.JournalFile,
+			StateHistory:        c.StateHistory,
+			TrieCleanSize:       c.TrieCleanLimit * 1024 * 1024,
+			StateCleanSize:      c.SnapshotLimit * 1024 * 1024,
+			WriteBufferSize:     c.TrieDirtyLimit * 1024 * 1024,
+			EnableStateIndexing: c.TrieDirtyDisabled,
+			NoAsyncFlush:        c.PathSyncFlush,
 		}
 	}
 	return config
@@ -353,6 +345,9 @@ type BlockChain struct {
 func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis, overrides *ChainOverrides, engine consensus.Engine,
 	vmConfig vm.Config, shouldPreserve func(block *types.Header) bool, txLookupLimit *uint64,
 	options ...BlockChainOption) (*BlockChain, error) {
+	if cacheConfig != nil && cacheConfig.NoTries {
+		return nil, errors.New("Core RPC/archive requires local state verification")
+	}
 	if cacheConfig == nil {
 		cacheConfig = defaultCacheConfig
 	}
@@ -471,7 +466,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 			// disk layer point of snapshot(if it's enabled). Make sure the
 			// rewound point is lower than disk layer.
 			var diskRoot common.Hash
-			if bc.cacheConfig.SnapshotLimit > 0 {
+			if bc.cacheConfig.SnapshotLimit > 0 && bc.triedb.Scheme() == rawdb.HashScheme {
 				diskRoot = rawdb.ReadSnapshotRoot(bc.db)
 				log.Debug("Head state missing, ReadSnapshotRoot", "snap root", diskRoot)
 			}
@@ -558,7 +553,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	}
 
 	// Load any existing snapshot, regenerating it if loading failed
-	if bc.cacheConfig.SnapshotLimit > 0 {
+	if bc.cacheConfig.SnapshotLimit > 0 && bc.triedb.Scheme() == rawdb.HashScheme {
 		// If the chain was rewound past the snapshot persistent layer (causing
 		// a recovery block number to be persisted to disk), check if we're still
 		// in recovery mode and in that case, don't invalidate the snapshot on a
@@ -576,7 +571,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 			NoBuild:    bc.cacheConfig.SnapshotNoBuild,
 			AsyncBuild: !bc.cacheConfig.SnapshotWait,
 		}
-		bc.snaps, _ = snapshot.New(snapconfig, bc.db, bc.triedb, head.Root, int(bc.cacheConfig.TriesInMemory), bc.NoTries())
+		bc.snaps, _ = snapshot.New(snapconfig, bc.db, bc.triedb, head.Root)
 
 		// Re-initialize the state database with snapshot
 		bc.statedb = state.NewDatabase(bc.triedb, bc.snaps)
@@ -626,7 +621,7 @@ func (bc *BlockChain) GetVMConfig() *vm.Config {
 }
 
 func (bc *BlockChain) NoTries() bool {
-	return bc.statedb.NoTries()
+	return bc.cacheConfig.NoTries
 }
 
 // FeeMarket returns the fee market provider
@@ -665,45 +660,6 @@ func (bc *BlockChain) cacheReceipts(hash common.Hash, receipts types.Receipts, b
 	bc.receiptsCache.Add(hash, receipts)
 }
 
-func (bc *BlockChain) cacheDiffLayer(diffLayer *types.DiffLayer, diffLayerCh chan struct{}) {
-	// The difflayer in the system is stored by the map structure,
-	// so it will be out of order.
-	// It must be sorted first and then cached,
-	// otherwise the DiffHash calculated by different nodes will be inconsistent
-	sort.SliceStable(diffLayer.Codes, func(i, j int) bool {
-		return diffLayer.Codes[i].Hash.Hex() < diffLayer.Codes[j].Hash.Hex()
-	})
-	sort.SliceStable(diffLayer.Destructs, func(i, j int) bool {
-		return diffLayer.Destructs[i].Hex() < (diffLayer.Destructs[j].Hex())
-	})
-	sort.SliceStable(diffLayer.Accounts, func(i, j int) bool {
-		return diffLayer.Accounts[i].Account.Hex() < diffLayer.Accounts[j].Account.Hex()
-	})
-	sort.SliceStable(diffLayer.Storages, func(i, j int) bool {
-		return diffLayer.Storages[i].Account.Hex() < diffLayer.Storages[j].Account.Hex()
-	})
-	for index := range diffLayer.Storages {
-		// Sort keys and vals by key.
-		sort.Sort(&diffLayer.Storages[index])
-	}
-
-	if bc.diffLayerCache.Len() >= diffLayerCacheLimit {
-		bc.diffLayerCache.RemoveOldest()
-	}
-
-	bc.diffLayerCache.Add(diffLayer.BlockHash, diffLayer)
-	close(diffLayerCh)
-
-	if bc.db.DiffStore() != nil {
-		// push to priority queue before persisting
-		bc.diffQueueBuffer <- diffLayer
-	}
-}
-
-// empty returns an indicator whether the blockchain is empty.
-// Note, it's a special case that we connect a non-empty ancient
-// database with an empty node, so that we can plugin the ancient
-// into node seamlessly.
 func (bc *BlockChain) empty() bool {
 	genesis := bc.genesisBlock.Hash()
 	for _, hash := range []common.Hash{rawdb.ReadHeadBlockHash(bc.db), rawdb.ReadHeadHeaderHash(bc.db), rawdb.ReadHeadFastBlockHash(bc.db)} {
@@ -1063,13 +1019,13 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 		if currentBlock := bc.CurrentBlock(); currentBlock != nil && header.Number.Uint64() <= currentBlock.Number.Uint64() {
 			// load bc.snaps for the judge `HasState`
 			if bc.NoTries() {
-				if bc.cacheConfig.SnapshotLimit > 0 {
+				if bc.cacheConfig.SnapshotLimit > 0 && bc.triedb.Scheme() == rawdb.HashScheme {
 					snapconfig := snapshot.Config{
 						CacheSize:  bc.cacheConfig.SnapshotLimit,
 						NoBuild:    bc.cacheConfig.SnapshotNoBuild,
 						AsyncBuild: !bc.cacheConfig.SnapshotWait,
 					}
-					bc.snaps, _ = snapshot.New(snapconfig, bc.db, bc.triedb, header.Root, int(bc.cacheConfig.TriesInMemory), bc.NoTries())
+					bc.snaps, _ = snapshot.New(snapconfig, bc.db, bc.triedb, header.Root)
 				}
 				defer func() { bc.snaps = nil }()
 			}
@@ -1437,7 +1393,7 @@ func (bc *BlockChain) Stop() {
 					for !bc.triegc.Empty() {
 						triedb.Dereference(bc.triegc.PopItem())
 					}
-					if _, size, _, _ := triedb.Size(); size != 0 {
+					if _, size, _ := triedb.Size(); size != 0 {
 						log.Error("Dangling trie nodes after full cleanup")
 					}
 				}
@@ -1836,25 +1792,9 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}()
 
 	// Commit all cached state changes into underlying memory database.
-	root, diffLayer, err := statedb.Commit(block.NumberU64(), bc.chainConfig.IsEIP158(block.Number()), bc.chainConfig.IsCancun(block.Number(), block.Time()))
+	root, err := statedb.Commit(block.NumberU64(), bc.chainConfig.IsEIP158(block.Number()), bc.chainConfig.IsCancun(block.Number(), block.Time()))
 	if err != nil {
 		return err
-	}
-
-	// Ensure no empty block body
-	if diffLayer != nil && block.Header().TxHash != types.EmptyRootHash {
-		// Filling necessary field
-		diffLayer.Receipts = receipts
-		diffLayer.BlockHash = block.Hash()
-		diffLayer.Number = block.NumberU64()
-
-		diffLayerCh := make(chan struct{})
-		if bc.diffLayerChanCache.Len() >= diffLayerCacheLimit {
-			bc.diffLayerChanCache.RemoveOldest()
-		}
-		bc.diffLayerChanCache.Add(diffLayer.BlockHash, diffLayerCh)
-
-		go bc.cacheDiffLayer(diffLayer, diffLayerCh)
 	}
 
 	// If node is running in path mode, skip explicit gc operation
@@ -1877,8 +1817,8 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}
 	// If we exceeded our memory allowance, flush matured singleton nodes to disk
 	var (
-		_, nodes, _, imgs = bc.triedb.Size()
-		limit             = common.StorageSize(bc.cacheConfig.TrieDirtyLimit) * 1024 * 1024
+		_, nodes, imgs = bc.triedb.Size()
+		limit          = common.StorageSize(bc.cacheConfig.TrieDirtyLimit) * 1024 * 1024
 	)
 	if nodes > limit || imgs > 4*1024*1024 {
 		bc.triedb.Cap(limit - ethdb.IdealBatchSize)
@@ -2264,7 +2204,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, makeWitness 
 			parent = bc.GetHeader(block.ParentHash(), block.NumberU64()-1)
 		}
 
-		statedb, err := state.NewWithSharedPool(parent.Root, bc.statedb)
+		statedb, err := state.New(parent.Root, bc.statedb)
 		if err != nil {
 			return nil, it.index, err
 		}
@@ -2283,7 +2223,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, makeWitness 
 					return nil, it.index, err
 				}
 			}
-			statedb.StartPrefetcher("chain", witness)
+			statedb.StartPrefetcher("chain", witness, nil)
 		}
 
 		interruptCh := make(chan struct{})
@@ -2291,16 +2231,11 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, makeWitness 
 		if !bc.cacheConfig.TrieCleanNoPrefetch && len(block.Transactions()) >= prefetchTxNumber {
 			// do Prefetch in a separate goroutine to avoid blocking the critical path
 			// 1.do state prefetch for snapshot cache
-			throwaway := statedb.CopyDoPrefetch()
+			throwaway := statedb.Copy()
 			// Disable tracing for prefetcher executions.
 			vmCfg := bc.vmConfig
 			vmCfg.Tracer = nil
 			go bc.prefetcher.Prefetch(block, throwaway, &vmCfg, interruptCh)
-
-			// 2.do trie prefetch for MPT trie node cache
-			// it is for the big state trie tree, prefetch based on transaction's From/To address.
-			// trie prefetcher is thread safe now, ok to prefetch in a separate routine
-			go throwaway.TriePrefetchInAdvance(block, signer)
 		}
 
 		// The traced section of block import.
@@ -2316,9 +2251,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool, makeWitness 
 
 		var snapDiffItems, snapBufItems common.StorageSize
 		if bc.snaps != nil {
-			snapDiffItems, snapBufItems, _ = bc.snaps.Size()
+			snapDiffItems, snapBufItems = bc.snaps.Size()
 		}
-		trieDiffNodes, trieBufNodes, trieImmutableBufNodes, _ := bc.triedb.Size()
+		trieDiffNodes, trieBufNodes, _ := bc.triedb.Size()
+		var trieImmutableBufNodes common.StorageSize
 		stats.report(chain, it.index, snapDiffItems, snapBufItems, trieDiffNodes, trieBufNodes, trieImmutableBufNodes, res.status == CanonStatTy)
 
 		if !setHead {
@@ -2401,8 +2337,6 @@ type blockProcessingResult struct {
 // processBlock executes and validates the given block. If there was no error
 // it writes the block and associated state to database.
 func (bc *BlockChain) processBlock(block *types.Block, statedb *state.StateDB, start time.Time, setHead bool, interruptCh chan struct{}) (_ *blockProcessingResult, blockEndErr error) {
-	statedb.SetExpectedStateRoot(block.Root())
-
 	if bc.logger != nil && bc.logger.OnBlockStart != nil {
 		td := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 		bc.logger.OnBlockStart(tracing.BlockEvent{

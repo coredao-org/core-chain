@@ -1,0 +1,103 @@
+{
+  "observedAtUTC": "2026-11-13T17:26:23.427555+00:00",
+  "sourceCommit": "86bcb14892c3ca01e4771e2fee5de62003fdd0cd",
+  "referenceVersion": "Geth/v1.0.27-90aca9a0-20261031/linux-amd64/go1.23.12",
+  "allowedAdditionalFields": [
+    "blockTimestamp"
+  ],
+  "passed": 25409,
+  "methods": {
+    "eth_getBlockByNumber": 900,
+    "debug_getRawBlock": 900,
+    "eth_getBlockReceipts": 900,
+    "eth_getLogs": 900,
+    "eth_getBalance": 3149,
+    "eth_getTransactionCount": 3149,
+    "eth_getCode": 3600,
+    "eth_getStorageAt": 6749,
+    "eth_call": 1351,
+    "eth_getTransactionByHash": 1593,
+    "eth_getTransactionReceipt": 1593,
+    "debug_traceBlockByNumber": 250,
+    "eth_estimateGas": 125,
+    "debug_traceCall": 125,
+    "debug_traceTransaction": 125
+  },
+  "blocks": 900,
+  "tracedBlocks": 125,
+  "transactions": 8380,
+  "logs": 12367,
+  "forkBoundaries": {
+    "Zeus": 8020000,
+    "Hera": 12195500,
+    "Poseidon": 13232049,
+    "Berlin/London/Hertz": 19537200,
+    "Shanghai/Kepler/Demeter": 19565839,
+    "Athena": 21747032,
+    "Theseus/Cancun": 25844375,
+    "TheseusFix": 26880878,
+    "Hermes/Prague": 30250134,
+    "CoreRewardFix": 38376795,
+    "Fermi": 40093117
+  },
+  "elapsedSeconds": 1179,
+  "planSha256": "ca23f5d29dccefcb3b37076ebb11a10d0905d7dfd3dfe85e29f45c2846a1a40a",
+  "checksSha256": "45f67294d9739698bf70d50ef9b76ca12d54c2885342faedb3dfb975ced41d92",
+  "limitations": [
+    "Deterministic stratified sampling and all configured fork boundaries; not an exhaustive query of every historical account or trace.",
+    "Historical eth_getProof is unsupported by the path archive."
+  ],
+  "sampling": {
+    "seed": 111620261113,
+    "randomStrata": 768,
+    "earlyDenseBlocks": 32,
+    "latestDenseBlocks": 32,
+    "forkAdjacentOffsets": [
+      -2,
+      -1,
+      0,
+      1,
+      2
+    ],
+    "plan": "full-history-plan.json"
+  },
+  "extended": {
+    "canonicalBlockComparisons": 10000,
+    "historicalLogWindows": 64,
+    "blocksPerLogWindow": 5000,
+    "methods": {
+      "eth_getBlockByNumber": 10000,
+      "eth_getLogs": 64
+    },
+    "passed": 10064,
+    "elapsedSeconds": 344,
+    "checksSha256": "9c07daea59df67e599dc0d7896a655b3255292f9146a7a4fe5cf178ab592f41b"
+  },
+  "totalComparisons": 35473,
+  "extendedSampling": {
+    "seed": 11161620261113,
+    "strata": 10000,
+    "head": 40425001,
+    "algorithm": "random.Random(seed).randint(1+head*i//strata, max(1+head*i//strata, head*(i+1)//strata)) for i in range(strata)"
+  },
+  "storageObservation": {
+    "measuredAtUTC": "2026-11-13T17:37:01.816431+00:00",
+    "candidateAllocatedBytes": 389667274752,
+    "referenceAllocatedBytes": 5025223630848,
+    "reductionPercent": 92.25,
+    "note": "Observed filesystem allocation after full sync; not a controlled benchmark."
+  },
+  "restartVerification": {
+    "passed": 150,
+    "historicalHeights": 37,
+    "newHeadsSubscription": "Two advancing headers received after restart."
+  },
+  "candidateBuild": {
+    "coreVersion": "1.0.27",
+    "gethVersion": "1.16.9",
+    "sourceCommit": "86bcb14892c3ca01e4771e2fee5de62003fdd0cd",
+    "buildDate": "20261112",
+    "platform": "linux-amd64",
+    "goVersion": "go1.24.13"
+  }
+}

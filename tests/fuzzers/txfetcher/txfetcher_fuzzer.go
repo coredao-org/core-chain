@@ -84,7 +84,8 @@ func fuzz(input []byte) int {
 		},
 		func(string, []common.Hash) error { return nil },
 		nil,
-		clock, rand,
+		clock,
+		rand,
 	)
 	f.Start()
 	defer f.Stop()

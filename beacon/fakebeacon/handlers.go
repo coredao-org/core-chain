@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/prysmaticlabs/prysm/v5/api/server/structs"
-	field_params "github.com/prysmaticlabs/prysm/v5/config/fieldparams"
+	beaconparams "github.com/prysmaticlabs/prysm/v5/config/params"
 	"github.com/prysmaticlabs/prysm/v5/network/httputil"
 )
 
@@ -60,7 +60,7 @@ func (s *Service) SidecarsMethod(w http.ResponseWriter, r *http.Request) {
 // parseIndices filters out invalid and duplicate blob indices
 func parseIndices(url *url.URL) ([]int, error) {
 	rawIndices := url.Query()["indices"]
-	indices := make([]int, 0, field_params.MaxBlobsPerBlock)
+	indices := make([]int, 0, beaconparams.BeaconConfig().MaxBlobsPerBlock(0))
 	invalidIndices := make([]string, 0)
 loop:
 	for _, raw := range rawIndices {
@@ -69,7 +69,7 @@ loop:
 			invalidIndices = append(invalidIndices, raw)
 			continue
 		}
-		if ix >= field_params.MaxBlobsPerBlock {
+		if ix >= beaconparams.BeaconConfig().MaxBlobsPerBlock(0) {
 			invalidIndices = append(invalidIndices, raw)
 			continue
 		}
