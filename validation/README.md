@@ -43,13 +43,30 @@ addresses and credentials are not recorded.
   disabled-index fallback passed 389 RPC/tracing checks and 20 strict log-range
   comparisons. Sixteen later transactions across all 11 fork groups passed 32
   sparse replay comparisons, each also matching its original transaction trace.
-  This build has not undergone another complete mainnet sync or storage
-  benchmark. Fixture samples use consecutive positions rather than the full
+  These initial fixture checks did not include another complete mainnet sync or
+  storage benchmark. Fixture samples use consecutive positions rather than the full
   mainnet layout; the report distinguishes that from native block-range tests.
   The complete `./tests` conformance suite also passed without short mode using
   execution-spec-tests v5.1.0 and all storage configurations. Its two exclusions
   match Geth v1.16.9's missing-system-contract deployment fixture exclusions and
   are listed in the report.
+- `mainnet-filtermaps.json`: final executable source
+  `fff0d506f76b4557a5c977c3ac3c0b7b0deed858`, with all seven CI checks passing.
+  A fresh canonical 512-block import and 102 RPC comparisons passed. The binary
+  then built the complete mainnet log index over a consistent copy of the
+  previously full-synced archive: blocks 0–40,451,575, followed by a clean restart
+  that reloaded through 40,451,617 with the head indexed. Indexed queries produced
+  filtermaps row reads. The final binary matched 35,473 recorded official-client
+  responses, including 500 tracing comparisons, across the historical plan.
+  After full indexing and restart, 1,657 filter queries at 94 historical heights
+  matched the previously qualified bloom-index archive; 150 official-golden
+  replay checks, 41 recent state/tracing comparisons and WebSocket subscriptions
+  also passed. Only `blockTimestamp` is normalized, with separate header checks.
+  Whole-datadir allocation was about 368.7 GiB, versus 363.8 GiB for the earlier
+  path archive; this includes compaction and chain growth. This run did not repeat
+  the final binary's state sync from genesis. The report distinguishes direct
+  official-response replay, bloom-reference comparisons and index lifecycle
+  evidence, and records hashes of local transcripts without embedding endpoints.
 
 Modern replays use touched prestate and block overrides. They do not validate
 complete modern block state roots, consensus or state outside the captured

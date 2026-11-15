@@ -129,6 +129,35 @@ exercise pruning, index lag and concurrent reorgs.
 The capture script accepts `--golden checks.jsonl` to check log results against
 previously recorded official-client comparisons. Raw fixtures remain local.
 See [filtermaps validation](validation/filtermaps.json) for the tested source,
-evidence hashes, native restart/rewind checks and tracing coverage. The earlier
-full-sync qualification applies to its recorded source, not to a new full sync
-of the filtermaps build.
+evidence hashes, native restart/rewind checks and tracing coverage.
+
+## Mainnet filtermaps qualification
+
+The final executable source, `fff0d506f76b4557a5c977c3ac3c0b7b0deed858`,
+passed all seven CI checks and a fresh 512-block import. It then opened a
+consistent copy of a previously full-synced path archive and built the complete
+mainnet log index from block 0 through 40,451,575. A clean restart reloaded the
+index through block 40,451,617 with `headindexed=true`; subsequent queries
+increased filtermaps row-access metrics. This is full mainnet log-index coverage,
+not a second genesis-to-head state sync of this binary.
+
+The candidate matched 35,473 immutable official Core v1.0.27 response hashes,
+including 500 tracing comparisons and all 11 configured fork-boundary groups.
+After indexing and restart, 1,657 log-filter queries across 94 historical heights
+matched the earlier bloom-index archive, itself independently qualified against
+the official client. These cover address/topic combinations, OR/AND semantics,
+wildcards, empty criteria, block hashes and historical ranges. Another 150
+historical replay checks, 41 recent state/tracing checks around the live-state
+history boundary, and WebSocket head subscriptions passed after restart.
+
+The whole filtermaps archive occupied approximately **368.7 GiB**, compared with
+**363.8 GiB** for the earlier path archive at contemporaneous mainnet heads.
+This comparison includes chain growth and compaction; it does not isolate index
+size. Index construction took approximately 2 hours 53 minutes under the
+conditions recorded in [the mainnet report](validation/mainnet-filtermaps.json).
+These are operational observations, not controlled performance benchmarks.
+
+The report records source commits, method counts, sample heights, native index
+lifecycle logs, timestamp checks, storage measurements and evidence hashes.
+Historical query and tracing comparisons remain sampled; historical Merkle
+proofs and validator operation remain outside this qualification.
